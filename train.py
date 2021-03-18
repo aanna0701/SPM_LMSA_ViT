@@ -231,3 +231,4 @@ if __name__ == "__main__":
         writer.add_scalar('Learning Rate/', optimizer.param_groups[0]['lr'], epoch)
         writer.add_scalar('Initial Learning Rate/', args.lr, epoch)
 
+    logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\nmodel: {}\nseed: {}'.format(early_stop, args.model, args.seed))
