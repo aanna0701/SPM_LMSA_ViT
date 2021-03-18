@@ -212,7 +212,7 @@ if __name__ == "__main__":
                 }, save_path+'/best.pt')
 
         else:
-            logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}'.format(early_stop))
+            logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}'.format(early_stopping.best_value))
             # model.state_dict(): 딕셔너리 형태로 모델의 Layer와 Weight가 저장되어있음.
             torch.save({
                 'epoch': epoch,
@@ -231,4 +231,4 @@ if __name__ == "__main__":
         writer.add_scalar('Learning Rate/', optimizer.param_groups[0]['lr'], epoch)
         writer.add_scalar('Initial Learning Rate/', args.lr, epoch)
 
-    logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\nmodel: {}\nseed: {}'.format(early_stop, args.model, args.seed))
+    logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\nmodel: {}\nseed: {}'.format(early_stopping.best_value, args.model, args.seed))
