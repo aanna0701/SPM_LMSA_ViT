@@ -24,6 +24,8 @@ import random
 
 import models
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+
 ########### constants
 
 init(autoreset=True)
