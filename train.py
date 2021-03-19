@@ -39,6 +39,7 @@ batch_size = 128
 test_batch_size = 128
 epochs = 200
 ealry_stopping_patience = 500
+weight_decay = 1e-4
 
 ############ args
 
@@ -143,8 +144,10 @@ if __name__ == "__main__":
         model = models.resnet56_nlb_9()
         
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
-        \n# Initial Learning Rate: {}\
-            \n# Seed: {}'.format(args.model, args.lr, args.seed) + Style.RESET_ALL)  
+                                                \n# Initial Learning Rate: {}\
+                                                \n# Seed: {}\
+                                                \n# Weigth decay: {}'\
+                                                .format(args.model, args.lr, args.seed, weight_decay) + Style.RESET_ALL)  
         
     if args.multi_gpus: # Using multi-gpu
         model = nn.DataParallel(model)
@@ -156,7 +159,7 @@ if __name__ == "__main__":
     ############ trainers
 
     # optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0001 )
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [100, 150], gamma=0.1)
 
     ############ training loop
@@ -231,4 +234,8 @@ if __name__ == "__main__":
         writer.add_scalar('Learning Rate/', optimizer.param_groups[0]['lr'], epoch)
         writer.add_scalar('Initial Learning Rate/', args.lr, epoch)
 
-    logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\nmodel: {}\nseed: {}'.format(early_stopping.best_value, args.model, args.seed))
+    logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\
+                                            \nmodel: {}\
+                                            \nseed: {}\
+                                            \nweight_decay: {}'\
+                                            .format(early_stopping.best_value, args.model, args.seed, weight_decay))
