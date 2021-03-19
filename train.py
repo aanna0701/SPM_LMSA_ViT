@@ -156,8 +156,8 @@ if __name__ == "__main__":
     ############ trainers
 
     # optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0001 )
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-5)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [150, 175], gamma=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [100, 150], gamma=0.1)
 
     ############ training loop
 
