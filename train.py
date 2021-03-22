@@ -156,7 +156,7 @@ if __name__ == "__main__":
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)  
     
     model.cuda()
-    summary(model, (3, 32, 32))
+    logger.debug(summary(model, (3, 32, 32)))
 
     ############ trainers
 
