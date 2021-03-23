@@ -33,6 +33,21 @@ use_cuda = True
 kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
 now = datetime.now().strftime('%Y-%m-%d-%H_%M')
 
+############ args
+
+parser = argparse.ArgumentParser(description='Train')
+parser.add_argument('--dataset_dir', help='path of input images', default='/media/CVIP/Hyundai2020/dataset/training/0809')
+parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
+parser.add_argument('--model', help='model', required=True)
+parser.add_argument('--multi_gpus', help='multi gpus', action='store_true')
+parser.add_argument('--seed', help='seed', type=int, required=True)
+parser.add_argument('--pooling', help='pooling of SwGA', type=str, default='sum', required=True)
+
+args = parser.parse_args()
+
+assert args.model in ['resnet56', 'nlb_1', 'nlb_2', 'nlb_3', 'nlb_4', 'nlb_5', 'nlb_6',
+                      'swga_1', 'swga_2', 'swga_3', 'swga_4', 'swga_5', 'swga_6'], 'Unexpected model!'
+
 ############ varaiables
 
 FINETUNING = False
@@ -42,19 +57,8 @@ test_batch_size = 128
 epochs = 200
 ealry_stopping_patience = 500
 weight_decay = 1e-4
-
-############ args
-
-parser = argparse.ArgumentParser(description='Train')
-parser.add_argument('--dataset_dir', help='path of input images', default='/media/CVIP/Hyundai2020/dataset/training/0809')
-parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
-parser.add_argument('--model', help='model', required=True)
-parser.add_argument('--multi_gpus', help='multi gpus', action='store_true')
-parser.add_argument('--seed', help='seed', type=int, required=True)
-
-args = parser.parse_args()
-
-assert args.model in ['resnet56', 'nlb_1', 'nlb_2', 'nlb_3', 'nlb_4', 'nlb_5', 'nlb_6', 'nlb_9', 'gasa'], 'Unexpected model!'
+models.S.POOLING = args.pooling
+gamma_best = 0.
 
 if __name__ == "__main__":
 
@@ -141,9 +145,24 @@ if __name__ == "__main__":
     
     elif args.model == 'nlb_6':
         model = models.resnet56_nlb_6()
+        
+    elif args.model == 'swga_1':
+        model = models.resnet56_swga_1()
     
-    elif args.model == 'nlb_9':
-        model = models.resnet56_nlb_9()
+    elif args.model == 'swga_2':
+        model = models.resnet56_swga_2()
+    
+    elif args.model == 'swga_3':
+        model = models.resnet56_swga_3()
+
+    elif args.model == 'swga_4':
+        model = models.resnet56_swga_4()
+
+    elif args.model == 'swga_5':
+        model = models.resnet56_swga_5()
+    
+    elif args.model == 'swga_6':
+        model = models.resnet56_swga_6()
         
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
@@ -156,8 +175,23 @@ if __name__ == "__main__":
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)  
     
     model.cuda()
-    logger.debug(summary(model, (3, 32, 32)))
-
+    summary(model, (3, 32, 32))
+    
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    params = sum([np.prod(p.size()) for p in model_parameters])
+    
+    # print gamma value
+    def get_gamma(model):
+        for name, param in model.named_parameters():
+            
+            if 'gamma' in name:
+                logger.debug(Fore.CYAN + Style.BRIGHT + '\ngamma: {}\
+                                                         \ngmmma_sigmoid: {}'\
+                                            .format(param.item(), torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
+                return param.item()
+        
+    
+    
     ############ trainers
 
     # optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0001 )
@@ -215,6 +249,7 @@ if __name__ == "__main__":
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss
                 }, save_path+'/best.pt')
+                best_gamma = get_gamma(model)
 
         else:
             logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}'.format(early_stopping.best_value))
@@ -239,5 +274,7 @@ if __name__ == "__main__":
     logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\
                                             \nmodel: {}\
                                             \nseed: {}\
-                                            \nweight_decay: {}'\
-                                            .format(early_stopping.best_value, args.model, args.seed, weight_decay))
+                                            \nweight_decay: {}\
+                                            \ntotal parameters: {}\
+                                            \nbest gamma: {}'\
+                                            .format(early_stopping.best_value, args.model, args.seed, weight_decay, params, gamma_best))

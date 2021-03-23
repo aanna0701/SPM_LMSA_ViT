@@ -109,21 +109,21 @@ class NONLocalBlock2D(_NonLocalBlockND):
 #                                               bn_layer=bn_layer)
 
 
-if __name__ == '__main__':
-    import torch
+# if __name__ == '__main__':
+#     import torch
 
-    for (sub_sample, bn_layer) in [(True, True), (False, False), (True, False), (False, True)]:
-        img = torch.zeros(2, 3, 20)
-        net = NONLocalBlock1D(3, sub_sample=sub_sample, bn_layer=bn_layer)
-        out = net(img)
-        print(out.size())
+#     for (sub_sample, bn_layer) in [(True, True), (False, False), (True, False), (False, True)]:
+#         img = torch.zeros(2, 3, 20)
+#         net = NONLocalBlock1D(3, sub_sample=sub_sample, bn_layer=bn_layer)
+#         out = net(img)
+#         print(out.size())
 
-        img = torch.zeros(2, 3, 20, 20)
-        net = NONLocalBlock2D(3, sub_sample=sub_sample, bn_layer=bn_layer)
-        out = net(img)
-        print(out.size())
+#         img = torch.zeros(2, 3, 20, 20)
+#         net = NONLocalBlock2D(3, sub_sample=sub_sample, bn_layer=bn_layer)
+#         out = net(img)
+#         print(out.size())
 
-        img = torch.randn(2, 3, 8, 20, 20)
-        net = NONLocalBlock3D(3, sub_sample=sub_sample, bn_layer=bn_layer)
-        out = net(img)
-        print(out.size())
+#         img = torch.randn(2, 3, 8, 20, 20)
+#         net = NONLocalBlock3D(3, sub_sample=sub_sample, bn_layer=bn_layer)
+#         out = net(img)
+#         print(out.size())
