@@ -2,8 +2,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-POOLING = 'max'
-
 class _SwGAND(nn.Module):
     def __init__(self, in_channels, inter_channels=None, dimension=2, sub_sample=False, bn_layer=True):
         super(_SwGAND, self).__init__()
@@ -56,31 +54,16 @@ class _SwGAND(nn.Module):
         self.phi = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
                            kernel_size=1, stride=1, padding=0)
         
-        self.gamma = nn.Parameter(-0.5 * torch.rand(1))
+        # self.gamma = nn.Parameter(0 * torch.ones(1))
         # self.gamma = nn.Parameter(gamma * torch.ones(1))
-        # self.lamda = nn.Parameter(torch.randn(1))
+        # self.gamma = gamma
 
 
         if sub_sample:
             self.g = nn.Sequential(self.g, max_pool_layer)
             self.phi = nn.Sequential(self.phi, max_pool_layer)
             
-    def equivariant_max(self, x):
-        '''
-        out = x + gamma * maxpool(x)
-        '''
-        
-        batch_size = x.size(0)
-        channel_size = x.size(1)
-        height = x.size(2)
-        width = x.size(3)
-        
-        x_max = nn.MaxPool2d(kernel_size=(height, width))(x)
-        
-        out = torch.add(x, torch.sigmoid(self.gamma) * x_max)
-
-        return out
-
+ 
     def forward(self, x):
         '''
         :param x: (b, c, t, h, w)
@@ -88,12 +71,6 @@ class _SwGAND(nn.Module):
         '''
 
         batch_size = x.size(0)
-
-        
-        ### pooling
-        if POOLING == 'max':
-            x = self.equivariant_max(x)
-        ###
 
         g_x = self.g(x).view(batch_size, self.inter_channels, -1)
         g_x = g_x.permute(0, 2, 1)
@@ -112,11 +89,28 @@ class _SwGAND(nn.Module):
         
         return z
 
+class Equivariant_avr(nn.Module):
+    def __init__(self):
+        super(Equivariant_avr, self).__init__()
+        self.gamma = nn.Parameter(torch.rand(1))
+        
+    def forwad(self, x):
+        '''
+        out = x + gamma * avrpool(x)
+        '''
 
+        height = x.size(2)
+        width = x.size(3)
+        
+        x_max = nn.AvgPool2d(kernel_size=(height, width))(x)
+        
+        out = torch.add(x, torch.sigmoid(self.gamma) * x_max)
 
-class SwGA2D(_SwGAND):
-    def __init__(self, in_channels, inter_channels=None, sub_sample=False, bn_layer=True):
-        super(SwGA2D, self).__init__(in_channels,
-                                              inter_channels=inter_channels,
-                                              dimension=2, sub_sample=sub_sample,
-                                              bn_layer=bn_layer)
+        return out
+
+# class SwGA2D(_SwGAND):
+#     def __init__(self, in_channels, gamma, inter_channels=None, sub_sample=False, bn_layer=True):
+#         super(SwGA2D, self).__init__(in_channels, 
+#                                               inter_channels=inter_channels,
+#                                               dimension=2, sub_sample=sub_sample,
+#                                               bn_layer=bn_layer)

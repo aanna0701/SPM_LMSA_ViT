@@ -41,12 +41,11 @@ parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
 parser.add_argument('--multi_gpus', help='multi gpus', action='store_true')
 parser.add_argument('--seed', help='seed', type=int, required=True)
-parser.add_argument('--pooling', help='pooling of SwGA', type=str, default='sum', required=True)
+parser.add_argument('--n_blocks', help='number of Self-Attention blocks', type=int, default=0, required=True)
 
 args = parser.parse_args()
 
-assert args.model in ['resnet56', 'nlb_1', 'nlb_2', 'nlb_3', 'nlb_4', 'nlb_5', 'nlb_6',
-                      'swga_1', 'swga_2', 'swga_3', 'swga_4', 'swga_5', 'swga_6'], 'Unexpected model!'
+assert args.model in ['resnet56', 'sa', 'swga'], 'Unexpected model!'
 
 ############ varaiables
 
@@ -57,8 +56,8 @@ test_batch_size = 128
 epochs = 200
 ealry_stopping_patience = 500
 weight_decay = 1e-4
-models.S.POOLING = args.pooling
 gamma_best = 0.
+lambda_best = 0.
 
 if __name__ == "__main__":
 
@@ -76,7 +75,7 @@ if __name__ == "__main__":
     ############ save path
 
     save_path = os.path.join(os.getcwd(), "save")
-    save_path = os.path.join(save_path, now + '_' + args.model + "_seed" + str(args.seed))   
+    save_path = os.path.join(save_path, now + '_' + args.model + "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))   
     if not os.path.isdir(save_path):
         os.makedirs(save_path, exist_ok=True)
         
@@ -127,54 +126,27 @@ if __name__ == "__main__":
 
     if args.model == 'resnet56':
         model = models.resnet56()
-            
-    elif args.model == 'nlb_1':
-        model = models.resnet56_nlb_1()
     
-    elif args.model == 'nlb_2':
-        model = models.resnet56_nlb_2()
+    elif args.model == 'swga':
+        model = models.self_attention_ResNet56(args.n_blocks, global_attribute=True)
+        # print(model)
     
-    elif args.model == 'nlb_3':
-        model = models.resnet56_nlb_3()
-
-    elif args.model == 'nlb_4':
-        model = models.resnet56_nlb_4()
-
-    elif args.model == 'nlb_5':
-        model = models.resnet56_nlb_5()
-    
-    elif args.model == 'nlb_6':
-        model = models.resnet56_nlb_6()
+    else:
+        model = models.self_attention_ResNet56(args.n_blocks)
         
-    elif args.model == 'swga_1':
-        model = models.resnet56_swga_1()
+    model.cuda()
     
-    elif args.model == 'swga_2':
-        model = models.resnet56_swga_2()
-    
-    elif args.model == 'swga_3':
-        model = models.resnet56_swga_3()
-
-    elif args.model == 'swga_4':
-        model = models.resnet56_swga_4()
-
-    elif args.model == 'swga_5':
-        model = models.resnet56_swga_5()
-    
-    elif args.model == 'swga_6':
-        model = models.resnet56_swga_6()
         
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
                                                 \n# Seed: {}\
                                                 \n# Weigth decay: {}'\
-                                                .format(args.model, args.lr, args.seed, weight_decay) + Style.RESET_ALL)  
+                                                .format(args.model + "(" + str(args.n_blocks) + ")", args.lr, args.seed, weight_decay) + Style.RESET_ALL)  
         
     if args.multi_gpus: # Using multi-gpu
         model = nn.DataParallel(model)
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)  
     
-    model.cuda()
     summary(model, (3, 32, 32))
     
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
@@ -182,14 +154,28 @@ if __name__ == "__main__":
     
     # print gamma value
     def get_gamma(model):
-        for name, param in model.named_parameters():
-            
-            if 'gamma' in name:
-                logger.debug(Fore.CYAN + Style.BRIGHT + '\ngamma: {}\
-                                                         \ngmmma_sigmoid: {}'\
-                                            .format(param.item(), torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
-                return param.item()
         
+        gamma_dict = {}
+        lambda_dict = {}
+        
+        for name, param in model.EBA.named_parameters():
+            
+            if '_gamma' in name:
+                
+                
+                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\
+                                                         \ngamma_sigmoid: {}'\
+                                                    .format(name, torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
+                gamma_dict[name] = param.item()
+                
+            elif '_lambda' in name:
+                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\
+                                                         \nlambda_sigmoid {}\n'\
+                                            .format(name, torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
+                lambda_dict[name] = param.item()
+                
+        
+        return gamma_dict, lambda_dict
     
     
     ############ trainers
@@ -207,7 +193,9 @@ if __name__ == "__main__":
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.cuda(), target.cuda()
             optimizer.zero_grad()   # backpropagation 계산 전 opimizer 초기화
+            #####################
             output = model(data)
+            #####################    
             loss = F.cross_entropy(output, target)
             loss.backward()     # backpropagation 수행
             optimizer.step()    # weight update
@@ -218,13 +206,17 @@ if __name__ == "__main__":
                     100. * batch_idx / len(train_loader), loss.item()))
 
         # Test Mode
-        model.eval()    # batch norm이나 droput 등을 train mode로 변환
+        # batch norm이나 droput 등을 train mode로 변환
+        model.eval()
+                
         test_loss = 0
         correct = 0
         with torch.no_grad():   # autograd engine, backpropagation이나 gradien 계산등을 꺼서 memory usage를 줄이고 속도 향상
             for data, target in test_loader:
                 data, target = data.cuda(), target.cuda()
+                #####################
                 output = model(data)
+                ##################### 
                 test_loss += F.cross_entropy(output, target, reduction='sum').item()     # sum up batch loss
                 pred = output.argmax(dim=1, keepdim=True)       # get the index of the max log-probability
                 correct += pred.eq(target.view_as(pred)).sum().item()
@@ -249,7 +241,8 @@ if __name__ == "__main__":
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss
                 }, save_path+'/best.pt')
-                best_gamma = get_gamma(model)
+                if 'swga' in args.model:
+                    gamma_best_dict, lambda_best_dict = get_gamma(model)
 
         else:
             logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}'.format(early_stopping.best_value))
@@ -276,5 +269,7 @@ if __name__ == "__main__":
                                             \nseed: {}\
                                             \nweight_decay: {}\
                                             \ntotal parameters: {}\
-                                            \nbest gamma: {}'\
-                                            .format(early_stopping.best_value, args.model, args.seed, weight_decay, params, gamma_best))
+                                            \nbest gamma: {}\
+                                            \nbest lambda: {}'\
+                                            .format(early_stopping.best_value, args.model + "(" + str(args.n_blocks) + ")",\
+                                                args.seed, weight_decay, params, gamma_best, lambda_best))
