@@ -45,6 +45,9 @@ class ResNet_Encoder(nn.Module):
     
     
 class SAB(nn.Module):
+    '''
+    Self-Attention block
+    '''
     def __init__(self, in_channels, inter_channels=None, dimension=2, sub_sample=False, bn_layer=True):
         super(SAB, self).__init__()
 
@@ -101,14 +104,18 @@ class SAB(nn.Module):
             self.phi = nn.Sequential(self.phi, max_pool_layer)
             
  
-    def forward(self, x):
+    def forward(self, x, EBA=False):
         '''
         :param x: (b, c, t, h, w)
         :return:
         '''
 
         batch_size = x.size(0)
-
+        
+        x_residual = x
+        if EBA:
+            x = EBA(x)
+            
         g_x = self.g(x).view(batch_size, self.inter_channels, -1)
         g_x = g_x.permute(0, 2, 1)
 
@@ -122,11 +129,14 @@ class SAB(nn.Module):
         y = y.permute(0, 2, 1).contiguous()
         y = y.view(batch_size, self.inter_channels, *x.size()[2:])
         W_y = self.W(y)
-        z = W_y + x
+        z = W_y + x_residual
         
         return z
 
 class EBA(nn.Module):
+    '''
+    Equivariant block (Average version)
+    '''
     def __init__(self):
         super(EBA, self).__init__()
         
@@ -189,26 +199,23 @@ class Self_Attention(nn.Module):
         
         self.Encoder = _Encoder(num_sa_block=_num_sa_blocks)
         self.Classifier = _Classifier()
-        self.SAB = _SAB(in_channels=_inter_channels)
-        self.num_sa_blocks = _num_sa_blocks
+        self.SAB_list_tmp = []
+        for i in range(_num_sa_blocks):
+            SAB_tmp = SAB(_inter_channels)
+            self.SAB_list_tmp.append(SAB_tmp)
+        self.SAB_list = nn.ModuleList(self.SAB_list_tmp)
         
         if _Global_attribute:
             self.EBA = EBA()
         else:
-            self.EBA = None
+            self.EBA = False            
         
-        
-    def forward(self, x):
-       
-        
-        latent = self.Encoder(x)
-              
-        for i in range(self.num_sa_blocks):
 
-            if self.EBA:
-                latent = self.EBA(latent)
-            latent = self.SAB(latent)
-        
+    def forward(self, x):
+               
+        latent = self.Encoder(x)
+        for i in range(len(self.SAB_list)):
+            latent = self.SAB_list[i](latent, self.EBA)
         out = self.Classifier(latent)
         
         return out

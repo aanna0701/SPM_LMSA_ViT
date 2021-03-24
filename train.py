@@ -134,7 +134,7 @@ if __name__ == "__main__":
     else:
         model = models.self_attention_ResNet56(args.n_blocks)
         
-    model.cuda()
+    
     
         
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
@@ -146,8 +146,11 @@ if __name__ == "__main__":
     if args.multi_gpus: # Using multi-gpu
         model = nn.DataParallel(model)
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)  
+      
+    model.cuda()
     
-    summary(model, (3, 32, 32))
+    summary(model, (3, 32, 32))    
+    
     
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -163,15 +166,15 @@ if __name__ == "__main__":
             if '_gamma' in name:
                 
                 
-                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\
-                                                         \ngamma_sigmoid: {}'\
-                                                    .format(name, torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
+                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\ngamma: {}\ngamma_sigmoid: {}'\
+                                                    .format(name, param.item(), 
+                                                            torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
                 gamma_dict[name] = param.item()
                 
             elif '_lambda' in name:
-                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\
-                                                         \nlambda_sigmoid {}\n'\
-                                            .format(name, torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
+                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\nlambda: {}\nlambda_sigmoid: {}\n'\
+                                            .format(name, param.item(),
+                                                    torch.sigmoid(torch.tensor(param.item()))) + Style.RESET_ALL)
                 lambda_dict[name] = param.item()
                 
         
