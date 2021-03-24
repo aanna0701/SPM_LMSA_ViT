@@ -276,10 +276,11 @@ if __name__ == "__main__":
         writer.add_scalar('Loss/test/', test_loss, epoch)
         writer.add_scalar('Accuracy/test/', test_accuray, epoch)
         writer.add_scalar('Learning Rate/', optimizer.param_groups[0]['lr'], epoch)
-        writer.add_scalar('Gamma and Lambda/gamma/', gamma_value, epoch)
-        writer.add_scalar('Gamma and Lambda/lambda/', lambda_value, epoch)
-        writer.add_scalar('Gamma and Lambda/gamma_sigmoid/', gamma_value_sigmoid, epoch)
-        writer.add_scalar('Gamma and Lambda/lambda_sigmoid/', lambda_value_sigmoid, epoch)
+        if args.model == 'swga':
+            writer.add_scalar('Gamma and Lambda/gamma/', gamma_value, epoch)
+            writer.add_scalar('Gamma and Lambda/lambda/', lambda_value, epoch)
+            writer.add_scalar('Gamma and Lambda/gamma_sigmoid/', gamma_value_sigmoid, epoch)
+            writer.add_scalar('Gamma and Lambda/lambda_sigmoid/', lambda_value_sigmoid, epoch)
 
     logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\
                                             \nmodel: {}\
@@ -291,4 +292,5 @@ if __name__ == "__main__":
                                             \nbest gamma_sigmoid: {}\
                                             \nbest lambda_sigmoid: {}'\
                                             .format(early_stopping.best_value, args.model + "(" + str(args.n_blocks) + ")",\
-                                                args.seed, weight_decay, params, gamma_best, lambda_best, gamma_best_sigmoid, lambda_best_sigmoid))
+                                                args.seed, weight_decay, params, gamma_best, 
+                                                lambda_best, gamma_best_sigmoid, lambda_best_sigmoid))
