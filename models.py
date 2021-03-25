@@ -287,4 +287,4 @@ def resnet56():
 
 
 def self_attention_ResNet56(num_sa_block, global_attribute=False):
-    return Self_Attention(ResNet_Encoder, SAB, Classifier_FC, num_sa_block, _Global_attribute=global_attribute)
+    return Self_Attention(ResNet_Encoder, SAB, Classifier_FC, Down_Conv, num_sa_block, _Global_attribute=global_attribute)
