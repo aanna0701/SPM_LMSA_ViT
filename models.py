@@ -210,7 +210,7 @@ class Down_Conv(nn.Module):
         
         self.conv = nn.Conv2d(in_planes, planes, kernel_size=3, stride=2, padding=1, bias=False)
         
-    def forward(self, x):
+    def forward(self, x, EBA=False):
         return self.conv(x)
     
     
