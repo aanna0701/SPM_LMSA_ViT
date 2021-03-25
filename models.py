@@ -209,9 +209,10 @@ class Down_Conv(nn.Module):
         super(Down_Conv, self).__init__()
         
         self.conv = nn.Conv2d(in_planes, planes, kernel_size=3, stride=2, padding=1, bias=False)
+        self.bn = nn.BatchNorm2d(planes)
         
     def forward(self, x, EBA=False):
-        return self.conv(x)
+        return self.bn(self.conv(x))
     
     
 class Self_Attention(nn.Module):
