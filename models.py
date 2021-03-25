@@ -16,7 +16,7 @@ class ResNet_Encoder(nn.Module):
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(16)
         
-        self.layer1, self.layer2, self.layer3 = self.ResEncoder_sa(num_resnet_blocks)
+        self.layer1, self.layer2, self.layer3 = self.ResEncoder_sa(num_resnet_blocks ,num_sa_block ,resnet_block)
         
         self.apply(R._weights_init)
         
