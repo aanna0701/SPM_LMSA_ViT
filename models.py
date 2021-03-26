@@ -20,6 +20,7 @@ class ResNet_Encoder(nn.Module):
         
         self.apply(R._weights_init)
         
+        
     def ResEncoder_sa(self, num_resnet_blocks, num_sa_blocks, resnet_block):
         if num_sa_blocks < 27 and num_sa_blocks >= 18:
             return self._make_layer(resnet_block, 16, num_resnet_blocks[0] - num_sa_blocks + 18, stride=1),\
@@ -73,6 +74,7 @@ class SAB(nn.Module):
 
         self.in_channels = in_channels
         self.inter_channels = inter_channels
+        self.name = 'SAB'
         
 
         if self.inter_channels is None:
@@ -118,9 +120,10 @@ class SAB(nn.Module):
         if sub_sample:
             self.g = nn.Sequential(self.g, max_pool_layer)
             self.phi = nn.Sequential(self.phi, max_pool_layer)
+
             
  
-    def forward(self, x, EBA=False):
+    def forward(self, x, EBA=False, bn_layer=False):
         '''
         :param x: (b, c, t, h, w)
         :return:
@@ -131,6 +134,7 @@ class SAB(nn.Module):
         x_residual = x
         if EBA:
             x = EBA(x)
+            x = bn_layer(x)
             
         g_x = self.g(x).view(batch_size, self.inter_channels, -1)
         g_x = g_x.permute(0, 2, 1)
@@ -160,7 +164,7 @@ class EBA(nn.Module):
         # self.gamma = nn.Parameter(torch.rand(1))
         self._gamma = nn.Parameter(torch.tensor(-0.5))
         self._lambda = nn.Parameter(torch.tensor(0.5))
-        self.bn = None
+        self.name = 'EBA'
         
     def forward(self, x):
         '''
@@ -173,18 +177,16 @@ class EBA(nn.Module):
         x_max = nn.AvgPool2d(kernel_size=(height, width))(x)
         
         out = torch.add(torch.sigmoid(self._lambda) * x, torch.sigmoid(self._gamma) * x_max)
-        
-        self.bn = nn.BatchNorm2d(out.size(1))
-        out = self.bn(x)
 
         return out
-    
+        
     
 class Classifier_FC(nn.Module):
     def __init__(self, num_classes=10, in_channels=64):
         super(Classifier_FC, self).__init__()
         
         self.linear = nn.Linear(in_channels, num_classes)
+        self.name = 'FCL'
         
     def forward(self, x):
          
@@ -201,6 +203,7 @@ class ResNet(nn.Module):
         
         self.ResNet_Encoder = _Encoder(num_resnet_blocks=num_resnet_blocks)
         self.Classifier = _Classifier(num_classes=num_classes)
+        self.name = 'ResNet'
                 
     def forward(self, x):
         
@@ -215,24 +218,43 @@ class Down_Conv(nn.Module):
         
         self.conv = nn.Conv2d(in_planes, planes, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn = nn.BatchNorm2d(planes)
+        self.name = 'Down_Conv'
         
     def forward(self, x, EBA=False):
         return self.bn(self.conv(x))
     
     
-class Self_Attention(nn.Module):
+class Self_Attention_res56(nn.Module):
     def __init__(self, _Encoder, _SAB, _Classifier, _Down_Conv, _num_sa_blocks, _Global_attribute=False):
-        super(Self_Attention, self).__init__()
+        super(Self_Attention_res56, self).__init__()
         
         self.Encoder = _Encoder(num_sa_block=_num_sa_blocks)
         self.Classifier = _Classifier()
 
         self.SAB_list = self.make_sa_layer(_num_sa_blocks, _SAB, _Down_Conv)
         
+              
         if _Global_attribute:
-            self.EBA = EBA()
+            if _num_sa_blocks > 18:
+                self.bn3 = nn.BatchNorm2d(16)
+                self.bn2 = nn.BatchNorm2d(32)
+                self.bn1 = nn.BatchNorm2d(64)
+                self.EBA = EBA()
+                
+            elif _num_sa_blocks > 9:
+                self.bn2 = nn.BatchNorm2d(32)
+                self.bn1 = nn.BatchNorm2d(64)
+                self.EBA = EBA()
+                
+            else:
+                self.bn1 = nn.BatchNorm2d(64)
+                self.EBA = EBA()
+                
+            
+            
         else:
-            self.EBA = False            
+            self.EBA = False          
+            
         
     def make_sa_layer(self, num_sa_blocks, SAB, Down_Conv):
         SAB_list_tmp = []
@@ -282,7 +304,18 @@ class Self_Attention(nn.Module):
                
         latent = self.Encoder(x)
         for i in range(len(self.SAB_list)):
-            latent = self.SAB_list[i](latent, self.EBA)
+            if self.SAB_list[i].name == 'SAB':
+                if latent.size(1) == 16 :
+                    latent = self.SAB_list[i](latent, self.EBA, self.bn3)
+                
+                elif latent.size(1) == 32 :
+                    latent = self.SAB_list[i](latent, self.EBA, self.bn2)
+                    
+                elif latent.size(1) == 64 :
+                    latent = self.SAB_list[i](latent, self.EBA, self.bn1)
+            else:
+                latent = self.SAB_list[i](latent, self.EBA)
+                    
         out = self.Classifier(latent)
         
         return out
@@ -302,4 +335,4 @@ def resnet56():
 
 
 def self_attention_ResNet56(num_sa_block, global_attribute=False):
-    return Self_Attention(ResNet_Encoder, SAB, Classifier_FC, Down_Conv, num_sa_block, _Global_attribute=global_attribute)
+    return Self_Attention_res56(ResNet_Encoder, SAB, Classifier_FC, Down_Conv, num_sa_block, _Global_attribute=global_attribute)
