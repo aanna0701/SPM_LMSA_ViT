@@ -157,8 +157,8 @@ class EBA(nn.Module):
         super(EBA, self).__init__()
         
         # self.gamma = nn.Parameter(torch.rand(1))
-        self._gamma = nn.Parameter(torch.tensor(-1))
-        self._lambda = nn.Parameter(torch.tensor(1))
+        self._gamma = nn.Parameter(torch.tensor(-0.5))
+        self._lambda = nn.Parameter(torch.tensor(0.5))
         
     def forward(self, x):
         '''
