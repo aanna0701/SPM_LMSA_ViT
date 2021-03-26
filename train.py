@@ -139,7 +139,10 @@ if __name__ == "__main__":
         model = models.resnet20()
     
     elif args.model == 'swga':
-        model = models.self_attention_ResNet56(args.n_blocks, global_attribute=True)
+        if args.n_blocks < 27:
+            model = models.self_attention_ResNet56(args.n_blocks, global_attribute=True)
+        else:
+            model = models.self_attention_ResNet56
         # print(model)
     
     else:
