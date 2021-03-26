@@ -160,7 +160,7 @@ class EBA(nn.Module):
         # self.gamma = nn.Parameter(torch.rand(1))
         self._gamma = nn.Parameter(torch.tensor(-0.5))
         self._lambda = nn.Parameter(torch.tensor(0.5))
-        self.bn = nn.BatchNorm2d
+        self.bn = None
         
     def forward(self, x):
         '''
@@ -174,7 +174,8 @@ class EBA(nn.Module):
         
         out = torch.add(torch.sigmoid(self._lambda) * x, torch.sigmoid(self._gamma) * x_max)
         
-        out = self.bn(out.size(2))(x)
+        self.bn = nn.BatchNorm2d(out.size(2))
+        out = self.bn(x)
 
         return out
     
