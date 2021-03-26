@@ -11,7 +11,7 @@ class EarlyStopping:
             self.mode = -1 
 
     def validate(self, value):
-        if self._loss * self.mode > value * self.mode:
+        if self._loss * self.mode >= value * self.mode:
             self._step += 1
             if self._step > self.patience:
                 if self.verbose:
