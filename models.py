@@ -174,7 +174,7 @@ class EBA(nn.Module):
         
         out = torch.add(torch.sigmoid(self._lambda) * x, torch.sigmoid(self._gamma) * x_max)
         
-        self.bn = nn.BatchNorm2d(out.size(2))
+        self.bn = nn.BatchNorm2d(out.size(1))
         out = self.bn(x)
 
         return out
