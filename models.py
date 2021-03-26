@@ -322,14 +322,16 @@ class Self_Attention_res56(nn.Module):
         
         return out
 
-class Self_Attention_res56(nn.Module):
-    def __init__(self, _Encoder, _SAB, _Classifier, _Down_Conv, _num_sa_blocks, _Global_attribute=False):
-        super(Self_Attention_res56, self).__init__()
+class Self_Attention_full(nn.Module):
+    def __init__(self, _SAB, _Classifier, _Down_Conv, _Global_attribute=False):
+        super(Self_Attention_full, self).__init__()
         
-        self.Encoder = _Encoder(num_sa_block=_num_sa_blocks)
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(16)
+        
         self.Classifier = _Classifier()
 
-        self.SAB_list = self.make_sa_layer(_num_sa_blocks, _SAB, _Down_Conv)
+        self.SAB_list = self.make_sa_layer(_SAB, _Down_Conv)
         
               
         if _Global_attribute:
@@ -355,53 +357,26 @@ class Self_Attention_res56(nn.Module):
             self.EBA = False          
             
         
-    def make_sa_layer(self, num_sa_blocks, SAB, Down_Conv):
+    def make_sa_layer(self, SAB, Down_Conv):
         SAB_list_tmp = []
-        if num_sa_blocks < 9:
-            for i in range(num_sa_blocks):
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
-        
-        elif num_sa_blocks < 18 and num_sa_blocks >= 9:
-            for i in range(num_sa_blocks - 9):
-                SAB_list_tmp.append(SAB(32))
-            for i in range(9):
-                if i == 0:
-                    SAB_list_tmp.append(Down_Conv(32, 64))
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
-        
-        elif num_sa_blocks < 27 and num_sa_blocks >= 18:
-            for i in range(num_sa_blocks - 18):
-                SAB_list_tmp.append(SAB(16))
-            for i in range(9):
-                if i == 0:
-                    SAB_list_tmp.append(Down_Conv(16, 32))
-                SAB_list_tmp.append(SAB(32))            
-            for i in range(9):
-                if i == 0:
-                    SAB_list_tmp.append(Down_Conv(32, 64))
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
-
-        else:
-            for i in range(9):
-                if i == 0:
-                    SAB_list_tmp.append(Down_Conv(3, 16))
-                SAB_list_tmp.append(SAB(16))
-            for i in range(9):
-                if i == 0:
-                    SAB_list_tmp.append(Down_Conv(16, 32))
-                SAB_list_tmp.append(SAB(32))            
-            for i in range(9):
-                if i == 0:
-                    SAB_list_tmp.append(Down_Conv(32, 64))
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
+   
+        for i in range(9):
+            SAB_list_tmp.append(SAB(16))
+        for i in range(9):
+            if i == 0:
+                SAB_list_tmp.append(Down_Conv(16, 32))
+            SAB_list_tmp.append(SAB(32))            
+        for i in range(9):
+            if i == 0:
+                SAB_list_tmp.append(Down_Conv(32, 64))
+            SAB_list_tmp.append(SAB(64))
+            
+        return nn.ModuleList(SAB_list_tmp)
 
     def forward(self, x):
                
-        latent = self.Encoder(x)
+        latent = F.relu(self.bn1(self.conv1(x)))
+        
         for i in range(len(self.SAB_list)):
             if self.SAB_list[i].name == 'SAB':
                 if latent.size(1) == 16 :
@@ -446,5 +421,8 @@ def resnet56():
 
 def self_attention_ResNet56(num_sa_block, global_attribute=False):
     return Self_Attention_res56(ResNet_Encoder, SAB, Classifier_FC, Down_Conv, num_sa_block, _Global_attribute=global_attribute)
+
+def Self_Attention_full(global_attribute=False):
+    return Self_Attention_full(SAB, Classifier_FC, Down_Conv, _Global_attribute=global_attribute)
 
 
