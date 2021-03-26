@@ -73,6 +73,7 @@ class SAB(nn.Module):
 
         self.in_channels = in_channels
         self.inter_channels = inter_channels
+        
 
         if self.inter_channels is None:
             self.inter_channels = in_channels // 2
@@ -86,7 +87,7 @@ class SAB(nn.Module):
         elif dimension == 2:
             conv_nd = nn.Conv2d
             max_pool_layer = nn.MaxPool2d(kernel_size=(2, 2))
-            bn = nn.BatchNorm2d
+            self.bn = nn.BatchNorm2d
         else:
             conv_nd = nn.Conv1d
             max_pool_layer = nn.MaxPool1d(kernel_size=(2))
@@ -145,7 +146,7 @@ class SAB(nn.Module):
         y = y.view(batch_size, self.inter_channels, *x.size()[2:])
         W_y = self.W(y)
         z = W_y + x_residual
-        
+                
         return z
     
 
@@ -159,6 +160,7 @@ class EBA(nn.Module):
         # self.gamma = nn.Parameter(torch.rand(1))
         self._gamma = nn.Parameter(torch.tensor(-0.5))
         self._lambda = nn.Parameter(torch.tensor(0.5))
+        self.bn = nn.BatchNorm2d
         
     def forward(self, x):
         '''
@@ -171,6 +173,8 @@ class EBA(nn.Module):
         x_max = nn.AvgPool2d(kernel_size=(height, width))(x)
         
         out = torch.add(torch.sigmoid(self._lambda) * x, torch.sigmoid(self._gamma) * x_max)
+        
+        out = self.bn(out.size(2))(x)
 
         return out
     
@@ -191,11 +195,11 @@ class Classifier_FC(nn.Module):
     
 
 class ResNet(nn.Module):
-    def __init__(self, _Encoder, _Classifier):        
+    def __init__(self, _Encoder, _Classifier, num_resnet_blocks=[9, 9, 9], num_classes=10):        
         super(ResNet, self).__init__()
         
-        self.ResNet_Encoder = _Encoder()
-        self.Classifier = _Classifier()
+        self.ResNet_Encoder = _Encoder(num_resnet_blocks=num_resnet_blocks)
+        self.Classifier = _Classifier(num_classes=num_classes)
                 
     def forward(self, x):
         
@@ -283,6 +287,15 @@ class Self_Attention(nn.Module):
         return out
     
         
+def resnet20():
+    return ResNet(ResNet_Encoder, Classifier_FC, [3, 3, 3])
+
+def resnet32():
+    return ResNet(ResNet_Encoder, Classifier_FC, [5, 5, 5])
+
+def resnet4():
+    return ResNet(ResNet_Encoder, Classifier_FC, [7, 7, 7])
+
 def resnet56():
     return ResNet(ResNet_Encoder, Classifier_FC)
 

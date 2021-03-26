@@ -45,7 +45,7 @@ parser.add_argument('--n_blocks', help='number of Self-Attention blocks', type=i
 
 args = parser.parse_args()
 
-assert args.model in ['resnet56', 'sa', 'swga'], 'Unexpected model!'
+assert args.model in ['resnet56', 'resnet44', 'resnet32', 'resnet20', 'sa', 'swga'], 'Unexpected model!'
 
 ############ varaiables
 
@@ -128,6 +128,15 @@ if __name__ == "__main__":
 
     if args.model == 'resnet56':
         model = models.resnet56()
+        
+    elif args.model == 'resnet44':
+        model = models.resnet44()
+        
+    elif args.model == 'resnet32':
+        model = models.resnet32()
+        
+    elif args.model == 'resnet20':
+        model = models.resnet20()
     
     elif args.model == 'swga':
         model = models.self_attention_ResNet56(args.n_blocks, global_attribute=True)
