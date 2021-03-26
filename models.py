@@ -87,7 +87,7 @@ class SAB(nn.Module):
         elif dimension == 2:
             conv_nd = nn.Conv2d
             max_pool_layer = nn.MaxPool2d(kernel_size=(2, 2))
-            self.bn = nn.BatchNorm2d
+            bn = nn.BatchNorm2d
         else:
             conv_nd = nn.Conv1d
             max_pool_layer = nn.MaxPool1d(kernel_size=(2))
