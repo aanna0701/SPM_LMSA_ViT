@@ -293,7 +293,7 @@ def resnet20():
 def resnet32():
     return ResNet(ResNet_Encoder, Classifier_FC, [5, 5, 5])
 
-def resnet4():
+def resnet44():
     return ResNet(ResNet_Encoder, Classifier_FC, [7, 7, 7])
 
 def resnet56():
