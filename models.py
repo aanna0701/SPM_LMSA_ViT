@@ -306,7 +306,7 @@ class Self_Attention_res56(nn.Module):
                
         latent = self.Encoder(x)
         for i in range(len(self.SAB_list)):
-            if self.SAB_list[i].name == 'SAB':
+            if self.SAB_list[i].name == 'SAB' and self.EBA:
                 if latent.size(1) == 16 :
                     latent = self.SAB_list[i](latent, self.EBA, self.bn3)
                 
