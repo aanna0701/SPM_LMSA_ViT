@@ -335,21 +335,12 @@ class Self_Attention_full(nn.Module):
         
               
         if _Global_attribute:
-            if _num_sa_blocks > 18:
-                self.bn3 = nn.BatchNorm2d(16)
-                self.bn2 = nn.BatchNorm2d(32)
-                self.bn1 = nn.BatchNorm2d(64)
-                self.EBA = EBA()
-                
-            elif _num_sa_blocks > 9:
-                self.bn2 = nn.BatchNorm2d(32)
-                self.bn1 = nn.BatchNorm2d(64)
-                self.EBA = EBA()
-                
-            else:
-                print('*******************')
-                self.bn1 = nn.BatchNorm2d(64)
-                self.EBA = EBA()
+
+            self.bn3 = nn.BatchNorm2d(16)
+            self.bn2 = nn.BatchNorm2d(32)
+            self.bn1 = nn.BatchNorm2d(64)
+            self.EBA = EBA()
+
                 
             
             

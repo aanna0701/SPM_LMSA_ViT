@@ -153,7 +153,7 @@ if __name__ == "__main__":
         if args.n_blocks < 27:
             model = models.self_attention_ResNet56(args.n_blocks)
         else:
-            model = models.Self_Attention_full()
+            model = models.Self_Attention_full(global_attribute=True)
         
     
     
