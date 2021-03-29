@@ -60,12 +60,12 @@ class ResNet_Encoder(nn.Module):
         return out
     
     
-class SAB(nn.Module):
+class NLB(nn.Module):
     '''
-    Self-Attention block
+    Non-Local block
     '''
     def __init__(self, in_channels, inter_channels=None, dimension=2, sub_sample=False, bn_layer=True):
-        super(SAB, self).__init__()
+        super(NLB, self).__init__()
 
         assert dimension in [1, 2, 3]
 
@@ -74,7 +74,7 @@ class SAB(nn.Module):
 
         self.in_channels = in_channels
         self.inter_channels = inter_channels
-        self.name = 'SAB'
+        self.name = 'NLB'
         
 
         if self.inter_channels is None:
@@ -227,13 +227,13 @@ class Down_Conv(nn.Module):
     
     
 class Self_Attention_res56(nn.Module):
-    def __init__(self, _Encoder, _SAB, _Classifier, _Down_Conv, _num_sa_blocks, _Global_attribute=False):
+    def __init__(self, _Encoder, _NLB, _Classifier, _Down_Conv, _num_sa_blocks, _Global_attribute=False):
         super(Self_Attention_res56, self).__init__()
         
         self.Encoder = _Encoder(num_sa_block=_num_sa_blocks)
         self.Classifier = _Classifier()
 
-        self.SAB_list = self.make_sa_layer(_num_sa_blocks, _SAB, _Down_Conv)
+        self.NLB_list = self.make_sa_layer(_num_sa_blocks, _NLB, _Down_Conv)
         
               
         if _Global_attribute:
@@ -258,72 +258,72 @@ class Self_Attention_res56(nn.Module):
             self.EBA = False          
             
         
-    def make_sa_layer(self, num_sa_blocks, SAB, Down_Conv):
-        SAB_list_tmp = []
+    def make_sa_layer(self, num_sa_blocks, NLB, Down_Conv):
+        NLB_list_tmp = []
         if num_sa_blocks < 9:
             for i in range(num_sa_blocks):
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
+                NLB_list_tmp.append(NLB(64))
+            return nn.ModuleList(NLB_list_tmp)
         
         elif num_sa_blocks < 18 and num_sa_blocks >= 9:
             for i in range(num_sa_blocks - 9):
-                SAB_list_tmp.append(SAB(32))
+                NLB_list_tmp.append(NLB(32))
             for i in range(9):
                 if i == 0:
-                    SAB_list_tmp.append(Down_Conv(32, 64))
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
+                    NLB_list_tmp.append(Down_Conv(32, 64))
+                NLB_list_tmp.append(NLB(64))
+            return nn.ModuleList(NLB_list_tmp)
         
         elif num_sa_blocks < 27 and num_sa_blocks >= 18:
             for i in range(num_sa_blocks - 18):
-                SAB_list_tmp.append(SAB(16))
+                NLB_list_tmp.append(NLB(16))
             for i in range(9):
                 if i == 0:
-                    SAB_list_tmp.append(Down_Conv(16, 32))
-                SAB_list_tmp.append(SAB(32))            
+                    NLB_list_tmp.append(Down_Conv(16, 32))
+                NLB_list_tmp.append(NLB(32))            
             for i in range(9):
                 if i == 0:
-                    SAB_list_tmp.append(Down_Conv(32, 64))
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
+                    NLB_list_tmp.append(Down_Conv(32, 64))
+                NLB_list_tmp.append(NLB(64))
+            return nn.ModuleList(NLB_list_tmp)
 
         else:
             for i in range(9):
                 if i == 0:
-                    SAB_list_tmp.append(Down_Conv(3, 16))
-                SAB_list_tmp.append(SAB(16))
+                    NLB_list_tmp.append(Down_Conv(3, 16))
+                NLB_list_tmp.append(NLB(16))
             for i in range(9):
                 if i == 0:
-                    SAB_list_tmp.append(Down_Conv(16, 32))
-                SAB_list_tmp.append(SAB(32))            
+                    NLB_list_tmp.append(Down_Conv(16, 32))
+                NLB_list_tmp.append(NLB(32))            
             for i in range(9):
                 if i == 0:
-                    SAB_list_tmp.append(Down_Conv(32, 64))
-                SAB_list_tmp.append(SAB(64))
-            return nn.ModuleList(SAB_list_tmp)
+                    NLB_list_tmp.append(Down_Conv(32, 64))
+                NLB_list_tmp.append(NLB(64))
+            return nn.ModuleList(NLB_list_tmp)
 
     def forward(self, x):
                
         latent = self.Encoder(x)
-        for i in range(len(self.SAB_list)):
-            if self.SAB_list[i].name == 'SAB' and self.EBA:
+        for i in range(len(self.NLB_list)):
+            if self.NLB_list[i].name == 'NLB' and self.EBA:
                 if latent.size(1) == 16 :
-                    latent = self.SAB_list[i](latent, self.EBA, self.bn3)
+                    latent = self.NLB_list[i](latent, self.EBA, self.bn3)
                 
                 elif latent.size(1) == 32 :
-                    latent = self.SAB_list[i](latent, self.EBA, self.bn2)
+                    latent = self.NLB_list[i](latent, self.EBA, self.bn2)
                     
                 elif latent.size(1) == 64 :
-                    latent = self.SAB_list[i](latent, self.EBA, self.bn1)
+                    latent = self.NLB_list[i](latent, self.EBA, self.bn1)
             else:
-                latent = self.SAB_list[i](latent, self.EBA)
+                latent = self.NLB_list[i](latent, self.EBA)
                     
         out = self.Classifier(latent)
         
         return out
 
 class Self_Attention_full(nn.Module):
-    def __init__(self, _SAB, _Classifier, _Down_Conv, _Global_attribute=False):
+    def __init__(self, _NLB, _Classifier, _Down_Conv, _Global_attribute=False):
         super(Self_Attention_full, self).__init__()
         
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
@@ -331,64 +331,60 @@ class Self_Attention_full(nn.Module):
         
         self.Classifier = _Classifier()
 
-        self.SAB_list = self.make_sa_layer(_SAB, _Down_Conv)
+        self.NLB_list = self.make_sa_layer(_NLB, _Down_Conv)
         
-              
         if _Global_attribute:
 
             self.bn3 = nn.BatchNorm2d(16)
             self.bn2 = nn.BatchNorm2d(32)
             self.bn1 = nn.BatchNorm2d(64)
-            self.EBA = EBA()
-
-                
-            
+            self.EBA = EBA()               
             
         else:
             self.EBA = False          
             
         
-    def make_sa_layer(self, SAB, Down_Conv):
-        SAB_list_tmp = []
+    def make_sa_layer(self, NLB, Down_Conv):
+        NLB_list_tmp = []
    
         for i in range(9):
-            SAB_list_tmp.append(SAB(16))
+            NLB_list_tmp.append(NLB(16))
         for i in range(9):
             if i == 0:
-                SAB_list_tmp.append(Down_Conv(16, 32))
-            SAB_list_tmp.append(SAB(32))            
+                NLB_list_tmp.append(Down_Conv(16, 32))
+            NLB_list_tmp.append(NLB(32))            
         for i in range(9):
             if i == 0:
-                SAB_list_tmp.append(Down_Conv(32, 64))
-            SAB_list_tmp.append(SAB(64))
+                NLB_list_tmp.append(Down_Conv(32, 64))
+            NLB_list_tmp.append(NLB(64))
             
-        return nn.ModuleList(SAB_list_tmp)
+        return nn.ModuleList(NLB_list_tmp)
 
     def forward(self, x):
                
         latent = F.relu(self.bn0(self.conv1(x)))
         
-        for i in range(len(self.SAB_list)):
-            if self.SAB_list[i].name == 'SAB':
+        for i in range(len(self.NLB_list)):
+            if self.NLB_list[i].name == 'NLB':
                 if latent.size(1) == 16 :
                     if self.EBA:
-                        latent = self.SAB_list[i](latent, self.EBA, self.bn3)
+                        latent = self.NLB_list[i](latent, self.EBA, self.bn3)
                     else:
-                        latent = self.SAB_list[i](latent, self.EBA)
+                        latent = self.NLB_list[i](latent, self.EBA)
                 
                 elif latent.size(1) == 32 :
                     if self.EBA:
-                        latent = self.SAB_list[i](latent, self.EBA, self.bn2)
+                        latent = self.NLB_list[i](latent, self.EBA, self.bn2)
                     else:
-                        latent = self.SAB_list[i](latent, self.EBA)
+                        latent = self.NLB_list[i](latent, self.EBA)
                     
                 elif latent.size(1) == 64 :
                     if self.EBA:
-                        latent = self.SAB_list[i](latent, self.EBA, self.bn1)
+                        latent = self.NLB_list[i](latent, self.EBA, self.bn1)
                     else:
-                        latent = self.SAB_list[i](latent, self.EBA)
+                        latent = self.NLB_list[i](latent, self.EBA)
             else:
-                latent = self.SAB_list[i](latent, self.EBA)
+                latent = self.NLB_list[i](latent, self.EBA)
                     
         out = self.Classifier(latent)
         
@@ -411,9 +407,9 @@ def resnet56():
 
 
 def self_attention_ResNet56(num_sa_block, global_attribute=False):
-    return Self_Attention_res56(ResNet_Encoder, SAB, Classifier_FC, Down_Conv, num_sa_block, _Global_attribute=global_attribute)
+    return Self_Attention_res56(ResNet_Encoder, NLB, Classifier_FC, Down_Conv, num_sa_block, _Global_attribute=global_attribute)
 
 def self_Attention_full(global_attribute=False):
-    return Self_Attention_full(SAB, Classifier_FC, Down_Conv, _Global_attribute=global_attribute)
+    return Self_Attention_full(NLB, Classifier_FC, Down_Conv, _Global_attribute=global_attribute)
 
 
