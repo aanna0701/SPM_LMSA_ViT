@@ -327,7 +327,7 @@ class Self_Attention_full(nn.Module):
         super(Self_Attention_full, self).__init__()
         
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.bn0 = nn.BatchNorm2d(16)
         
         self.Classifier = _Classifier()
 
@@ -366,7 +366,7 @@ class Self_Attention_full(nn.Module):
 
     def forward(self, x):
                
-        latent = F.relu(self.bn1(self.conv1(x)))
+        latent = F.relu(self.bn0(self.conv1(x)))
         
         for i in range(len(self.SAB_list)):
             if self.SAB_list[i].name == 'SAB':
