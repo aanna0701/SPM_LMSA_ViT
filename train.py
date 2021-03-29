@@ -26,6 +26,9 @@ import models
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
+
+
+
 ########### constants
 
 init(autoreset=True)
@@ -47,6 +50,17 @@ args = parser.parse_args()
 
 assert args.model in ['resnet56', 'resnet44', 'resnet32', 'resnet20', 'sa', 'swga'], 'Unexpected model!'
 
+############ random seed
+
+torch.manual_seed(args.seed)
+torch.cuda.manual_seed(args.seed)
+torch.cuda.manual_seed_all(args.seed)  # if you are using multi-GPU.
+np.random.seed(args.seed)  # Numpy module.
+random.seed(args.seed)  # Python random module.
+torch.manual_seed(args.seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+
 ############ varaiables
 
 FINETUNING = False
@@ -63,16 +77,6 @@ lambda_best_sigmoid = 0.
 
 if __name__ == "__main__":
 
-    ############ random seed
-
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)  # if you are using multi-GPU.
-    np.random.seed(args.seed)  # Numpy module.
-    random.seed(args.seed)  # Python random module.
-    torch.manual_seed(args.seed)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
 
     ############ save path
 
