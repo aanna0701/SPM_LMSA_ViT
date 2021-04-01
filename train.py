@@ -70,10 +70,8 @@ test_batch_size = 128
 epochs = 200
 ealry_stopping_patience = 50
 weight_decay = 1e-4
-gamma_best = 0.
-lambda_best = 0.
-gamma_best_sigmoid = 0.
-lambda_best_sigmoid = 0.
+gamma_dict_list_best = []
+lambda_dict_list_best = []
 
 if __name__ == "__main__":
 
@@ -144,16 +142,20 @@ if __name__ == "__main__":
     
     elif args.model == 'swga':
         if args.n_blocks < 27:
-            model = models.self_attention_ResNet56(args.n_blocks, global_attribute=True)
+            # model = models.self_attention_ResNet56(args.n_blocks, global_attribute=True)
+            model = models.self_attention_ResNet56_no_sharing(args.n_blocks, global_attribute=True)
         else:
-            model = models.self_Attention_full(global_attribute=True)
+            # model = models.self_Attention_full(global_attribute=True)
+            model = models.self_Attention_full_no_sharing(global_attribute=True)
         # print(model)
     
     else:
         if args.n_blocks < 27:
-            model = models.self_attention_ResNet56(args.n_blocks)
+            # model = models.self_attention_ResNet56(args.n_blocks)
+            model = models.self_attention_ResNet56_no_sharing(args.n_blocks)
         else:
-            model = models.self_Attention_full(global_attribute=False)
+            # model = models.self_Attention_full(global_attribute=False)
+            model = models.self_Attention_full_no_sharing(global_attribute=False)
         
     
     
@@ -179,28 +181,48 @@ if __name__ == "__main__":
     # print gamma value
     def get_gamma(model):
         
+        gamma_dict_list = []
+        labmda_dict_list = []
                 
-        for name, param in model.EB.named_parameters():
+        for name, param in model.named_parameters():
             
             if '_gamma' in name:
+                
+                gamma_dict = {}
                 
                 gamma_value = param.item()
                 gamma_value_sigmoid = torch.sigmoid(torch.tensor(gamma_value))
                 
+                gamma_dict['name'] = name
+                gamma_dict['gamma'] = gamma_value
+                gamma_dict['gamma_sigmoid'] = gamma_value_sigmoid
+                
+                
+                print(Fore.CYAN + Style.BRIGHT + '='*25 + Style.RESET_ALL)
                 print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\ngamma: {}\ngamma_sigmoid: {}'\
                                                     .format(name, gamma_value, gamma_value_sigmoid) + Style.RESET_ALL)
+                
+                gamma_dict_list.append(gamma_dict)
                                 
             elif '_lambda' in name:
                 
+                lambda_dict = {}
+                
                 lambda_value = param.item()
                 lambda_value_sigmoid = torch.sigmoid(torch.tensor(lambda_value))
+
+                lambda_dict['name'] = name
+                lambda_dict['lambda'] = lambda_value
+                lambda_dict['lambda_sigmoid'] = lambda_value_sigmoid
                 
                 print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\nlambda: {}\nlambda_sigmoid: {}\n'\
                                             .format(name, lambda_value,
                                                     torch.sigmoid(torch.tensor(lambda_value))) + Style.RESET_ALL)
+                
+                labmda_dict_list.append(lambda_dict)
                              
         
-        return gamma_value, lambda_value, gamma_value_sigmoid, lambda_value_sigmoid
+        return gamma_dict_list, labmda_dict_list
     
     
     ############ trainers
@@ -249,9 +271,7 @@ if __name__ == "__main__":
         test_loss /= len(test_loader.dataset)
         test_accuray = 100. * correct / len(test_loader.dataset)
         
-        if args.model == 'swga':
-            gamma_value, lambda_value, gamma_value_sigmoid, lambda_value_sigmoid = get_gamma(model)
-
+        
         logger.debug(Fore.BLUE + Style.BRIGHT + '\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:0f}%)\n'.format(
                 test_loss, correct, len(test_loader.dataset),
                 test_accuray))
@@ -271,10 +291,7 @@ if __name__ == "__main__":
                 }, save_path+'/best.pt')
                 if 'swga' in args.model:
                     
-                    gamma_best = gamma_value
-                    gamma_best_sigmoid = gamma_value_sigmoid
-                    lambda_best = lambda_value
-                    lambda_best_sigmoid = lambda_value_sigmoid
+                    gamma_dict_list_best, lambda_dict_list_best = get_gamma(model)
 
         else:
             logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}'.format(early_stopping.best_value))
@@ -295,11 +312,6 @@ if __name__ == "__main__":
         writer.add_scalar('Loss/test/', test_loss, epoch)
         writer.add_scalar('Accuracy/test/', test_accuray, epoch)
         writer.add_scalar('Learning Rate/', optimizer.param_groups[0]['lr'], epoch)
-        if args.model == 'swga':
-            writer.add_scalar('Gamma and Lambda/gamma/', gamma_value, epoch)
-            writer.add_scalar('Gamma and Lambda/lambda/', lambda_value, epoch)
-            writer.add_scalar('Gamma and Lambda/gamma_sigmoid/', gamma_value_sigmoid, epoch)
-            writer.add_scalar('Gamma and Lambda/lambda_sigmoid/', lambda_value_sigmoid, epoch)
 
     logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\
                                             \nmodel: {}\
@@ -307,9 +319,7 @@ if __name__ == "__main__":
                                             \nweight_decay: {}\
                                             \ntotal parameters: {}\
                                             \nbest gamma: {}\
-                                            \nbest lambda: {}\
-                                            \nbest gamma_sigmoid: {}\
-                                            \nbest lambda_sigmoid: {}'\
+                                            \nbest lambda: {}'\
                                             .format(early_stopping.best_value, args.model + "(" + str(args.n_blocks) + ")",\
-                                                args.seed, weight_decay, params, gamma_best, 
-                                                lambda_best, gamma_best_sigmoid, lambda_best_sigmoid))
+                                                args.seed, weight_decay, params, gamma_dict_list_best, 
+                                                lambda_dict_list_best))
