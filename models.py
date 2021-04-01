@@ -123,7 +123,7 @@ class NLB(nn.Module):
 
             
  
-    def forward(self, x, EBA=False, bn_layer=False):
+    def forward(self, x, EB=False, bn_layer=False):
         '''
         :param x: (b, c, t, h, w)
         :return:
@@ -132,9 +132,13 @@ class NLB(nn.Module):
         batch_size = x.size(0)
         
         x_residual = x
-        if EBA:
-            x = EBA(x)
+        
+        ####### proposed method
+        if EB:
+            x = EB(x)
             x = bn_layer(x)
+            # rerlu addition
+            x = nn.ReLU()(x)
             
         g_x = self.g(x).view(batch_size, self.inter_channels, -1)
         g_x = g_x.permute(0, 2, 1)
@@ -154,19 +158,19 @@ class NLB(nn.Module):
         return z
     
 
-class EBA(nn.Module):
+class EB(nn.Module):
     '''
     Equivariant block (Average version)
     '''
     def __init__(self):
-        super(EBA, self).__init__()
+        super(EB, self).__init__()
         
         # self.gamma = nn.Parameter(torch.rand(1))
         # self._gamma = nn.Parameter(torch.tensor(-0.5))
         # self._lambda = nn.Parameter(torch.tensor(0.5))
         self._gamma = nn.Parameter(torch.zeros(1))
         self._lambda = nn.Parameter(torch.zeros(1))
-        self.name = 'EBA'
+        self.name = 'EB'
         
     def forward(self, x):
         '''
@@ -222,7 +226,7 @@ class Down_Conv(nn.Module):
         self.bn = nn.BatchNorm2d(planes)
         self.name = 'Down_Conv'
         
-    def forward(self, x, EBA=False):
+    def forward(self, x, EB=False):
         return self.bn(self.conv(x))
     
     
@@ -241,21 +245,21 @@ class Self_Attention_res56(nn.Module):
                 self.bn3 = nn.BatchNorm2d(16)
                 self.bn2 = nn.BatchNorm2d(32)
                 self.bn1 = nn.BatchNorm2d(64)
-                self.EBA = EBA()
+                self.EB = EB()
                 
             elif _num_sa_blocks > 9:
                 self.bn2 = nn.BatchNorm2d(32)
                 self.bn1 = nn.BatchNorm2d(64)
-                self.EBA = EBA()
+                self.EB = EB()
                 
             else:
                 self.bn1 = nn.BatchNorm2d(64)
-                self.EBA = EBA()
+                self.EB = EB()
                 
             
             
         else:
-            self.EBA = False          
+            self.EB = False          
             
         
     def make_sa_layer(self, num_sa_blocks, NLB, Down_Conv):
@@ -306,17 +310,17 @@ class Self_Attention_res56(nn.Module):
                
         latent = self.Encoder(x)
         for i in range(len(self.NLB_list)):
-            if self.NLB_list[i].name == 'NLB' and self.EBA:
+            if self.NLB_list[i].name == 'NLB' and self.EB:
                 if latent.size(1) == 16 :
-                    latent = self.NLB_list[i](latent, self.EBA, self.bn3)
+                    latent = self.NLB_list[i](latent, self.EB, self.bn3)
                 
                 elif latent.size(1) == 32 :
-                    latent = self.NLB_list[i](latent, self.EBA, self.bn2)
+                    latent = self.NLB_list[i](latent, self.EB, self.bn2)
                     
                 elif latent.size(1) == 64 :
-                    latent = self.NLB_list[i](latent, self.EBA, self.bn1)
+                    latent = self.NLB_list[i](latent, self.EB, self.bn1)
             else:
-                latent = self.NLB_list[i](latent, self.EBA)
+                latent = self.NLB_list[i](latent, self.EB)
                     
         out = self.Classifier(latent)
         
@@ -338,10 +342,10 @@ class Self_Attention_full(nn.Module):
             self.bn3 = nn.BatchNorm2d(16)
             self.bn2 = nn.BatchNorm2d(32)
             self.bn1 = nn.BatchNorm2d(64)
-            self.EBA = EBA()               
+            self.EB = EB()               
             
         else:
-            self.EBA = False          
+            self.EB = False          
             
         
     def make_sa_layer(self, NLB, Down_Conv):
@@ -367,24 +371,24 @@ class Self_Attention_full(nn.Module):
         for i in range(len(self.NLB_list)):
             if self.NLB_list[i].name == 'NLB':
                 if latent.size(1) == 16 :
-                    if self.EBA:
-                        latent = self.NLB_list[i](latent, self.EBA, self.bn3)
+                    if self.EB:
+                        latent = self.NLB_list[i](latent, self.EB, self.bn3)
                     else:
-                        latent = self.NLB_list[i](latent, self.EBA)
+                        latent = self.NLB_list[i](latent, self.EB)
                 
                 elif latent.size(1) == 32 :
-                    if self.EBA:
-                        latent = self.NLB_list[i](latent, self.EBA, self.bn2)
+                    if self.EB:
+                        latent = self.NLB_list[i](latent, self.EB, self.bn2)
                     else:
-                        latent = self.NLB_list[i](latent, self.EBA)
+                        latent = self.NLB_list[i](latent, self.EB)
                     
                 elif latent.size(1) == 64 :
-                    if self.EBA:
-                        latent = self.NLB_list[i](latent, self.EBA, self.bn1)
+                    if self.EB:
+                        latent = self.NLB_list[i](latent, self.EB, self.bn1)
                     else:
-                        latent = self.NLB_list[i](latent, self.EBA)
+                        latent = self.NLB_list[i](latent, self.EB)
             else:
-                latent = self.NLB_list[i](latent, self.EBA)
+                latent = self.NLB_list[i](latent, self.EB)
                     
         out = self.Classifier(latent)
         
