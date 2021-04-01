@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-import Self_Attention_with_Global_Attribute as S
 import Non_local_embedded_gaussian as N
 import resnet as R
 
