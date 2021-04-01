@@ -180,7 +180,7 @@ if __name__ == "__main__":
     def get_gamma(model):
         
                 
-        for name, param in model.EBA.named_parameters():
+        for name, param in model.EB.named_parameters():
             
             if '_gamma' in name:
                 
