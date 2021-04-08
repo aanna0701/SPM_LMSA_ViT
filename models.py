@@ -67,7 +67,7 @@ class NLB(nn.Module):
     Non-Local block
     '''
 
-    def __init__(self, in_channels, inter_channels=None, dimension=2, sub_sample=False, bn_layer=True):
+    def __init__(self, in_channels, inter_channels=None, dimension=2, sub_sample=False, bn_layer=False):
         super(NLB, self).__init__()
 
         assert dimension in [1, 2, 3]
@@ -97,8 +97,8 @@ class NLB(nn.Module):
             max_pool_layer = nn.MaxPool1d(kernel_size=(2))
             bn = nn.BatchNorm1d
 
-        self.g = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                         kernel_size=1, stride=1, padding=0)
+        self.g = conv_nd(in_channels=self.in_channels,
+                         out_channels=self.inter_channels, kernel_size=1, stride=1, padding=0)
 
         if bn_layer:
             self.W = nn.Sequential(
@@ -109,15 +109,17 @@ class NLB(nn.Module):
             nn.init.constant_(self.W[1].weight, 0)
             nn.init.constant_(self.W[1].bias, 0)
         else:
-            self.W = conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
-                             kernel_size=1, stride=1, padding=0)
+            self.W = conv_nd(in_channels=self.inter_channels,
+                             out_channels=self.in_channels, kernel_size=1, stride=1, padding=0)
             nn.init.constant_(self.W.weight, 0)
             nn.init.constant_(self.W.bias, 0)
 
-        self.theta = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                             kernel_size=1, stride=1, padding=0)
-        self.phi = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                           kernel_size=1, stride=1, padding=0)
+        self.theta = conv_nd(in_channels=self.in_channels,
+                             out_channels=self.inter_channels, kernel_size=1, stride=1, padding=0)
+        self.phi = conv_nd(in_channels=self.in_channels,
+                           out_channels=self.inter_channels, kernel_size=1, stride=1, padding=0)
+
+        self.bn = nn.BatchNorm2d(in_channels)
 
         if sub_sample:
             self.g = nn.Sequential(self.g, max_pool_layer)
@@ -135,10 +137,9 @@ class NLB(nn.Module):
 
         # proposed method
         if EB:
-            x = EB(x)
-            x = bn_layer(x)
-            # rerlu addition
-            x = nn.ReLU()(x)
+            x = EB(x, bn_layer)
+
+        x = self.bn(x)
 
         g_x = self.g(x).view(batch_size, self.inter_channels, -1)
         g_x = g_x.permute(0, 2, 1)
@@ -147,8 +148,6 @@ class NLB(nn.Module):
         theta_x = theta_x.permute(0, 2, 1)
         phi_x = self.phi(x).view(batch_size, self.inter_channels, -1)
         f = torch.matmul(theta_x, phi_x)
-        # divide by srt(dimension of query)
-        f = f / math.sqrt(float(self.inter_channels))
         f_div_C = F.softmax(f, dim=-1)
 
         y = torch.matmul(f_div_C, g_x)
@@ -160,6 +159,137 @@ class NLB(nn.Module):
         return z
 
 
+class MHSA(nn.Module):
+    def __init__(self, in_channels, height=14, width=14, heads=4, relative_positional_enocoding=False):
+        super(MHSA, self).__init__()
+        self.heads = heads
+
+        self.query = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.key = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.value = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.O = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+
+        self.rel_w = nn.Parameter(torch.randn(
+            [1, heads, in_channels // heads, 1, width]), requires_grad=True)
+        self.rel_h = nn.Parameter(torch.randn(
+            [1, heads, in_channels // heads, height, 1]), requires_grad=True)
+
+        self.softmax = nn.Softmax(dim=-1)
+
+        self.RPE = relative_positional_enocoding
+
+    def forward(self, x):
+        n_batch, C, height, width = x.size()
+        inter_dimension = C // self.heads
+        q = self.query(x).view(n_batch, self.heads, inter_dimension, -1)
+        k = self.key(x).view(n_batch, self.heads, inter_dimension, -1)
+        v = self.value(x).view(n_batch, self.heads, inter_dimension, -1)
+
+        content_content = torch.matmul(q.permute(0, 1, 3, 2), k)
+        content_content = content_content / math.sqrt(float(inter_dimension))
+
+        if self.RPE:
+            content_position = (self.rel_h + self.rel_w).view(1,
+                                                              self.heads, inter_dimension, -1).permute(0, 1, 3, 2)
+            content_position = torch.matmul(content_position, q)
+
+            energy = content_content + content_position
+            attention = self.softmax(energy)
+
+        else:
+            attention = self.softmax(content_content)
+
+        out = torch.matmul(v, attention.permute(0, 1, 3, 2))
+        out = out.view(n_batch, C, height, width)
+        out = self.O(out)
+
+        return out
+
+
+class Positional_Embedding(nn.Module):
+    def __init__(self, height, width, in_channels):
+        super(Positional_Embedding, self).__init__()
+        self.PE = nn.Parameter(torch.zeros(1, in_channels, height, width))
+
+    def forward(self, x):
+        return x + self.PE
+
+
+class Patch_Embedding(nn.Module):
+    def __init__(self, patch_size, in_channels, inter_channels):
+        super(Patch_Embedding, self).__init__()
+        self.conv = nn.Conv2d(in_channels, inter_channels,
+                              kernel_size=patch_size, stride=patch_size)
+        self._init_weights()
+
+    def _init_weights(self):
+        nn.init.kaiming_normal_(self.conv.weight, nonlinearity='relu')
+        nn.init.normal_(self.conv.bias, std=1e-6)
+
+    def forward(self, x):
+        return nn.ReLU()(self.conv(x))
+
+
+class MLP(nn.Module):
+    '''
+    MLP implemented using 1x1 conv
+    '''
+
+    def __init__(self, in_channels, inter_channels=None):
+        super(MLP, self).__init__()
+        self.in_channels = in_channels
+        if inter_channels == None:
+            self.inter_channels = self.in_channels * 4
+        else:
+            self.inter_channels = inter_channels
+
+        self.conv1 = nn.Conv2d(
+            self.in_channels, self.inter_channels, kernel_size=1)
+        self.conv2 = nn.Conv2d(
+            self.inter_channels, self.in_channels, kernel_size=1)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        nn.init.kaiming_normal_(self.conv1.weight, nonlinearity='relu')
+        nn.init.kaiming_normal_(self.conv2.weight, nonlinearity='relu')
+        nn.init.normal_(self.conv1.bias, std=1e-6)
+        nn.init.normal_(self.conv2.bias, std=1e-6)
+
+    def forward(self, x):
+        x_inter = nn.ReLU()(self.conv1(x))
+        x_out = self.conv2(x_inter)
+        return x_out
+
+
+class Transformer_Block(nn.Module):
+    def __init__(self, in_channels, height, width, heads=8, relative_positional_enocoding=False):
+        super(Transformer_Block, self).__init__()
+        self.inter_channels = in_channels
+        self.bn0 = nn.BatchNorm2d(self.inter_channels)
+        self.bn1 = nn.BatchNorm2d(self.inter_channels)
+        self.bn2 = nn.BatchNorm2d(self.inter_channels)
+        self.MHSA = MHSA(in_channels, height, width, heads,
+                         relative_positional_enocoding)
+        self.MLP = MLP(in_channels)
+
+    def forward(self, x, EB=False):
+        if EB:
+            x_inter1 = EB(x, self.bn0)
+        else:
+            x_inter1 = x
+
+        x_inter1 = self.bn1(x_inter1)
+        x_MHSA = self.MHSA(x_inter1)
+        x_res1 = x + x_MHSA
+
+        x_inter2 = self.bn2(x_res1)
+        x_MLP = self.MLP(x_inter2)
+        x_res2 = x_res1 + x_MLP
+
+        return x_res2
+
+
 class EB(nn.Module):
     '''
     Equivariant block (Average version)
@@ -168,14 +298,11 @@ class EB(nn.Module):
     def __init__(self):
         super(EB, self).__init__()
 
-        # self.gamma = nn.Parameter(torch.rand(1))
-        # self._gamma = nn.Parameter(torch.tensor(-0.5))
-        # self._lambda = nn.Parameter(torch.tensor(0.5))
         self._gamma = nn.Parameter(torch.zeros(1))
         self._lambda = nn.Parameter(torch.zeros(1))
         self.name = 'EB'
 
-    def forward(self, x):
+    def forward(self, x, bn):
         '''
         out = x + gamma * avrpool(x)
         '''
@@ -183,12 +310,13 @@ class EB(nn.Module):
         height = x.size(2)
         width = x.size(3)
 
+        x = bn(x)
         x_max = nn.AvgPool2d(kernel_size=(height, width))(x)
 
         out = torch.add(torch.sigmoid(self._lambda) * x,
                         torch.sigmoid(self._gamma) * x_max)
 
-        return out
+        return nn.ReLU()(out)
 
 
 class Classifier_FC(nn.Module):
