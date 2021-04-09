@@ -32,10 +32,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 
-from torch.autograd import Variable
 
 # __all__ = ['ResNet', 'resnet20', 'resnet32', 'resnet44', 'resnet56', 'resnet110', 'resnet1202']
-__all__ = ['ResNet']
 
 
 def _weights_init(m):
@@ -89,44 +87,87 @@ class BasicBlock(nn.Module):
         return out
 
 
-class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10):
-        super(ResNet, self).__init__()
+class ResNet_Encoder(nn.Module):
+    def __init__(self, resnet_block=R.BasicBlock, num_resnet_blocks=[9, 9, 9], num_sa_block=0):
+        super(ResNet_Encoder, self).__init__()
+
         self.in_planes = 16
 
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3,
-                               stride=1, padding=1, bias=False)
+        self.fc1 = nn.Conv2d(3, 16, kernel_size=3,
+                             stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(16)
-        self.layer1 = self._make_layer(block, 16, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 32, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 64, num_blocks[2], stride=2)
-        self.linear = nn.Linear(64, num_classes)
+
+        self.layer1, self.layer2, self.layer3 = self.ResEncoder_sa(
+            num_resnet_blocks, num_sa_block, resnet_block)
 
         self.apply(_weights_init)
 
+    def ResEncoder_sa(self, num_resnet_blocks, num_sa_blocks, resnet_block):
+        if num_sa_blocks < 27 and num_sa_blocks >= 18:
+            return self._make_layer(resnet_block, 16, num_resnet_blocks[0] - num_sa_blocks + 18, stride=1),\
+                False, False
+        elif num_sa_blocks < 18 and num_sa_blocks >= 9:
+            return self._make_layer(resnet_block, 16, num_resnet_blocks[0], stride=1),\
+                self._make_layer(
+                    resnet_block, 32, num_resnet_blocks[1] - num_sa_blocks + 9, stride=2), False
+        elif num_sa_blocks < 9:
+            return self._make_layer(resnet_block, 16, num_resnet_blocks[0], stride=1),\
+                self._make_layer(resnet_block, 32, num_resnet_blocks[1], stride=2),\
+                self._make_layer(
+                    resnet_block, 64, num_resnet_blocks[2] - num_sa_blocks, stride=2)
+
     def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
+        if not num_blocks:
+            return None
+
         layers = []
-        for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
-            self.in_planes = planes * block.expansion
+
+        if stride:
+            strides = [stride] + [1]*(num_blocks-1)
+            for stride in strides:
+                layers.append(block(self.in_planes, planes, stride))
+                self.in_planes = planes * block.expansion
 
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn1(self.fc1(x)))
         out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = F.avg_pool2d(out, out.size()[3])
-        out = out.view(out.size(0), -1)
-        out = self.linear(out)
+        if self.layer2:
+            out = self.layer2(out)
+        if self.layer3:
+            out = self.layer3(out)
+
         return out
 
 
-if __name__ == "__main__":
-    for net_name in __all__:
-        if net_name.startswith('resnet'):
-            print(net_name)
-            test(globals()[net_name]())
-            print()
+class Classifier_FC(nn.Module):
+    def __init__(self, num_classes=10, in_channels=64):
+        super(Classifier_FC, self).__init__()
+
+        self.linear = nn.Linear(in_channels, num_classes)
+        self.name = 'FCL'
+
+    def forward(self, x):
+
+        x = F.avg_pool2d(x, x.size()[3])
+        x = x.view(x.size(0), -1)
+        x = self.linear(x)
+
+        return x
+
+
+class ResNet(nn.Module):
+    def __init__(self, _Encoder, _Classifier, num_resnet_blocks=[9, 9, 9], num_classes=10):
+        super(ResNet, self).__init__()
+
+        self.ResNet_Encoder = _Encoder(num_resnet_blocks=num_resnet_blocks)
+        self.Classifier = _Classifier(num_classes=num_classes)
+        self.name = 'ResNet'
+
+    def forward(self, x):
+
+        latent = self.ResNet_Encoder(x)
+        out = self.Classifier(latent)
+
+        return out
