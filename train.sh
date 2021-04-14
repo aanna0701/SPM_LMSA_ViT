@@ -1,10 +1,9 @@
 #!/bin/zsh
 
-for s in 1 2 3 4 5
+for s in 1 2 3
 do
-	for m in 1 2 3 4 5 6 7 8 9
+	for m in G-ViT-Ti ViT-Ti
 	do
-		python train.py --dataset_dir /workspace/dataset --lr 0.1 --model sa --seed ${s} --n_blocks ${m}
-		python train.py --dataset_dir /workspace/dataset --lr 0.1 --model swga --seed ${s} --n_blocks ${m}
+		python train.py --dataset_dir /workspace/dataset --lr 0.003 --model ${m} --seed ${s}
 	done
 done

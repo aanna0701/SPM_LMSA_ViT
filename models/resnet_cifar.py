@@ -88,7 +88,7 @@ class BasicBlock(nn.Module):
 
 
 class ResNet_Encoder(nn.Module):
-    def __init__(self, resnet_block=R.BasicBlock, num_resnet_blocks=[9, 9, 9], num_sa_block=0):
+    def __init__(self, resnet_block=BasicBlock, num_resnet_blocks=[9, 9, 9], num_sa_block=0):
         super(ResNet_Encoder, self).__init__()
 
         self.in_planes = 16
@@ -141,9 +141,9 @@ class ResNet_Encoder(nn.Module):
         return out
 
 
-class Classifier_FC(nn.Module):
+class Classifier_2d(nn.Module):
     def __init__(self, num_classes=10, in_channels=64):
-        super(Classifier_FC, self).__init__()
+        super(Classifier_2d, self).__init__()
 
         self.linear = nn.Linear(in_channels, num_classes)
         self.name = 'FCL'

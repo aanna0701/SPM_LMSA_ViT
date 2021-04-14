@@ -5,7 +5,7 @@ import math
 
 
 class MHSA(nn.Module):
-    def __init__(self, in_channels, height=14, width=14, heads=4, relative_positional_enocoding=False):
+    def __init__(self, in_channels, heads=4):
         super(MHSA, self).__init__()
         self.heads = heads
 
@@ -14,17 +14,9 @@ class MHSA(nn.Module):
         self.value = nn.Linear(in_channels, in_channels)
         self.out = nn.Linear(in_channels, in_channels)
 
-        self.RPE = relative_positional_enocoding
-
-        if self.RPE:
-            self.rel_w = nn.Parameter(torch.randn(
-                [1, heads, in_channels // heads, 1, width]), requires_grad=True)
-            self.rel_h = nn.Parameter(torch.randn(
-                [1, heads, in_channels // heads, height, 1]), requires_grad=True)
-
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x, EB=False):
+    def forward(self, x):
         '''
         [shapes]
 
@@ -44,10 +36,6 @@ class MHSA(nn.Module):
 
         inter_dimension = C // self.heads
 
-        if EB:
-            x = EB(x)
-            x = nn.ReLU()(x)
-
         q = self.query(x).view(B, n_tokens, self.heads,
                                inter_dimension).permute(0, 2, 1, 3)
         k = self.key(x).view(B, n_tokens, self.heads,
@@ -58,21 +46,12 @@ class MHSA(nn.Module):
         similarity = torch.matmul(q, k.transpose(3, 2))
         similarity = similarity / math.sqrt(inter_dimension)
 
-        if self.RPE:
-            content_position = (self.rel_h + self.rel_w).view(1,
-                                                              self.heads, inter_dimension, -1).permute(0, 1, 3, 2)
-            content_position = torch.matmul(content_position, q)
-
-            energy = similarity + content_position
-            attention = self.softmax(energy)
-
-        else:
-            attention = self.softmax(similarity)
+        attention = self.softmax(similarity)
 
         out_tmp = torch.matmul(attention, v)
         out = out_tmp.permute(0, 2, 1, 3).contiguous()
         out = out.view(B, n_tokens, -1)
-        out = self.O(out)
+        out = self.out(out)
 
         return out
 
@@ -102,7 +81,7 @@ class Patch_Embedding(nn.Module):
 
     def _init_weights(self):
         nn.init.kaiming_normal_(
-            self.patch_embedding.weight, nonlinearity='relu')
+            self.patch_embedding.weight)
         nn.init.normal_(self.patch_embedding.bias, std=1e-6)
 
     def forward(self, x):
@@ -116,7 +95,9 @@ class Patch_Embedding(nn.Module):
         '''
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
-        out_concat = torch.cat((self.cls_token, out_flat))
+        cls_token = self.cls_token.expand(
+            x.size(0), self.cls_token.size(1), self.cls_token.size(2))
+        out_concat = torch.cat((cls_token, out_flat), dim=2)
         out = out_concat.permute(0, 2, 1)
 
         return out
@@ -131,13 +112,13 @@ class MLP(nn.Module):
             self.inter_channels = self.in_channels * 4
 
         self.fc1 = nn.Linear(self.in_channels, self.inter_channels)
-        self.fc2 = nn.Linear(self.in_channels, self.inter_channels)
+        self.fc2 = nn.Linear(self.inter_channels, self.in_channels)
 
         self._init_weights()
 
     def _init_weights(self):
-        nn.init.kaiming_normal_(self.fc1.weight, nonlinearity='relu')
-        nn.init.kaiming_normal_(self.fc2.weight, nonlinearity='relu')
+        nn.init.kaiming_normal_(self.fc1.weight)
+        nn.init.kaiming_normal_(self.fc2.weight)
         nn.init.normal_(self.fc1.bias, std=1e-6)
         nn.init.normal_(self.fc2.bias, std=1e-6)
 
@@ -148,34 +129,138 @@ class MLP(nn.Module):
             x_inter : (B, 4*C, HW+1)
             x_out : (B, HW+1, C)
         '''
-        x_inter = nn.ReLU()(self.fc1(x.permute(0, 2, 1)))
+
+        x_inter = nn.GELU()(self.fc1(x))
+
         x_out = self.fc2(x_inter)
-        return x_out.permute(0, 2, 1)
+
+        return x_out
 
 
 class Transformer_Block(nn.Module):
-    def __init__(self, in_channels, height, width, heads=8, relative_positional_enocoding=False):
+    def __init__(self, in_channels, heads=8):
         super(Transformer_Block, self).__init__()
-        self.inter_channels = in_channels
-        self.bn0 = nn.BatchNorm2d(self.inter_channels)
-        self.bn1 = nn.BatchNorm2d(self.inter_channels)
-        self.bn2 = nn.BatchNorm2d(self.inter_channels)
-        self.MHSA = MHSA(in_channels, height, width, heads,
-                         relative_positional_enocoding)
+        self.normalization1 = nn.LayerNorm(in_channels)
+        self.normalization2 = nn.LayerNorm(in_channels)
+        # self.normalization1 = nn.BatchNorm1d(in_channels)
+        # self.normalization2 = nn.BatchNorm1d(in_channels)
+        self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels)
 
-    def forward(self, x, EB=False):
-        if EB:
-            x_inter1 = EB(x, self.bn0)
-        else:
-            x_inter1 = x
+    def forward(self, x, _EB):
+        '''
+        [shape]
+            x : (B, HW+1, C)
+        '''
 
-        x_inter1 = self.bn1(x_inter1)
+        x_inter1 = self.normalization1(x)
+
+        if _EB:
+            x_inter1 = _EB(x_inter1)
+
         x_MHSA = self.MHSA(x_inter1)
         x_res1 = x + x_MHSA
 
-        x_inter2 = self.bn2(x_res1)
+        x_inter2 = self.normalization2(x_res1)
         x_MLP = self.MLP(x_inter2)
         x_res2 = x_res1 + x_MLP
 
         return x_res2
+
+
+class Classifier_1d(nn.Module):
+    def __init__(self, num_classes=10, in_channels=64):
+        super(Classifier_1d, self).__init__()
+
+        self.linear = nn.Linear(in_channels, num_classes)
+        self.name = 'FCL'
+
+    def forward(self, x):
+        '''
+        [shape]
+            x : (B, HW+1, C)
+            x[:, 0] : (B, C)
+        '''
+
+        x = self.linear(x[:, 0])
+
+        return x
+
+
+class EB_1d(nn.Module):
+    '''
+    Equivariant block (Average version)
+    '''
+
+    def __init__(self):
+        super(EB_1d, self).__init__()
+
+        self._gamma = nn.Parameter(torch.zeros(1))
+        self._lambda = nn.Parameter(torch.zeros(1))
+
+    def forward(self, x):
+        '''
+        out = lambda * x + gamma * avrpool(x)
+
+        [shape]
+            x : (B, HW+1, C)
+            x_tmp : (B, C, HW+1)
+            x_pool : (B, C, 1)
+            out_sum : (B, C, HW+1)
+            out : (B, HW+1, C)
+        '''
+
+        x_tmp = x.permute(0, 2, 1)
+        x_pool = F.adaptive_avg_pool1d(x_tmp, 1)
+
+        out_sum = torch.add(torch.sigmoid(self._lambda) * x_tmp,
+                            torch.sigmoid(self._gamma) * x_pool)
+        out = out_sum.permute(0, 2, 1)
+
+        return out
+
+
+class ViT(nn.Module):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, heads=8, num_classes=10, EB=False):
+        super(ViT, self).__init__()
+
+        self.inter_dimension = inter_dimension
+        self.heads = heads
+
+        self.patch_embedding = Patch_Embedding(
+            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+        self.positional_embedding = Positional_Embedding(
+            spatial_dimension=num_nodes + 1, inter_channels=inter_dimension)
+        self.classifier = Classifier_1d(
+            num_classes=num_classes, in_channels=inter_dimension)
+        self.transformers = self.make_layer(depth, Transformer_Block)
+
+        if EB:
+            self.EB = EB_1d()
+        else:
+            self.EB = False
+
+    def make_layer(self, num_blocks, block):
+        layer_list = nn.ModuleList()
+        for i in range(num_blocks):
+            layer_list.append(
+                block(self.inter_dimension, self.heads))
+
+        return layer_list
+
+    def forward(self, x):
+        '''
+        [shape]
+            x : (B, 3, H, W)
+            x_patch_embedded = (B, HW+1, C)
+            x_tmp = (B, HW+1, C)
+            x_out = (B, classes)
+        '''
+        x_patch_embedded = self.patch_embedding(x)
+
+        x_tmp = self.positional_embedding(x_patch_embedded)
+        for i in range(len(self.transformers)):
+            x_tmp = self.transformers[i](x_tmp, self.EB)
+        x_out = self.classifier(x_tmp)
+
+        return x_out

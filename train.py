@@ -18,11 +18,13 @@ from torchsummary import summary
 import torchvision
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader
+from adamp import AdamP
+from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import random
 
-import models
+import models.model as m
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
@@ -43,13 +45,13 @@ parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
 parser.add_argument('--multi_gpus', help='multi gpus', action='store_true')
 parser.add_argument('--seed', help='seed', type=int, required=True)
-parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
-                    type=int, default=0, required=True)
+# parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
+#                     type=int, default=0, required=True)
 
 args = parser.parse_args()
 
-assert args.model in ['resnet56', 'resnet44', 'resnet32',
-                      'resnet20', 'sa', 'swga'], 'Unexpected model!'
+assert args.model in ['ViT-Ti',
+                      'ViT-S', 'ViT-B', 'G-ViT-Ti', 'G-ViT-S', 'G-ViT-B'], 'Unexpected model!'
 
 # random seed
 
@@ -68,19 +70,45 @@ FINETUNING = False
 log_interval = 100
 batch_size = 128
 test_batch_size = 128
-epochs = 200
+epochs = 300
 ealry_stopping_patience = 50
-weight_decay = 1e-4
+weight_decay = 0.3
 gamma_dict_list_best = []
 lambda_dict_list_best = []
+best_train_loss = 100000
+best_train_accuracy = 0
+
+
+def model_eval(data_loader):
+    loss = 0
+    accuracy = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in data_loader:
+            data, target = data.cuda(), target.cuda()
+            #####################
+            output = model(data)
+            #####################
+            # sum up batch loss
+            loss += F.cross_entropy(output,
+                                    target, reduction='sum').item()
+            # get the index of the max log-probability
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+    loss /= len(data_loader.dataset)
+    accuracy = 100. * correct / len(data_loader.dataset)
+    return loss, accuracy
+
 
 if __name__ == "__main__":
 
     # save path
 
     save_path = os.path.join(os.getcwd(), "save")
+    # save_path = os.path.join(save_path, now + '_' + args.model +
+    #                          "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))
     save_path = os.path.join(save_path, now + '_' + args.model +
-                             "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))
+                             "_seed" + str(args.seed))
     if not os.path.isdir(save_path):
         os.makedirs(save_path, exist_ok=True)
 
@@ -131,41 +159,60 @@ if __name__ == "__main__":
 
     # model load
 
-    if args.model == 'resnet56':
-        model = models.resnet56()
+    # if args.model == 'resnet56':
+    #     model = models.resnet56()
 
-    elif args.model == 'resnet44':
-        model = models.resnet44()
+    # elif args.model == 'resnet44':
+    #     model = models.resnet44()
 
-    elif args.model == 'resnet32':
-        model = models.resnet32()
+    # elif args.model == 'resnet32':
+    #     model = models.resnet32()
 
-    elif args.model == 'resnet20':
-        model = models.resnet20()
+    # elif args.model == 'resnet20':
+    #     model = models.resnet20()
 
-    elif args.model == 'swga':
-        if args.n_blocks < 27:
-            model = models.self_attention_ResNet56(
-                args.n_blocks, global_attribute=True)
-            # model = models.self_attention_ResNet56_no_sharing(args.n_blocks, global_attribute=True)
-        else:
-            model = models.self_Attention_full(global_attribute=True)
-            # model = models.self_Attention_full_no_sharing(global_attribute=True)
-        # print(model)
+    # elif args.model == 'swga':
+    #     if args.n_blocks < 27:
+    #         model = models.self_attention_ResNet56(
+    #             args.n_blocks, global_attribute=True)
+    #         # model = models.self_attention_ResNet56_no_sharing(args.n_blocks, global_attribute=True)
+    #     else:
+    #         model = models.self_Attention_full(global_attribute=True)
+    #         # model = models.self_Attention_full_no_sharing(global_attribute=True)
+    #     # print(model)
 
-    else:
-        if args.n_blocks < 27:
-            model = models.self_attention_ResNet56(args.n_blocks)
-            # model = models.self_attention_ResNet56_no_sharing(args.n_blocks)
-        else:
-            model = models.self_Attention_full(global_attribute=False)
-            # model = models.self_Attention_full_no_sharing(global_attribute=False)
+    # else:
+    #     if args.n_blocks < 27:
+    #         model = models.self_attention_ResNet56(args.n_blocks)
+    #         # model = models.self_attention_ResNet56_no_sharing(args.n_blocks)
+    #     else:
+    #         model = models.self_Attention_full(global_attribute=False)
+    #         # model = models.self_Attention_full_no_sharing(global_attribute=False)
+
+    if args.model == 'ViT-Ti':
+        model = m.ViT_Ti_cifar(False)
+    elif args.model == 'ViT-S':
+        model = m.ViT_S_cifar(False)
+    elif args.model == 'ViT-B':
+        model = m.ViT_B_cifar(False)
+    elif args.model == 'G-ViT-Ti':
+        model = m.ViT_Ti_cifar(True)
+    elif args.model == 'G-ViT-S':
+        model = m.ViT_S_cifar(True)
+    elif args.model == 'G-ViT-B':
+        model = m.ViT_B_cifar(True)
+
+    # logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
+    #                                             \n# Initial Learning Rate: {}\
+    #                                             \n# Seed: {}\
+    #                                             \n# Weigth decay: {}'
+        #  .format(args.model + "(" + str(args.n_blocks) + ")", args.lr, args.seed, weight_decay) + Style.RESET_ALL)
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
                                                 \n# Seed: {}\
                                                 \n# Weigth decay: {}'
-                 .format(args.model + "(" + str(args.n_blocks) + ")", args.lr, args.seed, weight_decay) + Style.RESET_ALL)
+                 .format(args.model, args.lr, args.seed, weight_decay) + Style.RESET_ALL)
 
     if args.multi_gpus:  # Using multi-gpu
         model = nn.DataParallel(model)
@@ -226,10 +273,14 @@ if __name__ == "__main__":
     # trainers
 
     # optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0001 )
-    optimizer = optim.SGD(model.parameters(), lr=args.lr,
-                          momentum=0.9, weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, [100, 150], gamma=0.1)
+    # optimizer = optim.SGD(model.parameters(), lr=args.lr,
+        #   momentum=0.9, weight_decay=weight_decay)
+    optimizer = AdamP(model.parameters(), lr=args.lr,
+                      betas=(0.9, 0.999), weight_decay=weight_decay)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    #     optimizer, [100, 150], gamma=0.1)
+    scheduler = CosineAnnealingWarmupRestarts(
+        optimizer, 300, max_lr=args.lr, min_lr=0.00006, warmup_steps=3.4)
 
     # training loop
 
@@ -256,35 +307,41 @@ if __name__ == "__main__":
         # batch norm이나 droput 등을 train mode로 변환
         model.eval()
 
-        test_loss = 0
-        correct = 0
-        with torch.no_grad():   # autograd engine, backpropagation이나 gradien 계산등을 꺼서 memory usage를 줄이고 속도 향상
-            for data, target in test_loader:
-                data, target = data.cuda(), target.cuda()
-                #####################
-                output = model(data)
-                #####################
-                # sum up batch loss
-                test_loss += F.cross_entropy(output,
-                                             target, reduction='sum').item()
-                # get the index of the max log-probability
-                pred = output.argmax(dim=1, keepdim=True)
-                correct += pred.eq(target.view_as(pred)).sum().item()
+        # test_loss = 0
+        # correct = 0
+        # with torch.no_grad():   # autograd engine, backpropagation이나 gradien 계산등을 꺼서 memory usage를 줄이고 속도 향상
+        #     for data, target in test_loader:
+        #         data, target = data.cuda(), target.cuda()
+        #         #####################
+        #         output = model(data)
+        #         #####################
+        #         # sum up batch loss
+        #         test_loss += F.cross_entropy(output,
+        #                                      target, reduction='sum').item()
+        #         # get the index of the max log-probability
+        #         pred = output.argmax(dim=1, keepdim=True)
+        #         correct += pred.eq(target.view_as(pred)).sum().item()
 
-        test_loss /= len(test_loader.dataset)
-        test_accuray = 100. * correct / len(test_loader.dataset)
+        # test_loss /= len(test_loader.dataset)
+        # test_accuray = 100. * correct / len(test_loader.dataset)
+        train_loss, train_accuracy = model_eval(train_loader)
+        test_loss, test_accuracy = model_eval(test_loader)
 
-        logger.debug(Fore.BLUE + Style.BRIGHT + '\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:0f}%)\n'.format(
-            test_loss, correct, len(test_loader.dataset),
-            test_accuray))
+        logger.debug(Fore.BLUE + Style.BRIGHT +
+                     '\ntrain_loss {}\ntrain_accuracy {}\n\ntest_loss {}\ntest_accuracy {}'.format(train_loss, train_accuracy, test_loss, test_accuracy))
+
+        if best_train_accuracy < train_accuracy:
+            best_train_accuracy = train_accuracy
+        if best_train_loss > train_loss:
+            best_train_loss = train_loss
 
         # early stopping
-        early_stop = early_stopping.validate(test_accuray)
+        early_stop = early_stopping.validate(test_accuracy)
 
         if not early_stop:
-            if early_stopping.best_value <= test_accuray:
+            if early_stopping.best_value <= test_accuracy:
                 logger.debug(Fore.GREEN + Style.BRIGHT +
-                             'best model updates!!!!!\n')
+                             '\nbest model updates!!!!!\n')
                 # model.state_dict(): 딕셔너리 형태로 모델의 Layer와 Weight가 저장되어있음.
                 torch.save({
                     'epoch': epoch,
@@ -292,14 +349,12 @@ if __name__ == "__main__":
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss
                 }, save_path+'/best.pt')
-                if 'swga' in args.model:
-
-                    gamma_dict_list_best, lambda_dict_list_best = get_gamma(
-                        model)
+                gamma_dict_list_best, lambda_dict_list_best = get_gamma(
+                    model)
 
         else:
             logger.debug(Fore.RED + Style.BRIGHT +
-                         'best acc: {}'.format(early_stopping.best_value))
+                         '\nbest test acc: {}\nbest_train_loss: {}\nbest_train_acc: {}'.format(early_stopping.best_value, best_train_loss, best_train_loss))
             # model.state_dict(): 딕셔너리 형태로 모델의 Layer와 Weight가 저장되어있음.
             torch.save({
                 'epoch': epoch,
@@ -315,17 +370,22 @@ if __name__ == "__main__":
         # Tensorboard monitoring
         writer.add_scalar('Loss/train/', loss, epoch)
         writer.add_scalar('Loss/test/', test_loss, epoch)
-        writer.add_scalar('Accuracy/test/', test_accuray, epoch)
+        writer.add_scalar('Accuracy/test/', test_accuracy, epoch)
         writer.add_scalar('Learning Rate/',
                           optimizer.param_groups[0]['lr'], epoch)
 
-    logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\
-                                            \nmodel: {}\
-                                            \nseed: {}\
-                                            \nweight_decay: {}\
-                                            \ntotal parameters: {}\
-                                            \nbest gamma: {}\
-                                            \nbest lambda: {}'
-                 .format(early_stopping.best_value, args.model + "(" + str(args.n_blocks) + ")",
+    # logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\
+    #                                         \nmodel: {}\
+    #                                         \nseed: {}\
+    #                                         \nweight_decay: {}\
+    #                                         \ntotal parameters: {}\
+    #                                         \nbest gamma: {}\
+    #                                         \nbest lambda: {}'
+    #              .format(early_stopping.best_value, args.model + "(" + str(args.n_blocks) + ")",
+    #                      args.seed, weight_decay, params, gamma_dict_list_best,
+    #                      lambda_dict_list_best))
+
+    logger.debug(Fore.RED + Style.BRIGHT + 'best val acc: {}\nbest train acc: {}\nbest train loss: {}\nmodel: {}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
+                 .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model,
                          args.seed, weight_decay, params, gamma_dict_list_best,
                          lambda_dict_list_best))
