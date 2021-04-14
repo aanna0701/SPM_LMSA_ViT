@@ -72,7 +72,7 @@ batch_size = 128
 test_batch_size = 128
 epochs = 300
 ealry_stopping_patience = 50
-weight_decay = 0.3
+weight_decay = 0.05
 gamma_dict_list_best = []
 lambda_dict_list_best = []
 best_train_loss = 100000
@@ -153,42 +153,6 @@ if __name__ == "__main__":
                          ])),
         batch_size=batch_size, shuffle=True)
 
-    # logger.debug(Fore.RED + Style.BRIGHT +
-    #              '\n# Number of training data : {}\n# Number of validation data : {}\n'.format(len(train_loader)*batch_size, len(test_loader)*test_batch_size)
-    #              + Style.RESET_ALL)
-
-    # model load
-
-    # if args.model == 'resnet56':
-    #     model = models.resnet56()
-
-    # elif args.model == 'resnet44':
-    #     model = models.resnet44()
-
-    # elif args.model == 'resnet32':
-    #     model = models.resnet32()
-
-    # elif args.model == 'resnet20':
-    #     model = models.resnet20()
-
-    # elif args.model == 'swga':
-    #     if args.n_blocks < 27:
-    #         model = models.self_attention_ResNet56(
-    #             args.n_blocks, global_attribute=True)
-    #         # model = models.self_attention_ResNet56_no_sharing(args.n_blocks, global_attribute=True)
-    #     else:
-    #         model = models.self_Attention_full(global_attribute=True)
-    #         # model = models.self_Attention_full_no_sharing(global_attribute=True)
-    #     # print(model)
-
-    # else:
-    #     if args.n_blocks < 27:
-    #         model = models.self_attention_ResNet56(args.n_blocks)
-    #         # model = models.self_attention_ResNet56_no_sharing(args.n_blocks)
-    #     else:
-    #         model = models.self_Attention_full(global_attribute=False)
-    #         # model = models.self_Attention_full_no_sharing(global_attribute=False)
-
     if args.model == 'ViT-Ti':
         model = m.ViT_Ti_cifar(False)
     elif args.model == 'ViT-S':
@@ -201,12 +165,6 @@ if __name__ == "__main__":
         model = m.ViT_S_cifar(True)
     elif args.model == 'G-ViT-B':
         model = m.ViT_B_cifar(True)
-
-    # logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
-    #                                             \n# Initial Learning Rate: {}\
-    #                                             \n# Seed: {}\
-    #                                             \n# Weigth decay: {}'
-        #  .format(args.model + "(" + str(args.n_blocks) + ")", args.lr, args.seed, weight_decay) + Style.RESET_ALL)
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
@@ -280,7 +238,7 @@ if __name__ == "__main__":
     # scheduler = torch.optim.lr_scheduler.MultiStepLR(
     #     optimizer, [100, 150], gamma=0.1)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 300, max_lr=args.lr, min_lr=0.00006, warmup_steps=3.4)
+        optimizer, 300, max_lr=args.lr, min_lr=0.0001, warmup_steps=5)
 
     # training loop
 
@@ -307,23 +265,6 @@ if __name__ == "__main__":
         # batch norm이나 droput 등을 train mode로 변환
         model.eval()
 
-        # test_loss = 0
-        # correct = 0
-        # with torch.no_grad():   # autograd engine, backpropagation이나 gradien 계산등을 꺼서 memory usage를 줄이고 속도 향상
-        #     for data, target in test_loader:
-        #         data, target = data.cuda(), target.cuda()
-        #         #####################
-        #         output = model(data)
-        #         #####################
-        #         # sum up batch loss
-        #         test_loss += F.cross_entropy(output,
-        #                                      target, reduction='sum').item()
-        #         # get the index of the max log-probability
-        #         pred = output.argmax(dim=1, keepdim=True)
-        #         correct += pred.eq(target.view_as(pred)).sum().item()
-
-        # test_loss /= len(test_loader.dataset)
-        # test_accuray = 100. * correct / len(test_loader.dataset)
         train_loss, train_accuracy = model_eval(train_loader)
         test_loss, test_accuracy = model_eval(test_loader)
 
@@ -373,17 +314,6 @@ if __name__ == "__main__":
         writer.add_scalar('Accuracy/test/', test_accuracy, epoch)
         writer.add_scalar('Learning Rate/',
                           optimizer.param_groups[0]['lr'], epoch)
-
-    # logger.debug(Fore.RED + Style.BRIGHT + 'best acc: {}\
-    #                                         \nmodel: {}\
-    #                                         \nseed: {}\
-    #                                         \nweight_decay: {}\
-    #                                         \ntotal parameters: {}\
-    #                                         \nbest gamma: {}\
-    #                                         \nbest lambda: {}'
-    #              .format(early_stopping.best_value, args.model + "(" + str(args.n_blocks) + ")",
-    #                      args.seed, weight_decay, params, gamma_dict_list_best,
-    #                      lambda_dict_list_best))
 
     logger.debug(Fore.RED + Style.BRIGHT + 'best val acc: {}\nbest train acc: {}\nbest train loss: {}\nmodel: {}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
                  .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model,
