@@ -23,7 +23,6 @@ from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import random
-from thop import profile
 
 import models.model as m
 
@@ -183,7 +182,8 @@ if __name__ == "__main__":
 
     summary(model, (3, 32, 32))
 
-    macs, params = profile(model, inputs=(torch.randn(1, 3, 32, 32), ))
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    params = sum([np.prod(p.size()) for p in model_parameters])
 
     # print gamma value
     def get_gamma(model):
@@ -232,13 +232,8 @@ if __name__ == "__main__":
 
     # trainers
 
-    # optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0001 )
-    # optimizer = optim.SGD(model.parameters(), lr=args.lr,
-        #   momentum=0.9, weight_decay=weight_decay)
     optimizer = AdamP(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    #     optimizer, [100, 150], gamma=0.1)
     scheduler = CosineAnnealingWarmupRestarts(
         optimizer, 300, max_lr=args.lr, min_lr=0.0001, warmup_steps=5)
 
@@ -318,7 +313,7 @@ if __name__ == "__main__":
                           optimizer.param_groups[0]['lr'], epoch)
 
     logger.debug(Fore.RED + Style.BRIGHT + 'best val acc: {}\nbest train acc: {}\nbest train loss: {}\
-        \nmodel: {}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\ntotal macs: {}\nbest gamma: {}\nbest lambda: {}'
+        \nmodel: {}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
                  .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model,
-                         args.seed, weight_decay, params, macs, gamma_dict_list_best,
+                         args.seed, weight_decay, params, gamma_dict_list_best,
                          lambda_dict_list_best))
