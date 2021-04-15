@@ -23,6 +23,7 @@ from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import random
+from thop import profile
 
 import models.model as m
 
@@ -153,6 +154,8 @@ if __name__ == "__main__":
                          ])),
         batch_size=batch_size, shuffle=True)
 
+    # model load
+
     if args.model == 'ViT-Ti':
         model = m.ViT_Ti_cifar(False)
     elif args.model == 'ViT-S':
@@ -180,8 +183,7 @@ if __name__ == "__main__":
 
     summary(model, (3, 32, 32))
 
-    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-    params = sum([np.prod(p.size()) for p in model_parameters])
+    macs, params = profile(model, inputs=(torch.randn(1, 3, 32, 32), ))
 
     # print gamma value
     def get_gamma(model):
@@ -269,7 +271,7 @@ if __name__ == "__main__":
         test_loss, test_accuracy = model_eval(test_loader)
 
         logger.debug(Fore.BLUE + Style.BRIGHT +
-                     '\ntrain_loss {}\ntrain_accuracy {}\n\ntest_loss {}\ntest_accuracy {}'.format(train_loss, train_accuracy, test_loss, test_accuracy))
+                     '\ntrain_loss {}\ntrain_accuracy {}\n\ntest_loss {}\ntest_accuracy {}\n'.format(train_loss, train_accuracy, test_loss, test_accuracy))
 
         if best_train_accuracy < train_accuracy:
             best_train_accuracy = train_accuracy
@@ -315,7 +317,8 @@ if __name__ == "__main__":
         writer.add_scalar('Learning Rate/',
                           optimizer.param_groups[0]['lr'], epoch)
 
-    logger.debug(Fore.RED + Style.BRIGHT + 'best val acc: {}\nbest train acc: {}\nbest train loss: {}\nmodel: {}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
+    logger.debug(Fore.RED + Style.BRIGHT + 'best val acc: {}\nbest train acc: {}\nbest train loss: {}\
+        \nmodel: {}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\ntotal macs: {}\nbest gamma: {}\nbest lambda: {}'
                  .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model,
-                         args.seed, weight_decay, params, gamma_dict_list_best,
+                         args.seed, weight_decay, params, macs, gamma_dict_list_best,
                          lambda_dict_list_best))
