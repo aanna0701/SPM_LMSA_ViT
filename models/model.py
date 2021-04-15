@@ -34,20 +34,20 @@ def self_Attention_full(global_attribute=False):
 
 def ViT_Ti_cifar(GA=False):
     if not GA:
-        return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=192, depth=12, heads=3, EB=GA)
+        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=48, depth=12, heads=3, EB=GA)
     else:
-        return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=192, depth=12, heads=3, EB=GA)
+        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=48, depth=12, heads=3, EB=GA)
 
 
 def ViT_S_cifar(GA=False):
     if not GA:
-        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=384, depth=12, heads=6, EB=GA)
+        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=96, depth=12, heads=6, EB=GA)
     else:
-        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=384, depth=12, heads=6, EB=GA)
+        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=96, depth=12, heads=6, EB=GA)
 
 
 def ViT_B_cifar(GA=False):
     if not GA:
-        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=768, depth=12, heads=12, EB=GA)
+        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=192, depth=12, heads=12, EB=GA)
     else:
-        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=768, depth=12, heads=12, EB=GA)
+        return ViT(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=192, depth=12, heads=12, EB=GA)
