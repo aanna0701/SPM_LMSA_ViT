@@ -32,13 +32,13 @@ class EB_2d(nn.Module):
         return out
 
 
-class EB_1d(nn.Module):
+class Equivariant_Block(nn.Module):
     '''
     Equivariant block (Average version)
     '''
 
     def __init__(self):
-        super(EB_1d, self).__init__()
+        super(Equivariant_Block, self).__init__()
 
         self._gamma = nn.Parameter(torch.zeros(1))
         self._lambda = nn.Parameter(torch.zeros(1))
@@ -64,3 +64,30 @@ class EB_1d(nn.Module):
         out = out_sum.permute(0, 2, 1)
 
         return out
+
+
+class Invariant_Block(nn.Module):
+    '''
+        y = sigma(sum_up(phi(x)))
+        phi: transformation
+        sigma: non-linear transformation 
+    '''
+
+    def __init__(self, phi, sigma):
+        super(Invariant_Block, self).__init__()
+        self.phi = phi
+        self.sigma = sigma
+
+    def forward(self, x):
+        '''
+            [shape]
+            x : (B, HW, C)
+            x_phi : (B, C, HW)
+            x_sum : (B, C, 1)
+            x_sigma : (B, 1, C)
+        '''
+        x_phi = self.phi(x).permute(0, 2, 1)
+        x_sum = F.adaptive_avg_pool1d(x_phi)
+        x_sigma = self.sigma(x_sum).permute(0, 2, 1)
+
+        return x_sigma

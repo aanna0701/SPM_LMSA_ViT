@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
+from models.deepsets import Equivariant_Block, Invariant_Block
 
 
 class MHSA(nn.Module):
@@ -71,13 +72,20 @@ class Positional_Embedding(nn.Module):
 
 
 class Patch_Embedding(nn.Module):
-    def __init__(self, patch_size, in_channels, inter_channels):
+    def __init__(self, patch_size, in_channels, inter_channels, invariant_block=False):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
                                          kernel_size=patch_size, stride=patch_size)
         self._init_weights()
 
-        self.cls_token = nn.Parameter(torch.zeros(1, inter_channels, 1))
+        if not invariant_block:
+            self.ib = False
+            self.cls_token = nn.Parameter(torch.zeros(1, inter_channels, 1))
+        else:
+            self.ib = True
+            self.phi = MLP(inter_channels)
+            self.sigma = nn.GELU()
+            self.cls_token = Invariant_Block(self.phi, self.sigma)
 
     def _init_weights(self):
         nn.init.kaiming_normal_(
@@ -95,8 +103,14 @@ class Patch_Embedding(nn.Module):
         '''
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
-        cls_token = self.cls_token.expand(
-            x.size(0), self.cls_token.size(1), self.cls_token.size(2))
+        if not self.ib:
+            cls_token = self.cls_token.expand(
+                x.size(0), self.cls_token.size(1), self.cls_token.size(2))
+        else:
+            cls_token = self.cls_token(out_flat.permute(0, 2, 1)).permute(0, 2, 1).expand(
+                x.size(0), self.cls_token.size(1), self.cls_token.size(2)
+            )
+
         out_concat = torch.cat((cls_token, out_flat), dim=2)
         out = out_concat.permute(0, 2, 1)
 
@@ -126,7 +140,7 @@ class MLP(nn.Module):
         '''
         [shape]
             x : (B, HW+1, C)
-            x_inter : (B, 4*C, HW+1)
+            x_inter : (B, HW+1, 4*C)
             x_out : (B, HW+1, C)
         '''
 
@@ -173,7 +187,7 @@ class Classifier_1d(nn.Module):
         super(Classifier_1d, self).__init__()
 
         self.linear = nn.Linear(in_channels, num_classes)
-        self.name = 'FCL'
+        self.name = 'Classifier'
 
     def forward(self, x):
         '''
@@ -187,48 +201,15 @@ class Classifier_1d(nn.Module):
         return x
 
 
-class EB_1d(nn.Module):
-    '''
-    Equivariant block (Average version)
-    '''
-
-    def __init__(self):
-        super(EB_1d, self).__init__()
-
-        self._gamma = nn.Parameter(torch.zeros(1))
-        self._lambda = nn.Parameter(torch.zeros(1))
-
-    def forward(self, x):
-        '''
-        out = lambda * x + gamma * avrpool(x)
-
-        [shape]
-            x : (B, HW+1, C)
-            x_tmp : (B, C, HW+1)
-            x_pool : (B, C, 1)
-            out_sum : (B, C, HW+1)
-            out : (B, HW+1, C)
-        '''
-
-        x_tmp = x.permute(0, 2, 1)
-        x_pool = F.adaptive_avg_pool1d(x_tmp, 1)
-
-        out_sum = torch.add(torch.sigmoid(self._lambda) * x_tmp,
-                            torch.sigmoid(self._gamma) * x_pool)
-        out = out_sum.permute(0, 2, 1)
-
-        return out
-
-
 class ViT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, heads=8, num_classes=10, EB=False):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, heads=8, num_classes=10, EB=False, IB=False):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
         self.heads = heads
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension, invariant_block=IB)
         self.positional_embedding = Positional_Embedding(
             spatial_dimension=num_nodes + 1, inter_channels=inter_dimension)
         self.classifier = Classifier_1d(
@@ -236,7 +217,7 @@ class ViT(nn.Module):
         self.transformers = self.make_layer(depth, Transformer_Block)
 
         if EB:
-            self.EB = EB_1d()
+            self.EB = Equivariant_Block()
         else:
             self.EB = False
 

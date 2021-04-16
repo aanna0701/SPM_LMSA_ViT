@@ -162,11 +162,11 @@ if __name__ == "__main__":
     elif args.model == 'ViT-B':
         model = m.ViT_B_cifar(False)
     elif args.model == 'G-ViT-Ti':
-        model = m.ViT_Ti_cifar(True)
+        model = m.ViT_Ti_cifar(True, True)
     elif args.model == 'G-ViT-S':
-        model = m.ViT_S_cifar(True)
+        model = m.ViT_S_cifar(True, True)
     elif args.model == 'G-ViT-B':
-        model = m.ViT_B_cifar(True)
+        model = m.ViT_B_cifar(True, True)
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     optimizer = AdamP(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 300, max_lr=args.lr, min_lr=0.0001, warmup_steps=5)
+        optimizer, 600, max_lr=args.lr, min_lr=0.0001, warmup_steps=5)
 
     # training loop
 
