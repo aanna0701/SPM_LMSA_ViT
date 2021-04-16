@@ -87,7 +87,7 @@ class Invariant_Block(nn.Module):
             x_sigma : (B, 1, C)
         '''
         x_phi = self.phi(x).permute(0, 2, 1)
-        x_sum = F.adaptive_avg_pool1d(x_phi)
+        x_sum = F.adaptive_avg_pool1d(x_phi, 1)
         x_sigma = self.sigma(x_sum).permute(0, 2, 1)
 
         return x_sigma

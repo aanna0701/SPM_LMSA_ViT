@@ -107,8 +107,10 @@ class Patch_Embedding(nn.Module):
             cls_token = self.cls_token.expand(
                 x.size(0), self.cls_token.size(1), self.cls_token.size(2))
         else:
-            cls_token = self.cls_token(out_flat.permute(0, 2, 1)).permute(0, 2, 1).expand(
-                x.size(0), self.cls_token.size(1), self.cls_token.size(2)
+            cls_token = self.cls_token(
+                out_flat.permute(0, 2, 1)).permute(0, 2, 1)
+            cls_token = cls_token.expand(
+                x.size(0), cls_token.size(1), cls_token.size(2)
             )
 
         out_concat = torch.cat((cls_token, out_flat), dim=2)
