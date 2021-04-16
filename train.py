@@ -235,7 +235,7 @@ if __name__ == "__main__":
     optimizer = AdamP(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 600, max_lr=args.lr, min_lr=args.lr / 100., warmup_steps=5)
+        optimizer, 450, max_lr=args.lr, min_lr=args.lr / 100., warmup_steps=10)
 
     # training loop
 
