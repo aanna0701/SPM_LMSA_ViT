@@ -72,7 +72,7 @@ batch_size = 128
 test_batch_size = 128
 epochs = 300
 ealry_stopping_patience = 50
-weight_decay = 0.05
+weight_decay = 0.3
 gamma_dict_list_best = []
 lambda_dict_list_best = []
 best_train_loss = 100000
@@ -156,17 +156,17 @@ if __name__ == "__main__":
     # model load
 
     if args.model == 'ViT-Ti':
-        model = m.ViT_Ti_cifar(False)
+        model = m.ViT_Ti_cifar()
     elif args.model == 'ViT-S':
-        model = m.ViT_S_cifar(False)
+        model = m.ViT_S_cifar()
     elif args.model == 'ViT-B':
-        model = m.ViT_B_cifar(False)
+        model = m.ViT_B_cifar()
     elif args.model == 'G-ViT-Ti':
-        model = m.ViT_Ti_cifar(True, True)
+        model = m.ViT_Ti_cifar(IB=True)
     elif args.model == 'G-ViT-S':
-        model = m.ViT_S_cifar(True, True)
+        model = m.ViT_S_cifar(IB=True)
     elif args.model == 'G-ViT-B':
-        model = m.ViT_B_cifar(True, True)
+        model = m.ViT_B_cifar(IB=True)
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     optimizer = AdamP(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 600, max_lr=args.lr, min_lr=0.0001, warmup_steps=5)
+        optimizer, 600, max_lr=args.lr, min_lr=args.lr / 100., warmup_steps=5)
 
     # training loop
 
