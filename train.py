@@ -68,8 +68,8 @@ torch.backends.cudnn.deterministic = True
 
 FINETUNING = False
 log_interval = 100
-batch_size = 128
-test_batch_size = 128
+batch_size = 512
+test_batch_size = 512
 epochs = 300
 ealry_stopping_patience = 50
 weight_decay = 0.3
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     optimizer = AdamP(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 450, max_lr=args.lr, min_lr=args.lr / 100., warmup_steps=10)
+        optimizer, 300, max_lr=args.lr, min_lr=0, warmup_steps=5)
 
     # training loop
 
