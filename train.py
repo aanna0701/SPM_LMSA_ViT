@@ -68,8 +68,8 @@ torch.backends.cudnn.deterministic = True
 
 FINETUNING = False
 log_interval = 100
-batch_size = 256
-test_batch_size = 256
+batch_size = 128
+test_batch_size = 128
 epochs = 300
 ealry_stopping_patience = 50
 weight_decay = 0.3
