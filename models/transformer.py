@@ -53,7 +53,7 @@ class MHSA(nn.Module):
         out = out_tmp.permute(0, 2, 1, 3).contiguous()
         out = out.view(B, n_tokens, -1)
         out = self.out(out)
-        out = F.droput(out, 0.1)
+        out = F.dropout(out, 0.1)
 
         return out
 
@@ -148,10 +148,10 @@ class MLP(nn.Module):
         '''
 
         x_inter = nn.GELU()(self.fc1(x))
-        x_inter = F.droput(x_inter, 0.1)
+        x_inter = F.dropout(x_inter, 0.1)
 
         x_out = self.fc2(x_inter)
-        x_out = F.droput(x_out, 0.1)
+        x_out = F.dropout(x_out, 0.1)
 
         return x_out
 
@@ -245,7 +245,7 @@ class ViT(nn.Module):
         x_patch_embedded = self.patch_embedding(x)
 
         x_tmp = self.positional_embedding(x_patch_embedded)
-        x_tmp = F.droput(x_tmp, 0.1)
+        x_tmp = F.dropout(x_tmp, 0.1)
         for i in range(len(self.transformers)):
             x_tmp = self.transformers[i](x_tmp, self.EB)
         x_out = self.classifier(x_tmp)
