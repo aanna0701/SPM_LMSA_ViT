@@ -78,6 +78,7 @@ class Patch_Embedding(nn.Module):
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
                                          kernel_size=patch_size, stride=patch_size)
         self._init_weights()
+        self.inter_channels = inter_channels
 
         if not invariant_block:
             self.ib = False
@@ -85,7 +86,7 @@ class Patch_Embedding(nn.Module):
         else:
             self.ib = True
             
-            self.cls_token = GA_block(self.in_channels)
+            self.cls_token = GA_block(self.inter_channels)
 
     def _init_weights(self):
         nn.init.kaiming_normal_(
