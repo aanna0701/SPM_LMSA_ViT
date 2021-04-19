@@ -44,7 +44,7 @@ parser.add_argument('--dataset_dir', help='path of input images',
                     default='/media/CVIP/Hyundai2020/dataset/training/0809')
 parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
-parser.add_argument('--gpu', help='gpu number to use', default=False, type=int)
+parser.add_argument('--gpu', help='gpu number to use', default='multi', type=int)
 parser.add_argument('--seed', help='seed', type=int, required=True)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
@@ -198,7 +198,7 @@ if __name__ == "__main__":
                                                 \n# Weigth decay: {}'
                  .format(args.model, args.lr, args.seed, weight_decay) + Style.RESET_ALL)
 
-    if not args.gpu:  # Using multi-gpu
+    if args.gpu=='multi':  # Using multi-gpu
         model = nn.DataParallel(model)
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)
     else:
