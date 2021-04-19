@@ -63,7 +63,7 @@ class Equivariant_Block(nn.Module):
                             torch.sigmoid(self._gamma) * x_pool)
         out = out_sum.permute(0, 2, 1)
 
-        return out
+        return F.gelu(out)
 
 
 class Invariant_Block(nn.Module):

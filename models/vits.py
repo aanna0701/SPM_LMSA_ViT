@@ -147,7 +147,7 @@ class MLP(nn.Module):
             x_out : (B, HW+1, C)
         '''
 
-        x_inter = nn.GELU()(self.fc1(x))
+        x_inter = F.gelu(self.fc1(x))
         x_inter = F.dropout(x_inter, 0.1)
 
         x_out = self.fc2(x_inter)
@@ -164,7 +164,7 @@ class GA_block(nn.Module):
         super(GA_block, self).__init__()
         self.phi = Equivariant_Block()
         self.rho = MLP(in_channels=in_channels)
-        self.activation = nn.GELU()
+        self.activation = F.gelu
     
     def forward(self, x):
         '''
@@ -185,10 +185,7 @@ class GA_block(nn.Module):
 class Transformer_Block(nn.Module):
     def __init__(self, in_channels, heads=8):
         super(Transformer_Block, self).__init__()
-        self.normalization1 = nn.LayerNorm(in_channels)
-        self.normalization2 = nn.LayerNorm(in_channels)
-        # self.normalization1 = nn.BatchNorm1d(in_channels)
-        # self.normalization2 = nn.BatchNorm1d(in_channels)
+        self.normalization = nn.LayerNorm(in_channels)
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels)
 
@@ -198,15 +195,20 @@ class Transformer_Block(nn.Module):
             x : (B, HW+1, C)
         '''
 
-        x_inter1 = self.normalization1(x)
+        
+        x_inter1 = self.normalization(x)
 
         if _EB:
-            x_inter1 = _EB(x_inter1)
+            x_inter1_spatial = x_inter1[:, 1:]
+            x_inter1_cls = x_inter1[:, (0, )]
+            x_inter1_spatial = _EB(x_inter1_spatial)
+            x_inter1 = torch.cat((x_inter1_cls, x_inter1_spatial), dim=1)
+            # x_inter1 = _EB(x_inter1)
 
         x_MHSA = self.MHSA(x_inter1)
         x_res1 = x + x_MHSA
 
-        x_inter2 = self.normalization2(x_res1)
+        x_inter2 = self.normalization(x_res1)
         x_MLP = self.MLP(x_inter2)
         x_res2 = x_res1 + x_MLP
 

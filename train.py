@@ -29,6 +29,7 @@ import models.model as m
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
 
+
 # constants
 
 init(autoreset=True)
@@ -43,7 +44,7 @@ parser.add_argument('--dataset_dir', help='path of input images',
                     default='/media/CVIP/Hyundai2020/dataset/training/0809')
 parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
-parser.add_argument('--multi_gpus', help='multi gpus', action='store_true')
+parser.add_argument('--gpu', help='gpu number to use', default=False, type=int)
 parser.add_argument('--seed', help='seed', type=int, required=True)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
@@ -53,6 +54,12 @@ args = parser.parse_args()
 assert args.model in ['ViT-Ti', 'ViT-S', 'ViT-B', 'G-ViT-Ti', 'G-ViT-S', 'G-ViT-B',
                       'PiT-Ti', 'PiT-XS', 'PiT-S', 'PiT-B', 
                       'G-PiT-Ti', 'G-PiT-XS', 'G-PiT-S','G-PiT-B'], 'Unexpected model!'
+
+# gpus
+# GPU 할당 변경하기
+GPU_NUM = args.gpu # 원하는 GPU 번호 입력
+device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu')
+torch.cuda.set_device(device) # change allocation of current GPU
 
 # random seed
 
@@ -163,11 +170,11 @@ if __name__ == "__main__":
     elif args.model == 'ViT-B':
         model = m.ViT_B_cifar()
     elif args.model == 'G-ViT-Ti':
-        model = m.ViT_Ti_cifar(IB=True)
+        model = m.ViT_Ti_cifar(EB=True)
     elif args.model == 'G-ViT-S':
-        model = m.ViT_S_cifar(IB=True)
+        model = m.ViT_S_cifar(EB=True)
     elif args.model == 'G-ViT-B':
-        model = m.ViT_B_cifar(IB=True)
+        model = m.ViT_B_cifar(EB=True)
     elif args.model == 'PiT-Ti':
         model = m.PiT_Ti_cifar()
     elif args.model == 'PiT-XS':
@@ -177,13 +184,13 @@ if __name__ == "__main__":
     elif args.model == 'PiT-B':
         model = m.PiT_B_cifar()
     elif args.model == 'G-PiT-Ti':
-        model = m.PiT_Ti_cifar(IB=True)
+        model = m.PiT_Ti_cifar(EB=True)
     elif args.model == 'G-PiT-XS':
-        model = m.PiT_XS_cifar(IB=True)
+        model = m.PiT_XS_cifar(EB=True)
     elif args.model == 'G-PiT-S':
-        model = m.PiT_S_cifar(IB=True)
+        model = m.PiT_S_cifar(EB=True)
     elif args.model == 'G-PiT-B':
-        model = m.PiT_B_cifar(IB=True)
+        model = m.PiT_B_cifar(EB=True)
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
@@ -191,9 +198,11 @@ if __name__ == "__main__":
                                                 \n# Weigth decay: {}'
                  .format(args.model, args.lr, args.seed, weight_decay) + Style.RESET_ALL)
 
-    if args.multi_gpus:  # Using multi-gpu
+    if not args.gpu:  # Using multi-gpu
         model = nn.DataParallel(model)
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)
+    else:
+        print(Fore.RED + Style.BRIGHT + '\n# Using Gpus {}'.format(torch.cuda.get_device_name(GPU_NUM)))
 
     model.cuda()
 

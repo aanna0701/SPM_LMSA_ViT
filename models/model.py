@@ -44,16 +44,16 @@ def ViT_B_cifar(EB=False, IB=False):
 
 
 def PiT_Ti_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=16, num_blocks=[2, 4, 2], heads=2, EB=EB, IB=IB)
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=24, num_blocks=[1, 5, 1], heads=2, EB=EB, IB=IB)
 
 
 def PiT_XS_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=20, num_blocks=[2, 4, 2], heads=2, EB=EB, IB=IB)
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=32, num_blocks=[1, 5, 1], heads=2, EB=EB, IB=IB)
 
 
 def PiT_S_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=30, num_blocks=[2, 4, 2], heads=3, EB=EB, IB=IB)
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=48, num_blocks=[1, 5, 1], heads=3, EB=EB, IB=IB)
 
 
 def PiT_B_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=40, num_blocks=[2, 4, 3], heads=4, EB=EB, IB=IB)
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=64, num_blocks=[2, 5, 1], heads=4, EB=EB, IB=IB)
