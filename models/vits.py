@@ -177,7 +177,7 @@ class GA_block(nn.Module):
         x_phi = self.phi(x).permute(0, 2, 1)
         x_phi = self.activation(x_phi)
         x_sum = F.adaptive_avg_pool1d(x_phi, 1)
-        x_rho = self.rho(x_sum).permute(0, 2, 1)
+        x_rho = self.rho(x_sum.permute(0, 2, 1))
         
         return x_rho
 
