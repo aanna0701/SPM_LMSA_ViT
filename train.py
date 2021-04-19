@@ -50,8 +50,9 @@ parser.add_argument('--seed', help='seed', type=int, required=True)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Ti',
-                      'ViT-S', 'ViT-B', 'G-ViT-Ti', 'G-ViT-S', 'G-ViT-B'], 'Unexpected model!'
+assert args.model in ['ViT-Ti', 'ViT-S', 'ViT-B', 'G-ViT-Ti', 'G-ViT-S', 'G-ViT-B',
+                      'PiT-Ti', 'PiT-XS', 'PiT-S', 'PiT-B', 
+                      'G-PiT-Ti', 'G-PiT-XS', 'G-PiT-S','G-PiT-B'], 'Unexpected model!'
 
 # random seed
 
@@ -167,6 +168,22 @@ if __name__ == "__main__":
         model = m.ViT_S_cifar(IB=True)
     elif args.model == 'G-ViT-B':
         model = m.ViT_B_cifar(IB=True)
+    elif args.model == 'PiT-Ti':
+        model = m.PiT_Ti_cifar()
+    elif args.model == 'PiT-XS':
+        model = m.PiT_XS_cifar()
+    elif args.model == 'PiT-S':
+        model = m.PiT_S_cifar()
+    elif args.model == 'PiT-B':
+        model = m.PiT_B_cifar()
+    elif args.model == 'G-PiT-Ti':
+        model = m.PiT_Ti_cifar(IB=True)
+    elif args.model == 'G-PiT-XS':
+        model = m.PiT_XS_cifar(IB=True)
+    elif args.model == 'G-PiT-S':
+        model = m.PiT_S_cifar(IB=True)
+    elif args.model == 'G-PiT-B':
+        model = m.PiT_B_cifar(IB=True)
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\

@@ -91,3 +91,6 @@ class Invariant_Block(nn.Module):
         x_sigma = self.sigma(x_sum).permute(0, 2, 1)
 
         return x_sigma
+
+
+        
