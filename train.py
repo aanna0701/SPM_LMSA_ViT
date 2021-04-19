@@ -44,7 +44,7 @@ parser.add_argument('--dataset_dir', help='path of input images',
                     default='/media/CVIP/Hyundai2020/dataset/training/0809')
 parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
-parser.add_argument('--gpu', help='gpu number to use', default='multi', type=int)
+parser.add_argument('--gpu', help='gpu number to use', default='multi')
 parser.add_argument('--seed', help='seed', type=int, required=True)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
@@ -57,9 +57,11 @@ assert args.model in ['ViT-Ti', 'ViT-S', 'ViT-B', 'G-ViT-Ti', 'G-ViT-S', 'G-ViT-
 
 # gpus
 # GPU 할당 변경하기
-GPU_NUM = args.gpu # 원하는 GPU 번호 입력
-device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu')
-torch.cuda.set_device(device) # change allocation of current GPU
+
+if not args.gpu == 'multi':
+    GPU_NUM = int(args.gpu) # 원하는 GPU 번호 입력
+    device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu')
+    torch.cuda.set_device(device) # change allocation of current GPU
 
 # random seed
 
