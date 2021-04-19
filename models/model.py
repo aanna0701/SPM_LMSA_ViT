@@ -57,4 +57,3 @@ def PiT_S_cifar(EB=False, IB=False):
 
 def PiT_B_cifar(EB=False, IB=False):
     return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=40, num_blocks=[2, 3, 1], heads=4, EB=EB, IB=IB)
-    z
