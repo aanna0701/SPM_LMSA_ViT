@@ -36,11 +36,11 @@ def ViT_Ti_cifar(EB=False, IB=False):
 
 
 def ViT_S_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=60, depth=12, heads=5, EB=EB, IB=IB)
+    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=72, depth=12, heads=6, EB=EB, IB=IB)
 
 
 def ViT_B_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=120, depth=12, heads=10, EB=EB, IB=IB)
+    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=144, depth=12, heads=12, EB=EB, IB=IB)
 
 
 def PiT_Ti_cifar(EB=False, IB=False):
