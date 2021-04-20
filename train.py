@@ -77,9 +77,9 @@ torch.backends.cudnn.deterministic = True
 
 FINETUNING = False
 log_interval = 100
-batch_size = 1024
-test_batch_size = 1024
-epochs = 300
+batch_size = 128
+test_batch_size = 128
+epochs = 200
 ealry_stopping_patience = 50
 weight_decay = 0.03
 gamma_dict_list_best = []
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     optimizer = optim.AdamW(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 300, max_lr=args.lr, min_lr=0.0003, warmup_steps=5)
+        optimizer, 200, max_lr=args.lr, min_lr=0.000005, warmup_steps=5)
 
     # training loop
 
