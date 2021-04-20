@@ -46,6 +46,7 @@ parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
 parser.add_argument('--gpu', help='gpu number to use', default='multi')
 parser.add_argument('--seed', help='seed', type=int, required=True)
+parser.add_argument('--weights', help='weights path', defalut=False)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
 
@@ -79,6 +80,7 @@ FINETUNING = False
 log_interval = 100
 batch_size = 128
 test_batch_size = 128
+epoch_init = 1
 epochs = 200
 ealry_stopping_patience = 50
 weight_decay = 0.03
@@ -180,6 +182,13 @@ if __name__ == "__main__":
         model = m.ViT_Lite_7(EB=True)
     elif args.model == 'G-PiT-Lite-6':
         model = m.ViT_Lite_6(EB=True)
+        
+    # trainers
+
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr,
+                      betas=(0.9, 0.999), weight_decay=weight_decay)
+    scheduler = CosineAnnealingWarmupRestarts(
+        optimizer, 200, max_lr=args.lr, min_lr=0.000005, warmup_steps=5)
 
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
@@ -188,11 +197,19 @@ if __name__ == "__main__":
                                                 \n# Weigth decay: {}'
                  .format(args.model, args.lr, args.seed, weight_decay) + Style.RESET_ALL)
 
+    if args.weights:
+        checkpoint = torch.load(args.weights)
+        model.load_state_dict(checkpoint['modle_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch_init = checkpoint['epoch']
+        loss = checkpoint['loss']
+
     if args.gpu=='multi':  # Using multi-gpu
         model = nn.DataParallel(model)
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)
     else:
         print(Fore.RED + Style.BRIGHT + '\n# Using Gpus {}'.format(torch.cuda.get_device_name(GPU_NUM)))
+
 
     model.cuda()
 
@@ -246,16 +263,11 @@ if __name__ == "__main__":
 
         return gamma_dict_list, labmda_dict_list
 
-    # trainers
-
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr,
-                      betas=(0.9, 0.999), weight_decay=weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 200, max_lr=args.lr, min_lr=0.000005, warmup_steps=5)
+    
 
     # training loop
 
-    for epoch in tqdm(range(1, epochs+1)):
+    for epoch in tqdm(range(epoch_init, epochs+1)):
         # Train Mode
         model.train()
 
@@ -311,7 +323,7 @@ if __name__ == "__main__":
                          '\nbest test acc: {}\nbest_train_loss: {}\nbest_train_acc: {}'.format(early_stopping.best_value, best_train_loss, best_train_loss))
             # model.state_dict(): 딕셔너리 형태로 모델의 Layer와 Weight가 저장되어있음.
             torch.save({
-                'epoch': epoch,
+                'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss
