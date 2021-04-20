@@ -260,7 +260,7 @@ if __name__ == "__main__":
 
     # trainers
 
-    optimizer = AdamW(model.parameters(), lr=args.lr,
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
         optimizer, 300, max_lr=args.lr, min_lr=0.0003, warmup_steps=5)
