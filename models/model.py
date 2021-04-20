@@ -40,8 +40,8 @@ def ViT_Lite_6(EB=False, IB=False):
 
 
 def PiT_Lite_7(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=24, num_blocks=[1, 5, 1], heads=2,  mlp_ratio=2, EB=EB, IB=IB)
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=128, num_blocks=[1, 5, 1], heads=2,  mlp_ratio=2, EB=EB, IB=IB)
 
 
 def PiT_Lite_6(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=32, num_blocks=[1, 4, 1], heads=2,  mlp_ratio=2, EB=EB, IB=IB)
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=128, num_blocks=[1, 4, 1], heads=2,  mlp_ratio=2, EB=EB, IB=IB)
