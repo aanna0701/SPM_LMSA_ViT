@@ -31,29 +31,17 @@ def self_Attention_full(global_attribute=False):
     return Self_Attention_full(NLB, Classifier_2d, Down_Conv, _Global_attribute=global_attribute)
 
 
-def ViT_Ti_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=36, depth=12, heads=3, EB=EB, IB=IB)
+def ViT_Lite_7(EB=False, IB=False):
+    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=256, depth=7, heads=4, mlp_ratio=2, EB=EB, IB=IB)
 
 
-def ViT_S_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=72, depth=12, heads=6, EB=EB, IB=IB)
+def ViT_Lite_6(EB=False, IB=False):
+    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=256, depth=6, heads=4, mlp_ratio=2,EB=EB, IB=IB)
 
 
-def ViT_B_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=144, depth=12, heads=12, EB=EB, IB=IB)
+def PiT_Lite_7(EB=False, IB=False):
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=24, num_blocks=[1, 5, 1], heads=2,  mlp_ratio=2, EB=EB, IB=IB)
 
 
-def PiT_Ti_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=24, num_blocks=[1, 5, 1], heads=2, EB=EB, IB=IB)
-
-
-def PiT_XS_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=32, num_blocks=[1, 5, 1], heads=2, EB=EB, IB=IB)
-
-
-def PiT_S_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=48, num_blocks=[1, 5, 1], heads=3, EB=EB, IB=IB)
-
-
-def PiT_B_cifar(EB=False, IB=False):
-    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=64, num_blocks=[2, 5, 1], heads=4, EB=EB, IB=IB)
+def PiT_Lite_6(EB=False, IB=False):
+    return PiT(in_height=32, in_width=32, num_nodes=16*16, inter_channels=32, num_blocks=[1, 4, 1], heads=2,  mlp_ratio=2, EB=EB, IB=IB)

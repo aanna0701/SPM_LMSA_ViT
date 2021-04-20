@@ -51,9 +51,8 @@ parser.add_argument('--seed', help='seed', type=int, required=True)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Ti', 'ViT-S', 'ViT-B', 'G-ViT-Ti', 'G-ViT-S', 'G-ViT-B',
-                      'PiT-Ti', 'PiT-XS', 'PiT-S', 'PiT-B', 
-                      'G-PiT-Ti', 'G-PiT-XS', 'G-PiT-S','G-PiT-B'], 'Unexpected model!'
+assert args.model in ['ViT-Lite-7', 'ViT-Lite-6', 'PiT-Lite-7', 'PiT-Lite-6',
+                      'G-ViT-Lite-7', 'G-ViT-Lite-6', 'G-PiT-Lite-7', 'G-PiT-Lite-6'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -82,7 +81,7 @@ batch_size = 1024
 test_batch_size = 1024
 epochs = 300
 ealry_stopping_patience = 50
-weight_decay = 0.3
+weight_decay = 0.03
 gamma_dict_list_best = []
 lambda_dict_list_best = []
 best_train_loss = 100000
@@ -165,34 +164,23 @@ if __name__ == "__main__":
 
     # model load
 
-    if args.model == 'ViT-Ti':
-        model = m.ViT_Ti_cifar()
-    elif args.model == 'ViT-S':
-        model = m.ViT_S_cifar()
-    elif args.model == 'ViT-B':
-        model = m.ViT_B_cifar()
-    elif args.model == 'G-ViT-Ti':
-        model = m.ViT_Ti_cifar(EB=True)
-    elif args.model == 'G-ViT-S':
-        model = m.ViT_S_cifar(EB=True)
-    elif args.model == 'G-ViT-B':
-        model = m.ViT_B_cifar(EB=True)
-    elif args.model == 'PiT-Ti':
-        model = m.PiT_Ti_cifar()
-    elif args.model == 'PiT-XS':
-        model = m.PiT_XS_cifar()
-    elif args.model == 'PiT-S':
-        model = m.PiT_S_cifar()
-    elif args.model == 'PiT-B':
-        model = m.PiT_B_cifar()
-    elif args.model == 'G-PiT-Ti':
-        model = m.PiT_Ti_cifar(EB=True)
-    elif args.model == 'G-PiT-XS':
-        model = m.PiT_XS_cifar(EB=True)
-    elif args.model == 'G-PiT-S':
-        model = m.PiT_S_cifar(EB=True)
-    elif args.model == 'G-PiT-B':
-        model = m.PiT_B_cifar(EB=True)
+    if args.model == 'ViT-Lite-7':
+        model = m.ViT_Lite_7()
+    elif args.model == 'ViT-Lite-6':
+        model = m.ViT_Lite_6()
+    elif args.model == 'PiT-Lite-7':
+        model = m.PiT_Lite_7()
+    elif args.model == 'PiT-Lite-6':
+        model = m.PiT_Lite_6()
+    elif args.model == 'G-ViT-Lite-7':
+        model = m.ViT_Lite_6(EB=True)
+    elif args.model == 'G-ViT-Lite-6':
+        model = m.ViT_Lite_6(EB=True)
+    elif args.model == 'G-PiT-Lite-7':
+        model = m.ViT_Lite_6(EB=True)
+    elif args.model == 'G-PiT-Lite-6':
+        model = m.ViT_Lite_6(EB=True)
+
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\

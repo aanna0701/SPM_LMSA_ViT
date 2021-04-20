@@ -122,11 +122,10 @@ class Patch_Embedding(nn.Module):
 
 class MLP(nn.Module):
 
-    def __init__(self, in_channels, inter_channels=None):
+    def __init__(self, in_channels, hidden_dim_ratio):
         super(MLP, self).__init__()
         self.in_channels = in_channels
-        if inter_channels == None:
-            self.inter_channels = self.in_channels * 4
+        self.inter_channels = self.in_channels * hidden_dim_ratio
 
         self.fc1 = nn.Linear(self.in_channels, self.inter_channels)
         self.fc2 = nn.Linear(self.inter_channels, self.in_channels)
@@ -183,11 +182,11 @@ class GA_block(nn.Module):
 
 
 class Transformer_Block(nn.Module):
-    def __init__(self, in_channels, heads=8):
+    def __init__(self, in_channels, heads=8, mlp_ratio=4):
         super(Transformer_Block, self).__init__()
         self.normalization = nn.LayerNorm(in_channels)
         self.MHSA = MHSA(in_channels, heads)
-        self.MLP = MLP(in_channels)
+        self.MLP = MLP(in_channels, mlp_ratio)
 
     def forward(self, x, _EB):
         '''
@@ -271,7 +270,7 @@ class Pooling_layer(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, heads=8, num_classes=10, EB=False, IB=False):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, EB=False, IB=False):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
@@ -283,18 +282,18 @@ class ViT(nn.Module):
             spatial_dimension=num_nodes + 1, inter_channels=inter_dimension)
         self.classifier = Classifier_1d(
             num_classes=num_classes, in_channels=inter_dimension)
-        self.transformers = self.make_layer(depth, Transformer_Block)
+        self.transformers = self.make_layer(depth, Transformer_Block, mlp_ratio)
 
         if EB:
             self.EB = Equivariant_Block()
         else:
             self.EB = False
 
-    def make_layer(self, num_blocks, block):
+    def make_layer(self, num_blocks, block, mlp_ratio):
         layer_list = nn.ModuleList()
         for i in range(num_blocks):
             layer_list.append(
-                block(self.inter_dimension, self.heads))
+                block(self.inter_dimension, self.heads, mlp_ratio))
 
         return layer_list
 
@@ -318,7 +317,7 @@ class ViT(nn.Module):
 
 
 class PiT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_channels, num_blocks, heads=8, num_classes=10, EB=False, IB=False):
+    def __init__(self, in_height, in_width, num_nodes, inter_channels, num_blocks, heads=8, mlp_ratio=4,num_classes=10, EB=False, IB=False):
         super(PiT, self).__init__()
 
         self.in_channels = inter_channels
@@ -334,12 +333,12 @@ class PiT(nn.Module):
         j = 0
         for i in range(len(num_blocks)):
             if not j+1 == len(num_blocks):
-                self.make_layer(num_blocks[i], Transformer_Block, True)
+                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, True)
                 j += 1
                 self.in_channels = 2 * self.in_channels
                 self.heads = 2 * self.heads
             else:
-                self.make_layer(num_blocks[i], Transformer_Block)
+                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio)
         
         self.classifier = Classifier_1d(
             num_classes=num_classes, in_channels=self.in_channels)        
@@ -349,10 +348,10 @@ class PiT(nn.Module):
         else:
             self.EB = False
 
-    def make_layer(self, num_blocks, tr_block, pool_block=False):
+    def make_layer(self, num_blocks, tr_block, mlp_ratio, pool_block=False):
         for i in range(num_blocks):
             self.transformers.append(
-                tr_block(self.in_channels, self.heads))
+                tr_block(self.in_channels, self.heads, mlp_ratio))
         if pool_block:
             self.transformers.append(
                 Pooling_layer(self.in_channels))
