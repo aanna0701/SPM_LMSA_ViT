@@ -32,15 +32,15 @@ def self_Attention_full(global_attribute=False):
 
 
 def ViT_Ti_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=48, depth=8, heads=3, EB=EB, IB=IB)
+    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=24, depth=10, heads=3, EB=EB, IB=IB)
 
 
 def ViT_S_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=80, depth=8, heads=5, EB=EB, IB=IB)
+    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=60, depth=10, heads=5, EB=EB, IB=IB)
 
 
 def ViT_B_cifar(EB=False, IB=False):
-    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=160, depth=8, heads=10, EB=EB, IB=IB)
+    return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=120, depth=10, heads=10, EB=EB, IB=IB)
 
 
 def PiT_Ti_cifar(EB=False, IB=False):
