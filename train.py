@@ -18,7 +18,7 @@ from torchsummary import summary
 import torchvision
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader
-from adamp import AdamP
+# from adamp import AdamP
 from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -173,11 +173,11 @@ if __name__ == "__main__":
     elif args.model == 'PiT-Lite-6':
         model = m.PiT_Lite_6()
     elif args.model == 'G-ViT-Lite-7':
-        model = m.ViT_Lite_6(EB=True)
+        model = m.ViT_Lite_7(EB=True)
     elif args.model == 'G-ViT-Lite-6':
         model = m.ViT_Lite_6(EB=True)
     elif args.model == 'G-PiT-Lite-7':
-        model = m.ViT_Lite_6(EB=True)
+        model = m.ViT_Lite_7(EB=True)
     elif args.model == 'G-PiT-Lite-6':
         model = m.ViT_Lite_6(EB=True)
 
