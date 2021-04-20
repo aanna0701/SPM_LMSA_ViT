@@ -203,6 +203,7 @@ class Transformer_Block(nn.Module):
             x_inter1_cls = x_inter1[:, (0, )]
             x_inter1_spatial = _EB(x_inter1_spatial)
             x_inter1 = torch.cat((x_inter1_cls, x_inter1_spatial), dim=1)
+            x_inter1 = self.normalization(x_inter1)
             # x_inter1 = _EB(x_inter1)
 
         x_MHSA = self.MHSA(x_inter1)
