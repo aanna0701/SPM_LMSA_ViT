@@ -46,14 +46,15 @@ parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
 parser.add_argument('--gpu', help='gpu number to use', default='multi')
 parser.add_argument('--seed', help='seed', type=int, required=True)
-parser.add_argument('--weights', help='weights path', defalut=False)
+parser.add_argument('--depth', help='depth', type=int, required=True)
+parser.add_argument('--channel', help='channel', type=int, required=True)
+parser.add_argument('--weights', help='weights path', default=False)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Lite-7', 'ViT-Lite-6', 'PiT-Lite-7', 'PiT-Lite-6',
-                      'G-ViT-Lite-7', 'G-ViT-Lite-6', 'G-PiT-Lite-7', 'G-PiT-Lite-6'], 'Unexpected model!'
+assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -166,36 +167,26 @@ if __name__ == "__main__":
 
     # model load
 
-    if args.model == 'ViT-Lite-7':
-        model = m.ViT_Lite_7()
-    elif args.model == 'ViT-Lite-6':
-        model = m.ViT_Lite_6()
-    elif args.model == 'PiT-Lite-7':
-        model = m.PiT_Lite_7()
-    elif args.model == 'PiT-Lite-6':
-        model = m.PiT_Lite_6()
-    elif args.model == 'G-ViT-Lite-7':
-        model = m.ViT_Lite_7(EB=True)
-    elif args.model == 'G-ViT-Lite-6':
-        model = m.ViT_Lite_6(EB=True)
-    elif args.model == 'G-PiT-Lite-7':
-        model = m.ViT_Lite_7(EB=True)
-    elif args.model == 'G-PiT-Lite-6':
-        model = m.ViT_Lite_6(EB=True)
+    if args.model == 'ViT-Lite':
+        model = m.ViT_Lite(args.depth, args.channel)
+    elif args.model == 'G-ViT-Lite':
+        model = m.ViT_Lite(args.depth, args.channel,EB=True)
         
     # trainers
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 200, max_lr=args.lr, min_lr=0.000005, warmup_steps=5)
+        optimizer, 200, max_lr=args.lr, min_lr=0.00005, warmup_steps=10)
 
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
                                                 \n# Initial Learning Rate: {}\
                                                 \n# Seed: {}\
+                                                \n# depth: {}\
+                                                \n# channel: {}\
                                                 \n# Weigth decay: {}'
-                 .format(args.model, args.lr, args.seed, weight_decay) + Style.RESET_ALL)
+                 .format(args.model, args.lr, args.seed, args.depth, args.channel, weight_decay) + Style.RESET_ALL)
 
     if args.weights:
         checkpoint = torch.load(args.weights)
@@ -340,8 +331,8 @@ if __name__ == "__main__":
         writer.add_scalar('Learning Rate/',
                           optimizer.param_groups[0]['lr'], epoch)
 
-    logger.debug(Fore.RED + Style.BRIGHT + 'best val acc: {}\nbest train acc: {}\nbest train loss: {}\
-        \nmodel: {}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
-                 .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model,
+    logger.debug(Fore.RED + Style.BRIGHT + '\nbest val acc: {}\nbest train acc: {}\nbest train loss: {}\
+        \nmodel: {}-{}-{}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
+                 .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model, args.depth, args.channel
                          args.seed, weight_decay, params, gamma_dict_list_best,
                          lambda_dict_list_best))
