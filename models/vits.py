@@ -73,20 +73,25 @@ class Positional_Embedding(nn.Module):
 
 
 class Patch_Embedding(nn.Module):
-    def __init__(self, patch_size, in_channels, inter_channels, invariant_block=False):
+    def __init__(self, patch_size, in_channels, inter_channels, cls_token, invariant_block=False):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
                                          kernel_size=patch_size, stride=patch_size)
         self._init_weights()
         self.inter_channels = inter_channels
 
+        if cls_token:
+            self.cls_token_flag = cls_token
+        else:
+            self.cls_token_flag = False
         if not invariant_block:
             self.ib = False
-            self.cls_token = nn.Parameter(torch.zeros(1, 1, inter_channels))
+            if cls_token:
+                self.cls_token = nn.Parameter(torch.zeros(1, 1, inter_channels))
         else:
             self.ib = True
-            
-            self.cls_token = GA_block(self.inter_channels)
+            if cls_token:
+                self.cls_token = GA_block(self.inter_channels)
 
     def _init_weights(self):
         nn.init.kaiming_normal_(
@@ -105,17 +110,22 @@ class Patch_Embedding(nn.Module):
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
         if not self.ib:
-            cls_token = self.cls_token.expand(
+            if self.cls_token_flag:
+                cls_token = self.cls_token.expand(
                 x.size(0), self.cls_token.size(1), self.cls_token.size(2))
         else:
-            cls_token = self.cls_token(
-                out_flat.permute(0, 2, 1))
-            cls_token = cls_token.expand(
-                x.size(0), cls_token.size(1), cls_token.size(2)
-            )
+            if self.cls_token_flag:
+                cls_token = self.cls_token(
+                    out_flat.permute(0, 2, 1))
+                cls_token = cls_token.expand(
+                    x.size(0), cls_token.size(1), cls_token.size(2)
+                )
 
-        out_concat = torch.cat((cls_token, out_flat.permute(0, 2, 1)), dim=1)
-        out = out_concat
+        if self.cls_token_flag:
+            out_concat = torch.cat((cls_token, out_flat.permute(0, 2, 1)), dim=1)
+            out = out_concat
+        else:
+            out = out_flat.permute(0, 2, 1)
 
         return out
 
@@ -233,6 +243,26 @@ class Classifier_1d(nn.Module):
         x = self.linear(x[:, 0])
 
         return x
+    
+class Classifier_2d(nn.Module):
+    def __init__(self, num_classes=10, in_channels=64):
+        super(Classifier_2d, self).__init__()
+
+        self.linear = nn.Linear(in_channels, num_classes)
+        self.name = 'Classifier'
+
+    def forward(self, x):
+        '''
+        [shape]
+            x : (B, HW, C)
+            x_pool : (B, C, 1)
+            out : (B, num_classes)
+        '''
+        x_pool = F.adaptive_avg_pool1d(x.permute(0, 2, 1), 1)
+
+        out = self.linear(x_pool.permute(0, 2, 1)).squeeze()
+
+        return out
 
 class Pooling_layer(nn.Module):
     def __init__(self, in_channels):
@@ -270,18 +300,26 @@ class Pooling_layer(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, EB=False, IB=False):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, EB=False, IB=False, cls_token=True):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
         self.heads = heads
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension, invariant_block=IB)
-        self.positional_embedding = Positional_Embedding(
-            spatial_dimension=num_nodes + 1, inter_channels=inter_dimension)
-        self.classifier = Classifier_1d(
+            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension, cls_token=cls_token, invariant_block=IB)
+        
+        if cls_token:
+            self.classifier = Classifier_1d(
             num_classes=num_classes, in_channels=inter_dimension)
+            self.positional_embedding = Positional_Embedding(
+            spatial_dimension=num_nodes + 1, inter_channels=inter_dimension)
+        
+        else:
+            self.classifier = Classifier_2d(num_classes=num_classes, in_channels=inter_dimension)
+            self.positional_embedding = Positional_Embedding(
+            spatial_dimension=num_nodes, inter_channels=inter_dimension)
+        
         self.transformers = self.make_layer(depth, Transformer_Block, mlp_ratio)
 
         if EB:

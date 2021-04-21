@@ -54,7 +54,7 @@ parser.add_argument('--weights', help='weights path', default=False)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite'], 'Unexpected model!'
+assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite', 'ViT-Lite-w/o-token'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -171,6 +171,8 @@ if __name__ == "__main__":
         model = m.ViT_Lite(args.depth, args.channel)
     elif args.model == 'G-ViT-Lite':
         model = m.ViT_Lite(args.depth, args.channel,EB=True)
+    elif args.model == 'ViT-Lite-w/o-token':
+        model = m.ViT_Lite(args.depth, args.channel,cls_token=False)
         
     # trainers
 
@@ -188,18 +190,20 @@ if __name__ == "__main__":
                                                 \n# Weigth decay: {}'
                  .format(args.model, args.lr, args.seed, args.depth, args.channel, weight_decay) + Style.RESET_ALL)
 
-    if args.weights:
-        checkpoint = torch.load(args.weights)
-        model.load_state_dict(checkpoint['modle_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch_init = checkpoint['epoch']
-        loss = checkpoint['loss']
+
 
     if args.gpu=='multi':  # Using multi-gpu
         model = nn.DataParallel(model)
         print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)
     else:
         print(Fore.RED + Style.BRIGHT + '\n# Using Gpus {}'.format(torch.cuda.get_device_name(GPU_NUM)))
+        
+    if args.weights:
+        checkpoint = torch.load(os.path.join(args.weights, best.pt))
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch_init = checkpoint['epoch']
+        loss = checkpoint['loss']
 
 
     model.cuda()
