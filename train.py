@@ -119,7 +119,7 @@ if __name__ == "__main__":
     save_path = os.path.join(os.getcwd(), "save")
     # save_path = os.path.join(save_path, now + '_' + args.model +
     #                          "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))
-    save_path = os.path.join(save_path, now + '_' + args.model +
+    save_path = os.path.join(save_path, now + '_' + args.model + '_{}_{}'.format(args.depth, args.channel) +
                              "_seed" + str(args.seed))
     if not os.path.isdir(save_path):
         os.makedirs(save_path, exist_ok=True)
@@ -333,6 +333,6 @@ if __name__ == "__main__":
 
     logger.debug(Fore.RED + Style.BRIGHT + '\nbest val acc: {}\nbest train acc: {}\nbest train loss: {}\
         \nmodel: {}-{}-{}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
-                 .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model, args.depth, args.channel
+                 .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model, args.depth, args.channel,
                          args.seed, weight_decay, params, gamma_dict_list_best,
                          lambda_dict_list_best))
