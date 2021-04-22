@@ -54,7 +54,7 @@ parser.add_argument('--weights', help='weights path', default=False)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite', 'ViT-Lite-w_o-token'], 'Unexpected model!'
+assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite', 'ViT-Lite-w_o-token', 'G-ViT-Lite-w_o-token'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -173,6 +173,8 @@ if __name__ == "__main__":
         model = m.ViT_Lite(args.depth, args.channel,EB=True)
     elif args.model == 'ViT-Lite-w_o-token':
         model = m.ViT_Lite(args.depth, args.channel,cls_token=False)
+    elif args.model == 'G-ViT-Lite-w_o-token':
+        model = m.ViT_Lite(args.depth, args.channel,EB= True,cls_token=False)
         
     # trainers
 
