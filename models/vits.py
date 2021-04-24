@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
-from models.deepsets import Equivariant_Block, Invariant_Block
+from models.deepsets import Equivariant_Block
 
 
 class MHSA(nn.Module):
@@ -73,7 +73,7 @@ class Positional_Embedding(nn.Module):
 
 
 class Patch_Embedding(nn.Module):
-    def __init__(self, patch_size, in_channels, inter_channels, cls_token, invariant_block=False):
+    def __init__(self, patch_size, in_channels, inter_channels, cls_token, global_attribute=False):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
                                          kernel_size=patch_size, stride=patch_size)
@@ -84,7 +84,7 @@ class Patch_Embedding(nn.Module):
             self.cls_token_flag = cls_token
         else:
             self.cls_token_flag = False
-        if not invariant_block:
+        if not global_attribute:
             self.ib = False
             if cls_token:
                 self.cls_token = nn.Parameter(torch.zeros(1, 1, inter_channels))
@@ -164,31 +164,58 @@ class MLP(nn.Module):
 
         return x_out
     
+# class GA_block(nn.Module):
+#     '''
+#     phi : Equivariant block
+#     rho : MLP
+#     '''
+#     def __init__(self, in_channels):
+#         super(GA_block, self).__init__()
+#         self.phi = Equivariant_Block()
+#         self.rho = MLP(in_channels=in_channels)
+#         self.activation = F.gelu
+    
+#     def forward(self, x):
+#         '''
+#             [shape]
+#             x : (B, HW, C)
+#             x_phi : (B, C, HW)
+#             x_sum : (B, C, 1)
+#             x_rho : (B, 1, C)
+#         '''
+#         x_phi = self.phi(x).permute(0, 2, 1)
+#         x_phi = self.activation(x_phi)
+#         x_sum = F.adaptive_avg_pool1d(x_phi, 1)
+#         x_rho = self.rho(x_sum.permute(0, 2, 1))
+        
+#         return x_rho
+
+
 class GA_block(nn.Module):
     '''
-    phi : Equivariant block
-    rho : MLP
+    Class-token Embedding
     '''
     def __init__(self, in_channels):
         super(GA_block, self).__init__()
-        self.phi = Equivariant_Block()
-        self.rho = MLP(in_channels=in_channels)
-        self.activation = F.gelu
+        self.linear = nn.Linear(in_channels, 1)
+        
+    def _init_weights(self):
+        nn.init.kaiming_normal_(
+            self.linear.weight)
+        nn.init.normal_(self.linear.bias, std=1e-6)
     
     def forward(self, x):
         '''
             [shape]
             x : (B, HW, C)
-            x_phi : (B, C, HW)
-            x_sum : (B, C, 1)
-            x_rho : (B, 1, C)
+            x_weights : (B, 1, HW)
+            x_token : (B, 1, C)
         '''
-        x_phi = self.phi(x).permute(0, 2, 1)
-        x_phi = self.activation(x_phi)
-        x_sum = F.adaptive_avg_pool1d(x_phi, 1)
-        x_rho = self.rho(x_sum.permute(0, 2, 1))
+        x_projection = self.linear(x)
+        x_weights = F.softmax(x_projection, dim=1).permute(0, 2, 1)
+        x_token = torch.matmul(x_weights, x)
         
-        return x_rho
+        return x_token
 
 
 class Transformer_Block(nn.Module):
@@ -208,13 +235,13 @@ class Transformer_Block(nn.Module):
         x_inter1 = self.normalization(x)
 
         if _EB:
-            # x_inter1_spatial = x_inter1[:, 1:]
-            # x_inter1_cls = x_inter1[:, (0, )]
-            # x_inter1_spatial = _EB(x_inter1_spatial)
-            # x_inter1 = torch.cat((x_inter1_cls, x_inter1_spatial), dim=1)
-            # x_inter1 = self.normalization(x_inter1)
-            x_inter1 = _EB(x_inter1)
+            x_inter1_spatial = x_inter1[:, 1:]
+            x_inter1_cls = x_inter1[:, (0, )]
+            x_inter1_spatial = _EB(x_inter1_spatial)
+            x_inter1 = torch.cat((x_inter1_cls, x_inter1_spatial), dim=1)
             x_inter1 = self.normalization(x_inter1)
+            # x_inter1 = _EB(x_inter1)
+            # x_inter1 = self.normalization(x_inter1)
 
         x_MHSA = self.MHSA(x_inter1)
         x_res1 = x + x_MHSA
@@ -300,14 +327,14 @@ class Pooling_layer(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, EB=False, IB=False, cls_token=True):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, EB=False, GA=False, cls_token=True):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
         self.heads = heads
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension, cls_token=cls_token, invariant_block=IB)
+            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension, cls_token=cls_token, global_attribute=GA)
         
         if cls_token:
             self.classifier = Classifier_1d(
@@ -363,7 +390,7 @@ class PiT(nn.Module):
         self.transformers = nn.ModuleList()
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_channels, invariant_block=IB)
+            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_channels, global_attribute=IB)
         self.positional_embedding = Positional_Embedding(
             spatial_dimension=num_nodes + 1, inter_channels=inter_channels)
 
@@ -412,3 +439,4 @@ class PiT(nn.Module):
         x_out = self.classifier(x_tmp)
 
         return x_out
+    

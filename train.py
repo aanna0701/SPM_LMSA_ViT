@@ -170,11 +170,11 @@ if __name__ == "__main__":
     if args.model == 'ViT-Lite':
         model = m.ViT_Lite(args.depth, args.channel)
     elif args.model == 'G-ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel,EB=True)
+        model = m.ViT_Lite(args.depth, args.channel,GA=True)
     elif args.model == 'ViT-Lite-w_o-token':
         model = m.ViT_Lite(args.depth, args.channel,cls_token=False)
     elif args.model == 'G-ViT-Lite-w_o-token':
-        model = m.ViT_Lite(args.depth, args.channel,EB= True,cls_token=False)
+        model = m.ViT_Lite(args.depth, args.channel,GA= True,cls_token=False)
         
     # trainers
 
