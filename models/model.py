@@ -4,7 +4,7 @@ from torch.nn import functional as F
 
 from models.nlb import *
 from models.resnet_cifar import *
-from models.vit_2 import *
+from models.vits import *
 
 
 def resnet20():

@@ -171,9 +171,12 @@ class GA_block(nn.Module):
         weight_softmax = F.softmax(weight, dim=2)
         cls_token_out = torch.matmul(weight_softmax, spatial_token)
         cls_token_out = cls_token_out + cls_token_in
-        cls_token_out = F.layer_norm(cls_token_out, cls_token_out.size()[1:])
         
-        return spatial_token, cls_token_out
+        out = torch.cat((cls_token_out, spatial_token), dim=1)
+        
+        return out
+
+
 
 
 class Transformer_Block(nn.Module):
@@ -202,17 +205,57 @@ class Transformer_Block(nn.Module):
     
         if not cls_token == None:
        
-            x_inter2, cls_token = GA_block(x_inter2) 
+            x_inter2 = GA_block(x_inter2)
+            x_inter2 = self.normalization(x_inter2)
 
         
         x_MLP = self.MLP(x_inter2)
         x_res2 = x_inter2 + x_MLP
 
         if not cls_token == None:
-            return x_res2, cls_token
+            return x_res2[:, 1:], x_res2[:, (0, )]
         
         else:
             return x_res2
+        
+
+# class Transformer_Block(nn.Module):
+#     def __init__(self, in_channels, heads=8, mlp_ratio=4):
+#         super(Transformer_Block, self).__init__()
+#         self.normalization = nn.LayerNorm(in_channels)
+#         self.MHSA = MHSA(in_channels, heads)
+#         self.MLP = MLP(in_channels, mlp_ratio)
+        
+
+#     def forward(self, x, cls_token, GA_block):
+#         '''
+#         [shape]
+#             x : (B, HW, C)
+#         '''
+#         if not cls_token == None:
+#             x_in = torch.cat((cls_token, x), dim=1)
+#         else:
+#             x_in = x
+#         x_inter1 = self.normalization(x_in)
+
+
+#         x_MHSA = self.MHSA(x_inter1)
+#         x_res1 = x_in + x_MHSA
+#         x_inter2 = self.normalization(x_res1)
+    
+#         if not cls_token == None:
+       
+#             x_inter2, cls_token = GA_block(x_inter2) 
+
+        
+#         x_MLP = self.MLP(x_inter2)
+#         x_res2 = x_inter2 + x_MLP
+
+#         if not cls_token == None:
+#             return x_res2, cls_token
+        
+#         else:
+#             return x_res2
 
 
 class Classifier_1d(nn.Module):
@@ -337,9 +380,7 @@ class ViT(nn.Module):
         
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.GA)
-        
-        x_tmp, cls_token = self.GA(torch.cat((cls_token, x_tmp), dim=1))
-        
+                
         x_out = self.classifier(cls_token)
 
         return x_out
