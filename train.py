@@ -48,6 +48,7 @@ parser.add_argument('--gpu', help='gpu number to use', default='multi')
 parser.add_argument('--seed', help='seed', type=int, required=True)
 parser.add_argument('--depth', help='depth', type=int, required=True)
 parser.add_argument('--channel', help='channel', type=int, required=True)
+parser.add_argument('--heads', help='heads', type=int, default=4)
 parser.add_argument('--weights', help='weights path', default=False)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
@@ -168,13 +169,13 @@ if __name__ == "__main__":
     # model load
 
     if args.model == 'ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel)
+        model = m.ViT_Lite(args.depth, args.channel, heads = args.heads)
     elif args.model == 'G-ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel,GA=True)
+        model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads)
     elif args.model == 'ViT-Lite-w_o-token':
-        model = m.ViT_Lite(args.depth, args.channel,cls_token=False)
+        model = m.ViT_Lite(args.depth, args.channel,cls_token=False, heads = args.heads)
     elif args.model == 'G-ViT-Lite-w_o-token':
-        model = m.ViT_Lite(args.depth, args.channel,GA= True,cls_token=False)
+        model = m.ViT_Lite(args.depth, args.channel,GA= True,cls_token=False, heads = args.heads)
         
     # trainers
 

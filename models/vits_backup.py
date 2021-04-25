@@ -73,17 +73,25 @@ class Positional_Embedding(nn.Module):
 
 
 class Patch_Embedding(nn.Module):
-    def __init__(self, patch_size, in_channels, inter_channels):
+    def __init__(self, patch_size, in_channels, inter_channels, cls_token, global_attribute=False):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
                                          kernel_size=patch_size, stride=patch_size)
         self._init_weights()
         self.inter_channels = inter_channels
 
-       
-        
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, inter_channels))
-
+        if cls_token:
+            self.cls_token_flag = cls_token
+        else:
+            self.cls_token_flag = False
+        if not global_attribute:
+            self.ib = False
+            if cls_token:
+                self.cls_token = nn.Parameter(torch.zeros(1, 1, inter_channels))
+        else:
+            self.ib = True
+            if cls_token:
+                self.cls_token = GA_block(self.inter_channels)
 
     def _init_weights(self):
         nn.init.kaiming_normal_(
@@ -101,14 +109,23 @@ class Patch_Embedding(nn.Module):
         '''
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
-        
-        cls_token = self.cls_token.expand(
-        x.size(0), self.cls_token.size(1), self.cls_token.size(2))
-        
+        if not self.ib:
+            if self.cls_token_flag:
+                cls_token = self.cls_token.expand(
+                x.size(0), self.cls_token.size(1), self.cls_token.size(2))
+        else:
+            if self.cls_token_flag:
+                cls_token = self.cls_token(
+                    out_flat.permute(0, 2, 1))
+                cls_token = cls_token.expand(
+                    x.size(0), cls_token.size(1), cls_token.size(2)
+                )
 
-        out_concat = torch.cat((cls_token, out_flat.permute(0, 2, 1)), dim=1)
-        out = out_concat
-
+        if self.cls_token_flag:
+            out_concat = torch.cat((cls_token, out_flat.permute(0, 2, 1)), dim=1)
+            out = out_concat
+        else:
+            out = out_flat.permute(0, 2, 1)
 
         return out
 
@@ -178,27 +195,27 @@ class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self):
+    def __init__(self, in_channels):
         super(GA_block, self).__init__()
+        self.linear = nn.Linear(in_channels, 1)
+        
+    def _init_weights(self):
+        nn.init.kaiming_normal_(
+            self.linear.weight)
+        nn.init.normal_(self.linear.bias, std=1e-6)
     
     def forward(self, x):
         '''
             [shape]
-            x : (B, HW+1, C)
-            spatial_token : (B, HW, C)
-            cls_token_in : (B, 1, C)
-            weight : (B, HW, 1)
-            weight_softmax : (B, 1, HW)
-            cls_token_out : (B, 1, C)
-            out : (B, HW+1, C)     
+            x : (B, HW, C)
+            x_weights : (B, 1, HW)
+            x_token : (B, 1, C)
         '''
-        spatial_token, cls_token_in = x[:, 1:], x[:, (0, )]
-        weight = torch.matmul(spatial_token, cls_token_in.permute(0, 2, 1))
-        weight_softmax = F.softmax(weight, dim=1).permute(0, 2, 1)
-        cls_token_out = torch.matmul(weight_softmax, spatial_token)
-        out = torch.cat((cls_token_out, spatial_token))       
+        x_projection = self.linear(x)
+        x_weights = F.softmax(x_projection, dim=1).permute(0, 2, 1)
+        x_token = torch.matmul(x_weights, x)
         
-        return out
+        return x_token
 
 
 class Transformer_Block(nn.Module):
@@ -207,7 +224,6 @@ class Transformer_Block(nn.Module):
         self.normalization = nn.LayerNorm(in_channels)
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
-        self.GA = GA_block()
 
     def forward(self, x, _EB):
         '''
@@ -218,13 +234,20 @@ class Transformer_Block(nn.Module):
         
         x_inter1 = self.normalization(x)
 
+        if _EB:
+            x_inter1_spatial = x_inter1[:, 1:]
+            x_inter1_cls = x_inter1[:, (0, )]
+            x_inter1_spatial = _EB(x_inter1_spatial)
+            x_inter1 = torch.cat((x_inter1_cls, x_inter1_spatial), dim=1)
+            x_inter1 = self.normalization(x_inter1)
+            # x_inter1 = _EB(x_inter1)
+            # x_inter1 = self.normalization(x_inter1)
 
         x_MHSA = self.MHSA(x_inter1)
         x_res1 = x + x_MHSA
-        x_inter2 = GA(x_res1)
 
-        x_inter3 = self.normalization(x_inter2)
-        x_MLP = self.MLP(x_inter3)
+        x_inter2 = self.normalization(x_res1)
+        x_MLP = self.MLP(x_inter2)
         x_res2 = x_res1 + x_MLP
 
         return x_res2
