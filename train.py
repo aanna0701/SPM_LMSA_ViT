@@ -169,13 +169,13 @@ if __name__ == "__main__":
     # model load
 
     if args.model == 'ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel, heads = args.heads)
+        model = m.ViT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'G-ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads)
+        model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
     elif args.model == 'ViT-Lite-w_o-token':
-        model = m.ViT_Lite(args.depth, args.channel,cls_token=False, heads = args.heads)
+        model = m.ViT_Lite(args.depth, args.channel,cls_token=False, heads = args.heads, dropout=False)
     elif args.model == 'G-ViT-Lite-w_o-token':
-        model = m.ViT_Lite(args.depth, args.channel,GA= True,cls_token=False, heads = args.heads)
+        model = m.ViT_Lite(args.depth, args.channel,GA= True,cls_token=False, heads = args.heads, dropout=False)
         
     # trainers
 

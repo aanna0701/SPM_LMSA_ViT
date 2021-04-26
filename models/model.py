@@ -31,11 +31,11 @@ def self_Attention_full(global_attribute=False):
     return Self_Attention_full(NLB, Classifier_2d, Down_Conv, _Global_attribute=global_attribute)
 
 
-def ViT_Lite(depth, channel, EB=False, GA=False, cls_token=True, heads=4):
+def ViT_Lite(depth, channel, EB=False, GA=False, cls_token=True, heads=4, dropout=True):
     if cls_token:
-        return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=channel, depth=depth, heads=heads, mlp_ratio=2, GA=GA)
+        return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=channel, depth=depth, heads=heads, mlp_ratio=2, GA=GA, dropout=dropout)
     else:
-        return ViT_w_o_token(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=channel, depth=depth, heads=heads, mlp_ratio=2)
+        return ViT_w_o_token(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=channel, depth=depth, heads=heads, mlp_ratio=2, dropout=dropout)
 
 
 def PiT_Lite(depth, channel, EB=False, GA=False, heads=4):

@@ -17,7 +17,7 @@ class MHSA(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x):
+    def forward(self, x, dropout=True):
         '''
         [shapes]
 
@@ -54,7 +54,8 @@ class MHSA(nn.Module):
         out = out_tmp.permute(0, 2, 1, 3).contiguous()
         out = out.view(B, n_tokens, -1)
         out = self.out(out)
-        out = F.dropout(out, 0.1)
+        if dropout:
+            out = F.dropout(out, 0.1)
 
         return out
 
@@ -131,7 +132,7 @@ class MLP(nn.Module):
         nn.init.normal_(self.fc1.bias, std=1e-6)
         nn.init.normal_(self.fc2.bias, std=1e-6)
 
-    def forward(self, x):
+    def forward(self, x, dropout=True):
         '''
         [shape]
             x : (B, HW+1, C)
@@ -140,10 +141,12 @@ class MLP(nn.Module):
         '''
 
         x_inter = F.gelu(self.fc1(x))
-        x_inter = F.dropout(x_inter, 0.1)
+        if dropout:
+            x_inter = F.dropout(x_inter, 0.1)
 
         x_out = self.fc2(x_inter)
-        x_out = F.dropout(x_out, 0.1)
+        if dropout:
+            x_out = F.dropout(x_out, 0.1)
 
         return x_out
 
@@ -187,7 +190,7 @@ class Transformer_Block(nn.Module):
         self.MLP = MLP(in_channels, mlp_ratio)
         
 
-    def forward(self, x, cls_token, GA_block):
+    def forward(self, x, cls_token, GA_block, dropout=True):
         '''
         [shape]
             x : (B, HW, C)
@@ -209,7 +212,7 @@ class Transformer_Block(nn.Module):
             x_inter2 = self.normalization(x_inter2)
 
         
-        x_MLP = self.MLP(x_inter2)
+        x_MLP = self.MLP(x_inter2, dropout)
         x_res2 = x_inter2 + x_MLP
 
         if not cls_token == None:
@@ -332,7 +335,7 @@ class Pooling_layer(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
@@ -341,6 +344,7 @@ class ViT(nn.Module):
         self.patch_embedding = Patch_Embedding(
             patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
         
+        self.dropout = dropout
         
         self.classifier = Classifier_1d(
         num_classes=num_classes, in_channels=inter_dimension)
@@ -376,10 +380,11 @@ class ViT(nn.Module):
 
         
         x_tmp = F.dropout(x_tmp, 0.1)
-        cls_token = F.dropout(cls_token, 0.1)
+        if self.dropout:
+            cls_token = F.dropout(cls_token, 0.1)
         
         for i in range(len(self.transformers)):
-            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.GA)
+            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.GA, self.dropout)
                 
         x_out = self.classifier(cls_token)
 
