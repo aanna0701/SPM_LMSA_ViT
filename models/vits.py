@@ -185,7 +185,9 @@ class GA_block(nn.Module):
 class Transformer_Block(nn.Module):
     def __init__(self, in_channels, heads=8, mlp_ratio=4):
         super(Transformer_Block, self).__init__()
-        self.normalization = nn.LayerNorm(in_channels)
+        self.normalization_1 = nn.LayerNorm(in_channels)
+        self.normalization_2 = nn.LayerNorm(in_channels)
+        self.normalization_GA = nn.LayerNorm(in_channels)
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
         
@@ -199,17 +201,17 @@ class Transformer_Block(nn.Module):
             x_in = torch.cat((cls_token, x), dim=1)
         else:
             x_in = x
-        x_inter1 = self.normalization(x_in)
+        x_inter1 = self.normalization_1(x_in)
 
 
         x_MHSA = self.MHSA(x_inter1)
         x_res1 = x_in + x_MHSA
-        x_inter2 = self.normalization(x_res1)
+        x_inter2 = self.normalization_2(x_res1)
     
-        if not cls_token == None:
+        if not GA_block == None:
        
             x_inter2 = GA_block(x_inter2)
-            x_inter2 = self.normalization(x_inter2)
+            x_inter2 = self.normalization_GA(x_inter2)
 
         
         x_MLP = self.MLP(x_inter2, dropout)
@@ -351,7 +353,10 @@ class ViT(nn.Module):
         self.positional_embedding = Positional_Embedding(
         spatial_dimension=num_nodes, inter_channels=inter_dimension)
         
-        self.GA = GA_block()
+        if GA:
+            self.GA = GA_block()
+        else:
+            self.GA = None
     
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.inter_dimension))
         

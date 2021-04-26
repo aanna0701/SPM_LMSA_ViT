@@ -182,7 +182,7 @@ if __name__ == "__main__":
     optimizer = optim.AdamW(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 200, max_lr=args.lr, min_lr=0.00005, warmup_steps=10)
+        optimizer, 200, max_lr=args.lr, min_lr=0.00005, warmup_steps=5)
 
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
