@@ -10,12 +10,21 @@ class MHSA(nn.Module):
         super(MHSA, self).__init__()
         self.heads = heads
 
-        self.query = nn.Linear(in_channels, in_channels)
-        self.key = nn.Linear(in_channels, in_channels)
-        self.value = nn.Linear(in_channels, in_channels)
-        self.out = nn.Linear(in_channels, in_channels)
+        self.query = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.query)
+        self.key = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.key)
+        self.value = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.value)
+        self.out = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.out)
 
         self.softmax = nn.Softmax(dim=-1)
+        
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
 
     def forward(self, x, dropout=True):
         '''
@@ -79,19 +88,14 @@ class Patch_Embedding(nn.Module):
     def __init__(self, patch_size, in_channels, inter_channels):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
-                                         kernel_size=patch_size, stride=patch_size)
-        self._init_weights()
+                                         kernel_size=patch_size, stride=patch_size, bias=False)
+        self._init_weights(self.patch_embedding)
         self.inter_channels = inter_channels
 
-       
-        
-        
-
-
-    def _init_weights(self):
-        nn.init.kaiming_normal_(
-            self.patch_embedding.weight)
-        nn.init.normal_(self.patch_embedding.bias, std=1e-6)
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
 
     def forward(self, x):
         '''
@@ -105,12 +109,6 @@ class Patch_Embedding(nn.Module):
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
         
-        
-        
-
-        
-
-
         return out_flat
 
 
@@ -121,16 +119,16 @@ class MLP(nn.Module):
         self.in_channels = in_channels
         self.inter_channels = self.in_channels * hidden_dim_ratio
 
-        self.fc1 = nn.Linear(self.in_channels, self.inter_channels)
-        self.fc2 = nn.Linear(self.inter_channels, self.in_channels)
+        self.fc1 = nn.Linear(self.in_channels, self.inter_channels, bias=False)
+        self._init_weights(self.fc1)
+        self.fc2 = nn.Linear(self.inter_channels, self.in_channels, bias=False)
+        self._init_weights(self.fc1)
+        
 
-        self._init_weights()
-
-    def _init_weights(self):
-        nn.init.kaiming_normal_(self.fc1.weight)
-        nn.init.kaiming_normal_(self.fc2.weight)
-        nn.init.normal_(self.fc1.bias, std=1e-6)
-        nn.init.normal_(self.fc2.bias, std=1e-6)
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
 
     def forward(self, x, dropout=True):
         '''
@@ -151,14 +149,81 @@ class MLP(nn.Module):
         return x_out
 
 
+class MLP_GA(nn.Module):
+
+    def __init__(self, in_channels):
+        super(MLP_GA, self).__init__()
+        self.in_channels = in_channels
+        self.inter_channels = self.in_channels // 4
+
+        self.fc1 = nn.Linear(self.in_channels, self.inter_channels, bias=False)
+        self._init_weights(self.fc1)
+        self.fc2 = nn.Linear(self.inter_channels, self.in_channels, bias=False)
+        self._init_weights(self.fc2)
+
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
+
+    def forward(self, x, dropout=False):
+        '''
+        [shape]
+            x : (B, HW+1, C)
+            x_inter : (B, HW+1, 4*C)
+            x_out : (B, HW+1, C)
+        '''
+
+        x_inter = F.gelu(self.fc1(x))
+        if dropout:
+            x_inter = F.dropout(x_inter, 0.1)
+
+        x_out = self.fc2(x_inter)
+        if dropout:
+            x_out = F.dropout(x_out, 0.1)
+
+        return x_out
+
+
+# class GA_block(nn.Module):
+#     '''
+#     Class-token Embedding
+#     '''
+#     def __init__(self):
+#         super(GA_block, self).__init__()
+    
+#     def forward(self, x):
+#         '''
+#             [shape]
+#             x : (B, HW+1, C)
+#             spatial_token : (B, HW, C)
+#             cls_token_in : (B, 1, C)
+#             weight : (B, 1, HW)
+#             weight_softmax : (B, 1, HW)
+#             cls_token_out : (B, 1, C)
+#             out : (B, HW+1, C)     
+#         '''
+#         spatial_token, cls_token_in = x[:, 1:], x[:, (0, )]
+#         weight = torch.matmul(cls_token_in, spatial_token.permute(0, 2, 1))
+#         weight_softmax = F.softmax(weight, dim=2)
+#         cls_token_out = torch.matmul(weight_softmax, spatial_token)
+#         cls_token_out = cls_token_out + cls_token_in
+        
+#         out = torch.cat((cls_token_out, spatial_token), dim=1)
+        
+#         return out
+
+
 class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self):
+    def __init__(self, in_channels):
         super(GA_block, self).__init__()
-    
-    def forward(self, x):
+        self.mlp = MLP_GA(in_channels)
+        self.normalization = nn.LayerNorm(in_channels)
+        
+    def forward(self, x, cls_token):
         '''
             [shape]
             x : (B, HW+1, C)
@@ -169,7 +234,7 @@ class GA_block(nn.Module):
             cls_token_out : (B, 1, C)
             out : (B, HW+1, C)     
         '''
-        spatial_token, cls_token_in = x[:, 1:], x[:, (0, )]
+        spatial_token, cls_token_in = x[:, 1:], self.mlp(cls_token)
         weight = torch.matmul(cls_token_in, spatial_token.permute(0, 2, 1))
         weight_softmax = F.softmax(weight, dim=2)
         cls_token_out = torch.matmul(weight_softmax, spatial_token)
@@ -178,8 +243,7 @@ class GA_block(nn.Module):
         out = torch.cat((cls_token_out, spatial_token), dim=1)
         
         return out
-
-
+    
 
 
 class Transformer_Block(nn.Module):
@@ -188,87 +252,63 @@ class Transformer_Block(nn.Module):
         self.normalization_1 = nn.LayerNorm(in_channels)
         self.normalization_2 = nn.LayerNorm(in_channels)
         self.normalization_GA = nn.LayerNorm(in_channels)
+        
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
-        
+        self.GA = GA_block(in_channels)
 
-    def forward(self, x, cls_token, GA_block, dropout=True):
+    def forward(self, x, cls_token, GA_flag, dropout=True):
         '''
         [shape]
             x : (B, HW, C)
+            x_inter1 : (B, HW, C)
+            x_MHSA : (B, HW, C)
+            x_res1 : (B, HW, C)
+            x_inter2 : (B, HW, C)
+            x_MLP : (B, HW, C)
+            x_res2 : (B, HW, C)
         '''
         if not cls_token == None:
             x_in = torch.cat((cls_token, x), dim=1)
         else:
             x_in = x
         x_inter1 = self.normalization_1(x_in)
-
-
+        '''
+            Node update
+        '''
         x_MHSA = self.MHSA(x_inter1)
         x_res1 = x_in + x_MHSA
         x_inter2 = self.normalization_2(x_res1)
-    
-        if not GA_block == None:
-       
-            x_inter2 = GA_block(x_inter2)
-            x_inter2 = self.normalization_GA(x_inter2)
 
+        if GA_flag:       
+            '''
+                Global attribute update
+            '''          
+            x_inter2 = self.GA(x_inter2, cls_token)
+            x_inter2 = self.normalization_GA(x_inter2)
+            
         
         x_MLP = self.MLP(x_inter2, dropout)
         x_res2 = x_inter2 + x_MLP
 
         if not cls_token == None:
-            return x_res2[:, 1:], x_res2[:, (0, )]
-        
+            return x_res2[:, 1:], x_res2[:, (0, )]        
         else:
             return x_res2
-        
-
-# class Transformer_Block(nn.Module):
-#     def __init__(self, in_channels, heads=8, mlp_ratio=4):
-#         super(Transformer_Block, self).__init__()
-#         self.normalization = nn.LayerNorm(in_channels)
-#         self.MHSA = MHSA(in_channels, heads)
-#         self.MLP = MLP(in_channels, mlp_ratio)
-        
-
-#     def forward(self, x, cls_token, GA_block):
-#         '''
-#         [shape]
-#             x : (B, HW, C)
-#         '''
-#         if not cls_token == None:
-#             x_in = torch.cat((cls_token, x), dim=1)
-#         else:
-#             x_in = x
-#         x_inter1 = self.normalization(x_in)
-
-
-#         x_MHSA = self.MHSA(x_inter1)
-#         x_res1 = x_in + x_MHSA
-#         x_inter2 = self.normalization(x_res1)
-    
-#         if not cls_token == None:
-       
-#             x_inter2, cls_token = GA_block(x_inter2) 
-
-        
-#         x_MLP = self.MLP(x_inter2)
-#         x_res2 = x_inter2 + x_MLP
-
-#         if not cls_token == None:
-#             return x_res2, cls_token
-        
-#         else:
-#             return x_res2
 
 
 class Classifier_1d(nn.Module):
     def __init__(self, num_classes=10, in_channels=64):
         super(Classifier_1d, self).__init__()
 
-        self.linear = nn.Linear(in_channels, num_classes)
+        self.linear = nn.Linear(in_channels, num_classes, bias=False)
+        self._init_weights(self.linear)
         self.name = 'Classifier'
+        
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
 
     def forward(self, x):
         '''
@@ -286,7 +326,13 @@ class Classifier_2d(nn.Module):
         super(Classifier_2d, self).__init__()
 
         self.linear = nn.Linear(in_channels, num_classes)
+        self._init_weights(self.linear)
         self.name = 'Classifier'
+
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
 
     def forward(self, x):
         '''
@@ -353,10 +399,7 @@ class ViT(nn.Module):
         self.positional_embedding = Positional_Embedding(
         spatial_dimension=num_nodes, inter_channels=inter_dimension)
         
-        if GA:
-            self.GA = GA_block()
-        else:
-            self.GA = None
+        self.GA = GA
     
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.inter_dimension))
         
