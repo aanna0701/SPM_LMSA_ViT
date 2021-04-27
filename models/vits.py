@@ -214,6 +214,36 @@ class MLP_GA(nn.Module):
 #         return out
 
 
+# class GA_block(nn.Module):
+#     '''
+#     Class-token Embedding
+#     '''
+#     def __init__(self, in_channels):
+#         super(GA_block, self).__init__()
+#         self.mlp = MLP_GA(in_channels)
+#         self.normalization = nn.LayerNorm(in_channels)
+        
+#     def forward(self, x, cls_token):
+#         '''
+#             [shape]
+#             x : (B, HW+1, C)
+#             spatial_token : (B, HW, C)
+#             cls_token_in : (B, 1, C)
+#             weight : (B, 1, HW)
+#             weight_softmax : (B, 1, HW)
+#             cls_token_out : (B, 1, C)
+#             out : (B, HW+1, C)     
+#         '''
+#         spatial_token, cls_token_in = x[:, 1:], self.mlp(cls_token)
+#         weight = torch.matmul(cls_token_in, spatial_token.permute(0, 2, 1))
+#         weight_softmax = F.softmax(weight, dim=2)
+#         cls_token_out = torch.matmul(weight_softmax, spatial_token)
+#         cls_token_out = cls_token_out + cls_token_in
+        
+#         out = torch.cat((cls_token_out, spatial_token), dim=1)
+        
+#         return out
+    
 class GA_block(nn.Module):
     '''
     Class-token Embedding
@@ -222,6 +252,22 @@ class GA_block(nn.Module):
         super(GA_block, self).__init__()
         self.mlp = MLP_GA(in_channels)
         self.normalization = nn.LayerNorm(in_channels)
+
+        self.query = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.query)
+        self.key = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.key)
+        self.value = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.value)
+        self.out = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.out)
+
+        self.inter_channels = in_channels 
+        
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
         
     def forward(self, x, cls_token):
         '''
@@ -234,13 +280,19 @@ class GA_block(nn.Module):
             cls_token_out : (B, 1, C)
             out : (B, HW+1, C)     
         '''
-        spatial_token, cls_token_in = x[:, 1:], self.mlp(cls_token)
-        weight = torch.matmul(cls_token_in, spatial_token.permute(0, 2, 1))
+        spatial_token, cls_token_in = x[:, 1:], cls_token
+        
+        q = self.query(cls_token)
+        k = self.key(spatial_token)
+        v = self.value(cls_token)
+        
+        weight = torch.matmul(q, k.permute(0, 2, 1)) / math.sqrt(self.inter_channels)
         weight_softmax = F.softmax(weight, dim=2)
-        cls_token_out = torch.matmul(weight_softmax, spatial_token)
+        cls_token_out = torch.matmul(weight_softmax, v)
         cls_token_out = cls_token_out + cls_token_in
         
         out = torch.cat((cls_token_out, spatial_token), dim=1)
+        out = self.out(out)
         
         return out
     
@@ -377,7 +429,6 @@ class Pooling_layer(nn.Module):
         pool_cls_token = self.fcl(cls_token)
         
         out = torch.cat((pool_cls_token, pool_feature_token), dim=1)
-  
         
         return out
 
