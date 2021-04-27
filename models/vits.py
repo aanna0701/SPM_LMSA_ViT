@@ -122,7 +122,7 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(self.in_channels, self.inter_channels, bias=False)
         self._init_weights(self.fc1)
         self.fc2 = nn.Linear(self.inter_channels, self.in_channels, bias=False)
-        self._init_weights(self.fc1)
+        self._init_weights(self.fc2)
         
 
     def _init_weights(self,layer):
