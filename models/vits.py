@@ -151,10 +151,10 @@ class MLP(nn.Module):
 
 class MLP_GA(nn.Module):
 
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, compression_ratio=4):
         super(MLP_GA, self).__init__()
         self.in_channels = in_channels
-        self.inter_channels = self.in_channels // 4
+        self.inter_channels = self.in_channels // compression_ratio
 
         self.fc1 = nn.Linear(self.in_channels, self.inter_channels, bias=False)
         self._init_weights(self.fc1)
@@ -304,7 +304,7 @@ class GA_block(nn.Module):
         k = self.key(spatial_token).view(B, spatial_token.size(1), self.heads,
                              inter_dimension).permute(0, 2, 1, 3)
         v = self.value(spatial_token).view(B, spatial_token.size(1), self.heads,
-                               inter_dimension).permute(0, 2, 1, 3)
+                               inter_dimension).permute(0, 2, 91, 3)
 
         similarity = torch.matmul(q, k.transpose(3, 2))
         similarity = similarity / math.sqrt(inter_dimension)

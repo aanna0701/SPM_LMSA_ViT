@@ -35,7 +35,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 init(autoreset=True)
 use_cuda = True
 kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
-now = datetime.now().strftime('%Y-%m-%d-%H_%M')
 
 # args
 
@@ -120,7 +119,7 @@ if __name__ == "__main__":
     save_path = os.path.join(os.getcwd(), "save")
     # save_path = os.path.join(save_path, now + '_' + args.model +
     #                          "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))
-    save_path = os.path.join(save_path, now + '_' + args.model + '_{}_{}'.format(args.depth, args.channel) +
+    save_path = os.path.join(save_path, args.model + '-{}-{}-{}'.format(args.depth, args.channel, args.heads) +
                              "_seed" + str(args.seed))
     if not os.path.isdir(save_path):
         os.makedirs(save_path, exist_ok=True)
