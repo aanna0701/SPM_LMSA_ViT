@@ -248,9 +248,10 @@ class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self, in_channels, heads):
+    def __init__(self, in_channels):
         super(GA_block, self).__init__()
 
+        self.normalization = nn.LayerNorm(in_channels)
         self.query = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.query)
         self.key = nn.Linear(in_channels, in_channels // 2, bias=False)
@@ -260,8 +261,7 @@ class GA_block(nn.Module):
         self.out = nn.Linear(in_channels // 2, in_channels, bias=False)
         self._init_weights(self.out)
         self.softmax = nn.Softmax(dim=-1)
-        self.inter_channels = in_channels 
-        self.heads = heads
+        self.inter_channels = in_channels
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -293,13 +293,13 @@ class GA_block(nn.Module):
         # out = torch.cat((cls_token_out, spatial_token), dim=1)
         # out = self.out(out)
         
-        
-
         spatial_token, cls_token_in = x[:, 1:], cls_token
-
-        q = self.query(cls_token)
-        k = self.key(spatial_token)
-        v = self.value(spatial_token)
+        x_norm = self.normalization(torch.cat([cls_token_in, spatial_token], dim=1))      
+        spatial_token_norm, cls_token_norm = x_norm[:, 1:], x_norm[:, (0, )]
+        
+        q = self.query(cls_token_norm)
+        k = self.key(spatial_token_norm)
+        v = self.value(spatial_token_norm)
 
         B, _, C = q.size()
 
@@ -331,7 +331,7 @@ class Transformer_Block(nn.Module):
         
         if GA_flag:
             self.normalization_GA = nn.LayerNorm(in_channels)
-            self.GA = GA_block(in_channels, heads)
+            self.GA = GA_block(in_channels)
 
         self.GA_flag = GA_flag
 
@@ -356,13 +356,14 @@ class Transformer_Block(nn.Module):
         '''
         x_MHSA = self.MHSA(x_inter1)
         x_res1 = x_in + x_MHSA
-        x_inter2 = self.normalization_2(x_res1)
+        if not self.GA_flag:
+            x_inter2 = self.normalization_2(x_res1)
 
-        if self.GA_flag:       
+        else:       
             '''
                 Global attribute update
             '''          
-            x_inter2 = self.GA(x_inter2, cls_token)
+            x_inter2 = self.GA(x_res1, cls_token)
             x_inter2 = self.normalization_GA(x_inter2)
             
         

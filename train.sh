@@ -1,9 +1,9 @@
 #!/bin/zsh
 
-for s in 1 2
+for s in  1 2 3
 do
-	for m in 4 6
+	for m in 3 8 
 	do
-		python train.py --dataset_dir /workspace/dataset --lr 0.003 --model ViT-Lite --seed ${s} --depth ${m} --channel 128 --gpu 0 --heads 4
+		python train.py --dataset_dir /workspace/dataset --lr 0.003 --model G-ViT-Lite --seed ${s} --depth ${m} --channel 96 --gpu 0 --heads 4
 	done
 done
