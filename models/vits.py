@@ -103,8 +103,6 @@ class Patch_Embedding(nn.Module):
             x : (B, C, H, W)
             out : (B, C', H, W)
             out_flat : (B, C', HW)
-            out_concat : (B, HW+1, C')
-            out : (B, HW+1, C')
         '''
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
@@ -248,10 +246,10 @@ class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self, in_channels):
+    def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
 
-        self.normalization = nn.LayerNorm(in_channels)
+        self.normalization = nn.LayerNorm(in_size)
         self.query = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.query)
         self.key = nn.Linear(in_channels, in_channels // 2, bias=False)
@@ -320,18 +318,18 @@ class GA_block(nn.Module):
 
 
 class Transformer_Block(nn.Module):
-    def __init__(self, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
+    def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
         super(Transformer_Block, self).__init__()
-        self.normalization_1 = nn.LayerNorm(in_channels)
-        self.normalization_2 = nn.LayerNorm(in_channels)
+        self.normalization_1 = nn.LayerNorm(in_size)
+        self.normalization_2 = nn.LayerNorm(in_size)
         
         
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
         
         if GA_flag:
-            self.normalization_GA = nn.LayerNorm(in_channels)
-            self.GA = GA_block(in_channels)
+            self.normalization_GA = nn.LayerNorm(in_size)
+            self.GA = GA_block(in_size, in_channels)
 
         self.GA_flag = GA_flag
 
@@ -467,6 +465,8 @@ class ViT(nn.Module):
         self.inter_dimension = inter_dimension
         self.heads = heads
 
+        self.in_size = (num_nodes + 1, inter_dimension)
+
         self.patch_embedding = Patch_Embedding(
             patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
         
@@ -487,7 +487,7 @@ class ViT(nn.Module):
         layer_list = nn.ModuleList()
         for i in range(num_blocks):
             layer_list.append(
-                block(self.inter_dimension, self.heads, mlp_ratio, GA_flag))
+                block(self.in_size, self.inter_dimension, self.heads, mlp_ratio, GA_flag))
 
         return layer_list
 
