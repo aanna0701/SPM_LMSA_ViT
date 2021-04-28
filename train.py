@@ -213,9 +213,6 @@ if __name__ == "__main__":
 
     summary(model, (3, 32, 32))
 
-    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-    params = sum([np.prod(p.size()) for p in model_parameters])
-
     # print gamma value
     def get_gamma(model):
 
@@ -339,7 +336,7 @@ if __name__ == "__main__":
                           optimizer.param_groups[0]['lr'], epoch)
 
     logger.debug(Fore.RED + Style.BRIGHT + '\nbest val acc: {}\nbest train acc: {}\nbest train loss: {}\
-        \nmodel: {}-{}-{}\nseed: {}\nweight_decay: {}\ntotal parameters: {}\nbest gamma: {}\nbest lambda: {}'
+        \nmodel: {}-{}-{}\nseed: {}\nweight_decay: {}\nbest gamma: {}\nbest lambda: {}'
                  .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model, args.depth, args.channel,
-                         args.seed, weight_decay, params, gamma_dict_list_best,
+                         args.seed, weight_decay, gamma_dict_list_best,
                          lambda_dict_list_best))
