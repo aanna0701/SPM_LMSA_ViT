@@ -251,13 +251,13 @@ class GA_block(nn.Module):
     def __init__(self, in_channels, heads):
         super(GA_block, self).__init__()
 
-        self.query = nn.Linear(in_channels, in_channels, bias=False)
+        self.query = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.query)
-        self.key = nn.Linear(in_channels, in_channels, bias=False)
+        self.key = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.key)
-        self.value = nn.Linear(in_channels, in_channels, bias=False)
+        self.value = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.value)
-        self.out = nn.Linear(in_channels, in_channels, bias=False)
+        self.out = nn.Linear(in_channels // 2, in_channels, bias=False)
         self._init_weights(self.out)
         self.softmax = nn.Softmax(dim=-1)
         self.inter_channels = in_channels 
@@ -293,28 +293,24 @@ class GA_block(nn.Module):
         # out = torch.cat((cls_token_out, spatial_token), dim=1)
         # out = self.out(out)
         
-        B, _, C = x.size()
-
-        inter_dimension = C // self.heads
+        
 
         spatial_token, cls_token_in = x[:, 1:], cls_token
 
-        q = self.query(cls_token).view(B, 1, self.heads,
-                               inter_dimension).permute(0, 2, 1, 3)
-        k = self.key(spatial_token).view(B, spatial_token.size(1), self.heads,
-                             inter_dimension).permute(0, 2, 1, 3)
-        v = self.value(spatial_token).view(B, spatial_token.size(1), self.heads,
-                               inter_dimension).permute(0, 2, 91, 3)
+        q = self.query(cls_token)
+        k = self.key(spatial_token)
+        v = self.value(spatial_token)
 
-        similarity = torch.matmul(q, k.transpose(3, 2))
-        similarity = similarity / math.sqrt(inter_dimension)
+        B, _, C = q.size()
+
+        similarity = torch.matmul(q, k.permute(0, 2, 1))
+        similarity = similarity / math.sqrt(C)
 
         attention =  self.softmax(similarity)
 
         out_tmp = torch.matmul(attention, v)
-        out = out_tmp.permute(0, 2, 1, 3).contiguous()
-        out = out.view(B, 1, -1)
-        out = self.out(out)
+        
+        out = self.out(out_tmp)
         cls_token_out = out + cls_token_in
         
         out = torch.cat((cls_token_out, spatial_token), dim=1)
