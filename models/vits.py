@@ -336,7 +336,8 @@ class Transformer_Block(nn.Module):
         if GA_flag:
             self.normalization_GA = nn.LayerNorm(in_channels)
             self.GA = GA_block(in_channels, heads)
-            self.GA_flag = GA_flag
+
+        self.GA_flag = GA_flag
 
     def forward(self, x, cls_token, dropout=True):
         '''
