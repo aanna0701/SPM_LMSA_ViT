@@ -129,9 +129,9 @@ if __name__ == "__main__":
 
     log_dir = os.path.join(save_path, 'log.txt')
     logger = log.getLogger(__name__)
-    formatter = log.Formatter('[%(asctime)s]\n%(message)s')
+    formatter = log.Formatter('%(message)s')
     streamHandler = log.StreamHandler()
-    fileHandler = log.FileHandler(log_dir)
+    fileHandler = log.FileHandler(log_dir, 'w')
     streamHandler.setFormatter(formatter)
     fileHandler.setFormatter(formatter)
     logger.addHandler(streamHandler)

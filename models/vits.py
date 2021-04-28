@@ -248,10 +248,8 @@ class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, heads):
         super(GA_block, self).__init__()
-        self.mlp = MLP_GA(in_channels)
-        self.normalization = nn.LayerNorm(in_channels)
 
         self.query = nn.Linear(in_channels, in_channels, bias=False)
         self._init_weights(self.query)
@@ -261,8 +259,9 @@ class GA_block(nn.Module):
         self._init_weights(self.value)
         self.out = nn.Linear(in_channels, in_channels, bias=False)
         self._init_weights(self.out)
-
+        self.softmax = nn.Softmax(dim=-1)
         self.inter_channels = in_channels 
+        self.heads = heads
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -280,36 +279,66 @@ class GA_block(nn.Module):
             cls_token_out : (B, 1, C)
             out : (B, HW+1, C)     
         '''
+        # spatial_token, cls_token_in = x[:, 1:], cls_token
+        
+        # q = self.query(cls_token)
+        # k = self.key(spatial_token)
+        # v = self.value(spatial_token)
+        
+        # weight = torch.matmul(q, k.permute(0, 2, 1)) / math.sqrt(self.inter_channels)
+        # weight_softmax = F.softmax(weight, dim=2)
+        # cls_token_out = torch.matmul(weight_softmax, v)
+        # cls_token_out = cls_token_out + cls_token_in
+        
+        # out = torch.cat((cls_token_out, spatial_token), dim=1)
+        # out = self.out(out)
+        
+        B, _, C = x.size()
+
+        inter_dimension = C // self.heads
+
         spatial_token, cls_token_in = x[:, 1:], cls_token
-        
-        q = self.query(cls_token)
-        k = self.key(spatial_token)
-        v = self.value(cls_token)
-        
-        weight = torch.matmul(q, k.permute(0, 2, 1)) / math.sqrt(self.inter_channels)
-        weight_softmax = F.softmax(weight, dim=2)
-        cls_token_out = torch.matmul(weight_softmax, v)
-        cls_token_out = cls_token_out + cls_token_in
+
+        q = self.query(cls_token).view(B, 1, self.heads,
+                               inter_dimension).permute(0, 2, 1, 3)
+        k = self.key(spatial_token).view(B, spatial_token.size(1), self.heads,
+                             inter_dimension).permute(0, 2, 1, 3)
+        v = self.value(spatial_token).view(B, spatial_token.size(1), self.heads,
+                               inter_dimension).permute(0, 2, 1, 3)
+
+        similarity = torch.matmul(q, k.transpose(3, 2))
+        similarity = similarity / math.sqrt(inter_dimension)
+
+        attention =  self.softmax(similarity)
+
+        out_tmp = torch.matmul(attention, v)
+        out = out_tmp.permute(0, 2, 1, 3).contiguous()
+        out = out.view(B, 1, -1)
+        out = self.out(out)
+        cls_token_out = out + cls_token_in
         
         out = torch.cat((cls_token_out, spatial_token), dim=1)
-        out = self.out(out)
         
         return out
     
 
 
 class Transformer_Block(nn.Module):
-    def __init__(self, in_channels, heads=8, mlp_ratio=4):
+    def __init__(self, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
         super(Transformer_Block, self).__init__()
         self.normalization_1 = nn.LayerNorm(in_channels)
         self.normalization_2 = nn.LayerNorm(in_channels)
-        self.normalization_GA = nn.LayerNorm(in_channels)
+        
         
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
-        self.GA = GA_block(in_channels)
+        
+        if GA_flag:
+            self.normalization_GA = nn.LayerNorm(in_channels)
+            self.GA = GA_block(in_channels, heads)
+            self.GA_flag = GA_flag
 
-    def forward(self, x, cls_token, GA_flag, dropout=True):
+    def forward(self, x, cls_token, dropout=True):
         '''
         [shape]
             x : (B, HW, C)
@@ -332,7 +361,7 @@ class Transformer_Block(nn.Module):
         x_res1 = x_in + x_MHSA
         x_inter2 = self.normalization_2(x_res1)
 
-        if GA_flag:       
+        if self.GA_flag:       
             '''
                 Global attribute update
             '''          
@@ -377,7 +406,7 @@ class Classifier_2d(nn.Module):
     def __init__(self, num_classes=10, in_channels=64):
         super(Classifier_2d, self).__init__()
 
-        self.linear = nn.Linear(in_channels, num_classes)
+        self.linear = nn.Linear(in_channels, num_classes, bias=False)
         self._init_weights(self.linear)
         self.name = 'Classifier'
 
@@ -450,18 +479,17 @@ class ViT(nn.Module):
         self.positional_embedding = Positional_Embedding(
         spatial_dimension=num_nodes, inter_channels=inter_dimension)
         
-        self.GA = GA
     
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.inter_dimension))
         
-        self.transformers = self.make_layer(depth, Transformer_Block, mlp_ratio)
+        self.transformers = self.make_layer(depth, Transformer_Block, mlp_ratio, GA_flag=GA)
 
 
-    def make_layer(self, num_blocks, block, mlp_ratio):
+    def make_layer(self, num_blocks, block, mlp_ratio, GA_flag):
         layer_list = nn.ModuleList()
         for i in range(num_blocks):
             layer_list.append(
-                block(self.inter_dimension, self.heads, mlp_ratio))
+                block(self.inter_dimension, self.heads, mlp_ratio, GA_flag))
 
         return layer_list
 
@@ -483,7 +511,7 @@ class ViT(nn.Module):
             cls_token = F.dropout(cls_token, 0.1)
         
         for i in range(len(self.transformers)):
-            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.GA, self.dropout)
+            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
                 
         x_out = self.classifier(cls_token)
 
@@ -595,7 +623,7 @@ class PiT(nn.Module):
         x_tmp = F.dropout(x_tmp, 0.1)
         for i in range(len(self.transformers)):
             x_tmp = self.transformers[i](x_tmp, self.EB)
-        x_out = self.classifier(x_tmp)
+        x_out = self.ssifier(x_tmp)
 
         return x_out
     
