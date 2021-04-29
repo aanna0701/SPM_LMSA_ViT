@@ -54,7 +54,7 @@ parser.add_argument('--weights', help='weights path', default=False)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite', 'ViT-Lite-w_o-token', 'G-ViT-Lite-w_o-token'], 'Unexpected model!'
+assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite', 'ViT-P-Lite', 'G-ViT-P-Lite'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -171,10 +171,10 @@ if __name__ == "__main__":
         model = m.ViT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'G-ViT-Lite':
         model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'ViT-Lite-w_o-token':
-        model = m.ViT_Lite(args.depth, args.channel,cls_token=False, heads = args.heads, dropout=False)
-    elif args.model == 'G-ViT-Lite-w_o-token':
-        model = m.ViT_Lite(args.depth, args.channel,GA= True,cls_token=False, heads = args.heads, dropout=False)
+    elif args.model == 'ViT-P-Lite':
+        model = m.ViT_P_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'G-ViT-P-Lite':
+        model = m.ViT_P_Lite(args.depth, args.channel,GA= True, heads = args.heads, dropout=False)
         
     # trainers
 
