@@ -48,6 +48,7 @@ parser.add_argument('--seed', help='seed', type=int, required=True)
 parser.add_argument('--depth', help='depth', type=int, required=True)
 parser.add_argument('--channel', help='channel', type=int, required=True)
 parser.add_argument('--heads', help='heads', type=int, default=4)
+parser.add_argument('--tag', help='description of this training', required=True)
 parser.add_argument('--weights', help='weights path', default=False)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
@@ -119,8 +120,9 @@ if __name__ == "__main__":
     save_path = os.path.join(os.getcwd(), "save")
     # save_path = os.path.join(save_path, now + '_' + args.model +
     #                          "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))
+    
     save_path = os.path.join(save_path, args.model + '-{}-{}-{}'.format(args.depth, args.channel, args.heads) +
-                             "_seed" + str(args.seed))
+                             "_seed" + str(args.seed) + "_{}".format(args.tag))
     if not os.path.isdir(save_path):
         os.makedirs(save_path, exist_ok=True)
 

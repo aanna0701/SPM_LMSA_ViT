@@ -231,8 +231,8 @@ class GA_channel_attention_block(nn.Module):
         self.mlp = MLP_GA(in_channels)
         self.normalization = nn.LayerNorm(in_size)
         self.in_dimension = in_channels
-        self.maxpool = nn.MaxPool1d(in_size-1)
-        self.avgpool = nn.AvgPool1d(in_size-1)
+        self.maxpool = nn.MaxPool1d(in_size[0]-1)
+        self.avgpool = nn.AvgPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
         
     def forward(self, x, cls_token):
