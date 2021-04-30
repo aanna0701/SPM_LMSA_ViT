@@ -103,6 +103,8 @@ class Patch_Embedding(nn.Module):
             x : (B, C, H, W)
             out : (B, C', H, W)
             out_flat : (B, C', HW)
+            out_concat : (B, HW+1, C')
+            out : (B, HW+1, C')
         '''
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
@@ -164,7 +166,7 @@ class MLP_GA(nn.Module):
         if layer.bias:
             nn.init.normal_(layer.bias, std=1e-6)
 
-    def forward(self, x, dropout=False):
+    def forward(self, x):
         '''
         [shape]
             x : (B, HW+1, C)
@@ -173,147 +175,108 @@ class MLP_GA(nn.Module):
         '''
 
         x_inter = F.gelu(self.fc1(x))
-        if dropout:
-            x_inter = F.dropout(x_inter, 0.1)
+        # if dropout:
+        #     x_inter = F.dropout(x_inter, 0.1)
 
         x_out = self.fc2(x_inter)
-        if dropout:
-            x_out = F.dropout(x_out, 0.1)
+        # if dropout:
+        #     x_out = F.dropout(x_out, 0.1)
 
         return x_out
 
 
-# class GA_block(nn.Module):
-#     '''
-#     Class-token Embedding
-#     '''
-#     def __init__(self):
-#         super(GA_block, self).__init__()
-    
-#     def forward(self, x):
-#         '''
-#             [shape]
-#             x : (B, HW+1, C)
-#             visual_token : (B, HW, C)
-#             cls_token_in : (B, 1, C)
-#             weight : (B, 1, HW)
-#             weight_softmax : (B, 1, HW)
-#             cls_token_out : (B, 1, C)
-#             out : (B, HW+1, C)     
-#         '''
-#         visual_token, cls_token_in = x[:, 1:], x[:, (0, )]
-#         weight = torch.matmul(cls_token_in, visual_token.permute(0, 2, 1))
-#         weight_softmax = F.softmax(weight, dim=2)
-#         cls_token_out = torch.matmul(weight_softmax, visual_token)
-#         cls_token_out = cls_token_out + cls_token_in
-        
-#         out = torch.cat((cls_token_out, visual_token), dim=1)
-        
-#         return out
-
-
-# class GA_block(nn.Module):
-#     '''
-#     Class-token Embedding
-#     '''
-#     def __init__(self, in_channels):
-#         super(GA_block, self).__init__()
-#         self.mlp = MLP_GA(in_channels)
-#         self.normalization = nn.LayerNorm(in_channels)
-        
-#     def forward(self, x, cls_token):
-#         '''
-#             [shape]
-#             x : (B, HW+1, C)
-#             visual_token : (B, HW, C)
-#             cls_token_in : (B, 1, C)
-#             weight : (B, 1, HW)
-#             weight_softmax : (B, 1, HW)
-#             cls_token_out : (B, 1, C)
-#             out : (B, HW+1, C)     
-#         '''
-#         visual_token, cls_token_in = x[:, 1:], self.mlp(cls_token)
-#         weight = torch.matmul(cls_token_in, visual_token.permute(0, 2, 1))
-#         weight_softmax = F.softmax(weight, dim=2)
-#         cls_token_out = torch.matmul(weight_softmax, visual_token)
-#         cls_token_out = cls_token_out + cls_token_in
-        
-#         out = torch.cat((cls_token_out, visual_token), dim=1)
-        
-#         return out
-    
 class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
     def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
-
+        self.mlp = MLP_GA(in_channels)
         self.normalization = nn.LayerNorm(in_size)
-        self.query = nn.Linear(in_channels, in_channels // 2, bias=False)
-        self._init_weights(self.query)
-        self.key = nn.Linear(in_channels, in_channels // 2, bias=False)
-        self._init_weights(self.key)
-        self.value = nn.Linear(in_channels, in_channels // 2, bias=False)
-        self._init_weights(self.value)
-        self.out = nn.Linear(in_channels // 2, in_channels, bias=False)
-        self._init_weights(self.out)
-        self.softmax = nn.Softmax(dim=-1)
-        self.inter_channels = in_channels
-        
-    def _init_weights(self,layer):
-        nn.init.kaiming_normal_(layer.weight)
-        if layer.bias:
-            nn.init.normal_(layer.bias, std=1e-6)
+        self.in_dimension = in_channels
         
     def forward(self, x, cls_token):
         '''
             [shape]
             x : (B, HW+1, C)
-            visual_token : (B, HW, C)
+            spatial_token : (B, HW, C)
             cls_token_in : (B, 1, C)
             weight : (B, 1, HW)
             weight_softmax : (B, 1, HW)
             cls_token_out : (B, 1, C)
             out : (B, HW+1, C)     
         '''
-        # visual_token, cls_token_in = x[:, 1:], cls_token
-        
-        # q = self.query(cls_token)
-        # k = self.key(visual_token)
-        # v = self.value(visual_token)
-        
-        # weight = torch.matmul(q, k.permute(0, 2, 1)) / math.sqrt(self.inter_channels)
-        # weight_softmax = F.softmax(weight, dim=2)
-        # cls_token_out = torch.matmul(weight_softmax, v)
-        # cls_token_out = cls_token_out + cls_token_in
-        
-        # out = torch.cat((cls_token_out, visual_token), dim=1)
-        # out = self.out(out)
-        
-        visual_token, cls_token_in = x[:, 1:], cls_token
-        x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
-        spatial_token_norm, cls_token_norm = x_norm[:, 1:], x_norm[:, (0, )]
-        
-        q = self.query(cls_token_norm)
-        k = self.key(spatial_token_norm)
-        v = self.value(spatial_token_norm)
+        spatial_token, cls_token_in = x[:, 1:], cls_token
+        x_norm = self.normalization(torch.cat([cls_token_in, spatial_token], dim=1))      
+        spatial_token_norm, cls_token_norm = x_norm[:, 1:], self.mlp(x_norm[:, (0, )])
 
-        B, _, C = q.size()
 
-        similarity = torch.matmul(q, k.permute(0, 2, 1))
-        similarity = similarity / math.sqrt(C)
-
-        attention =  self.softmax(similarity)
-
-        out_tmp = torch.matmul(attention, v)
+        weight = torch.matmul(cls_token_norm, spatial_token_norm.permute(0, 2, 1)) / math.sqrt(self.in_dimension)
+        weight_softmax = F.softmax(weight, dim=2)
+        cls_token_out = torch.matmul(weight_softmax, spatial_token_norm)
+        cls_token_out = cls_token_out + cls_token_in
         
-        out = self.out(out_tmp)
-        cls_token_out = out + cls_token_in
-        
-        out = torch.cat((cls_token_out, visual_token), dim=1)
+        out = torch.cat((cls_token_out, spatial_token), dim=1)
         
         return out
+    
+# class GA_block(nn.Module):
+#     '''
+#     Class-token Embedding
+#     '''
+#     def __init__(self, in_channels, heads):
+#         super(GA_block, self).__init__()
+
+#         self.query = nn.Linear(in_channels, in_channels // 2, bias=False)
+#         self._init_weights(self.query)
+#         self.key = nn.Linear(in_channels, in_channels // 2, bias=False)
+#         self._init_weights(self.key)
+#         self.value = nn.Linear(in_channels, in_channels // 2, bias=False)
+#         self._init_weights(self.value)
+#         self.out = nn.Linear(in_channels // 2, in_channels, bias=False)
+#         self._init_weights(self.out)
+#         self.softmax = nn.Softmax(dim=-1)
+#         self.inter_channels = in_channels 
+#         self.heads = heads
+        
+#     def _init_weights(self,layer):
+#         nn.init.kaiming_normal_(layer.weight)
+#         if layer.bias:
+#             nn.init.normal_(layer.bias, std=1e-6)
+        
+#     def forward(self, x, cls_token):
+#         '''
+#             [shape]
+#             x : (B, HW+1, C)
+#             spatial_token : (B, HW, C)
+#             cls_token_in : (B, 1, C)
+#             weight : (B, 1, HW)
+#             weight_softmax : (B, 1, HW)
+#             cls_token_out : (B, 1, C)
+#             out : (B, HW+1, C)     
+#         '''
+
+#         spatial_token, cls_token_in = x[:, 1:], cls_token
+
+#         q = self.query(cls_token)
+#         k = self.key(spatial_token)
+#         v = self.value(spatial_token)
+
+#         B, _, C = q.size()
+
+#         similarity = torch.matmul(q, k.permute(0, 2, 1))
+#         similarity = similarity / math.sqrt(C)
+
+#         attention =  self.softmax(similarity)
+
+#         out_tmp = torch.matmul(attention, v)
+        
+#         out = self.out(out_tmp)
+#         cls_token_out = out + cls_token_in
+        
+#         out = torch.cat((cls_token_out, spatial_token), dim=1)
+        
+#         return out
     
 
 
@@ -457,7 +420,6 @@ class Pooling_layer(nn.Module):
         
         return out
 
-
 class ViT(nn.Module):
     def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
         super(ViT, self).__init__()
@@ -481,66 +443,6 @@ class ViT(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.inter_dimension))
         
         self.transformers = self.make_layer(depth, Transformer_Block, mlp_ratio, GA_flag=GA)
-        
-
-    def make_layer(self, num_blocks, block, mlp_ratio, GA_flag):
-        layer_list = nn.ModuleList()
-        for i in range(num_blocks):
-            layer_list.append(
-                block(self.in_size, self.inter_dimension, self.heads, mlp_ratio, GA_flag))
-
-        return layer_list
-
-    def forward(self, x):
-        '''
-        [shape]
-            x : (B, 3, H, W)
-            x_patch_embedded = (B, HW, C)
-            x_tmp = (B, HW, C)
-            x_out = (B, classes)
-        '''
-        x_patch_embedded = self.patch_embedding(x)
-        x_tmp = self.positional_embedding(x_patch_embedded)
-        
-        cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))
-
-        
-        if self.dropout:
-            x_tmp = F.dropout(x_tmp, 0.1)
-            cls_token = F.dropout(cls_token, 0.1)
-        
-        for i in range(len(self.transformers)):
-            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
-                
-        x_out = self.classifier(cls_token)
-
-        return x_out
-
-
-class ViT_P(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
-        super(ViT_P, self).__init__()
-
-        self.inter_dimension = inter_dimension
-        self.heads = heads
-
-        self.in_size = (num_nodes + 1, inter_dimension)
-
-        self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
-        
-        self.dropout = dropout
-        
-        self.classifier = Classifier_1d(
-        num_classes=num_classes, in_channels=inter_dimension)
-        self.positional_embedding = Positional_Embedding(
-        spatial_dimension=num_nodes, inter_channels=inter_dimension)
-        
-        self.activation = nn.GELU()
-
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.inter_dimension))
-        
-        self.transformers = self.make_layer(depth, Transformer_Block, mlp_ratio, GA_flag=GA)
 
 
     def make_layer(self, num_blocks, block, mlp_ratio, GA_flag):
@@ -561,17 +463,13 @@ class ViT_P(nn.Module):
         '''
         x_patch_embedded = self.patch_embedding(x)
         x_tmp = self.positional_embedding(x_patch_embedded)
-        
-        
         cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))
-        
-        
-        
+
         
         
         if self.dropout:
-            cls_token = F.dropout(cls_token, 0.1)
             x_tmp = F.dropout(x_tmp, 0.1)
+            cls_token = F.dropout(cls_token, 0.1)
         
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
@@ -579,7 +477,7 @@ class ViT_P(nn.Module):
         x_out = self.classifier(cls_token)
 
         return x_out
-
+        
 class ViT_w_o_token(nn.Module):
     def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10):
         super(ViT_w_o_token, self).__init__()
