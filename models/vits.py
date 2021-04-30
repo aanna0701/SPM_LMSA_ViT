@@ -18,7 +18,7 @@ class MHSA(nn.Module):
         self._init_weights(self.value)
         self.out = nn.Linear(in_channels, in_channels, bias=False)
         self._init_weights(self.out)
-
+        self.dropout = nn.Dropout(0.1)
         self.softmax = nn.Softmax(dim=-1)
         
     def _init_weights(self,layer):
@@ -64,7 +64,7 @@ class MHSA(nn.Module):
         out = out.view(B, n_tokens, -1)
         out = self.out(out)
         if dropout:
-            out = F.dropout(out, 0.1)
+            out = self.dropout(out)
 
         return out
 
@@ -123,6 +123,7 @@ class MLP(nn.Module):
         self._init_weights(self.fc1)
         self.fc2 = nn.Linear(self.inter_channels, self.in_channels, bias=False)
         self._init_weights(self.fc2)
+        self.dropout = nn.Dropout(0.1)
         
 
     def _init_weights(self,layer):
@@ -140,11 +141,11 @@ class MLP(nn.Module):
 
         x_inter = F.gelu(self.fc1(x))
         if dropout:
-            x_inter = F.dropout(x_inter, 0.1)
+            x_inter = self.dropout(x_inter)
 
         x_out = self.fc2(x_inter)
         if dropout:
-            x_out = F.dropout(x_out, 0.1)
+            x_out = self.dropout(x_out)
 
         return x_out
 
@@ -160,6 +161,7 @@ class MLP_GA(nn.Module):
         self._init_weights(self.fc1)
         self.fc2 = nn.Linear(self.inter_channels, self.in_channels, bias=False)
         self._init_weights(self.fc2)
+        self.dropout = nn.Dropout(0.1)
 
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -176,11 +178,11 @@ class MLP_GA(nn.Module):
 
         x_inter = F.gelu(self.fc1(x))
         # if dropout:
-        #     x_inter = F.dropout(x_inter, 0.1)
+        #     x_inter = self.dropout(x_inter)
 
         x_out = self.fc2(x_inter)
         # if dropout:
-        #     x_out = F.dropout(x_out, 0.1)
+        #     x_out = self.dropout(x_out)
 
         return x_out
 
@@ -199,24 +201,68 @@ class GA_block(nn.Module):
         '''
             [shape]
             x : (B, HW+1, C)
-            spatial_token : (B, HW, C)
+            visual_token : (B, HW, C)
             cls_token_in : (B, 1, C)
             weight : (B, 1, HW)
             weight_softmax : (B, 1, HW)
             cls_token_out : (B, 1, C)
             out : (B, HW+1, C)     
         '''
-        spatial_token, cls_token_in = x[:, 1:], cls_token
-        x_norm = self.normalization(torch.cat([cls_token_in, spatial_token], dim=1))      
-        spatial_token_norm, cls_token_norm = x_norm[:, 1:], self.mlp(x_norm[:, (0, )])
+        visual_token, cls_token_in = x[:, 1:], cls_token
+        x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
+        visual_token_norm, cls_token_norm = x_norm[:, 1:], self.mlp(x_norm[:, (0, )])
 
 
-        weight = torch.matmul(cls_token_norm, spatial_token_norm.permute(0, 2, 1)) / math.sqrt(self.in_dimension)
+        weight = torch.matmul(cls_token_norm, visual_token_norm.permute(0, 2, 1)) / math.sqrt(self.in_dimension)
         weight_softmax = F.softmax(weight, dim=2)
-        cls_token_out = torch.matmul(weight_softmax, spatial_token_norm)
+        cls_token_out = torch.matmul(weight_softmax, visual_token_norm)
         cls_token_out = cls_token_out + cls_token_in
         
-        out = torch.cat((cls_token_out, spatial_token), dim=1)
+        out = torch.cat((cls_token_out, visual_token), dim=1)
+        
+        return out
+
+class GA_channel_attention_block(nn.Module):
+    '''
+    Class-token Embedding
+    '''
+    def __init__(self, in_size, in_channels):
+        super(GA_channel_attention_block, self).__init__()
+        self.mlp = MLP_GA(in_channels)
+        self.normalization = nn.LayerNorm(in_size)
+        self.in_dimension = in_channels
+        self.maxpool = nn.MaxPool1d(in_size-1)
+        self.avgpool = nn.AvgPool1d(in_size-1)
+        self.sigmoid = nn.Sigmoid()
+        
+    def forward(self, x, cls_token):
+        '''
+            [shape]
+            x : (B, HW+1, C)
+            visual_token : (B, HW, C)
+            cls_token_in : (B, 1, C)
+            weight : (B, 1, HW)
+            weight_softmax : (B, 1, HW)
+            cls_token_out : (B, 1, C)
+            out : (B, HW+1, C)     
+        '''
+        visual_token, cls_token_in = x[:, 1:], cls_token
+        x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
+        visual_token_norm, cls_token_norm = x_norm[:, 1:], x_norm[:, (0, )]
+
+        visual_toekn_maxpool = self.maxpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
+        visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
+        
+        maxpool_embedding = self.mlp(visual_toekn_maxpool)
+        avgpool_embedding = self.mlp(visual_toekn_avgpool)
+
+        out_embedding = maxpool_embedding + avgpool_embedding
+        out_embedding = self.sigmoid(out_embedding)
+        out_attention = torch.mul(out_embedding, cls_token_norm)
+        
+        cls_token_out = out_attention + cls_token_in
+        
+        out = torch.cat((cls_token_out, visual_token), dim=1)
         
         return out
     
@@ -248,7 +294,7 @@ class GA_block(nn.Module):
 #         '''
 #             [shape]
 #             x : (B, HW+1, C)
-#             spatial_token : (B, HW, C)
+#             visual_token : (B, HW, C)
 #             cls_token_in : (B, 1, C)
 #             weight : (B, 1, HW)
 #             weight_softmax : (B, 1, HW)
@@ -256,11 +302,11 @@ class GA_block(nn.Module):
 #             out : (B, HW+1, C)     
 #         '''
 
-#         spatial_token, cls_token_in = x[:, 1:], cls_token
+#         visual_token, cls_token_in = x[:, 1:], cls_token
 
 #         q = self.query(cls_token)
-#         k = self.key(spatial_token)
-#         v = self.value(spatial_token)
+#         k = self.key(visual_token)
+#         v = self.value(visual_token)
 
 #         B, _, C = q.size()
 
@@ -274,10 +320,10 @@ class GA_block(nn.Module):
 #         out = self.out(out_tmp)
 #         cls_token_out = out + cls_token_in
         
-#         out = torch.cat((cls_token_out, spatial_token), dim=1)
+#         out = torch.cat((cls_token_out, visual_token), dim=1)
         
 #         return out
-    
+
 
 
 class Transformer_Block(nn.Module):
@@ -439,6 +485,8 @@ class ViT(nn.Module):
         self.positional_embedding = Positional_Embedding(
         spatial_dimension=num_nodes, inter_channels=inter_dimension)
         
+        self.dropout_layer = nn.Dropout(0.1)
+        
     
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.inter_dimension))
         
@@ -468,8 +516,8 @@ class ViT(nn.Module):
         
         
         if self.dropout:
-            x_tmp = F.dropout(x_tmp, 0.1)
-            cls_token = F.dropout(cls_token, 0.1)
+            x_tmp = self.dropout_layer(x_tmp)
+            cls_token = self.dropout_layer(cls_token)
         
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
