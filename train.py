@@ -97,7 +97,7 @@ def model_eval(data_loader):
     accuracy = 0
     correct = 0
     with torch.no_grad():
-        for data, target in data_loader:
+        for data, target in data_loader:   
             data, target = data.cuda(), target.cuda()
             #####################
             output = model(data)
