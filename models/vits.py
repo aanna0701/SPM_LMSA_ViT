@@ -187,48 +187,48 @@ class MLP_GA(nn.Module):
         return x_out
 
 
+# class GA_block(nn.Module):
+#     '''
+#     Class-token Embedding
+#     '''
+#     def __init__(self, in_size, in_channels):
+#         super(GA_block, self).__init__()
+#         self.mlp = MLP_GA(in_channels)
+#         self.normalization = nn.LayerNorm(in_size)
+#         self.in_dimension = in_channels
+        
+#     def forward(self, x, cls_token):
+#         '''
+#             [shape]
+#             x : (B, HW+1, C)
+#             visual_token : (B, HW, C)
+#             cls_token_in : (B, 1, C)
+#             weight : (B, 1, HW)
+#             weight_softmax : (B, 1, HW)
+#             cls_token_out : (B, 1, C)
+#             out : (B, HW+1, C)     
+#         '''
+#         visual_token, cls_token_in = x[:, 1:], cls_token
+#         x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
+#         visual_token_norm, cls_token_norm = x_norm[:, 1:], self.mlp(x_norm[:, (0, )])
+
+
+#         weight = torch.matmul(cls_token_norm, visual_token_norm.permute(0, 2, 1)) / math.sqrt(self.in_dimension)
+#         weight_softmax = F.softmax(weight, dim=2)
+#         cls_token_out = torch.matmul(weight_softmax, visual_token_norm)
+#         cls_token_out = cls_token_out + cls_token_in
+        
+#         out = torch.cat((cls_token_out, visual_token), dim=1)
+        
+#         return out
+
 class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
     def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
-        self.mlp = MLP_GA(in_channels)
-        self.normalization = nn.LayerNorm(in_size)
-        self.in_dimension = in_channels
-        
-    def forward(self, x, cls_token):
-        '''
-            [shape]
-            x : (B, HW+1, C)
-            visual_token : (B, HW, C)
-            cls_token_in : (B, 1, C)
-            weight : (B, 1, HW)
-            weight_softmax : (B, 1, HW)
-            cls_token_out : (B, 1, C)
-            out : (B, HW+1, C)     
-        '''
-        visual_token, cls_token_in = x[:, 1:], cls_token
-        x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
-        visual_token_norm, cls_token_norm = x_norm[:, 1:], self.mlp(x_norm[:, (0, )])
-
-
-        weight = torch.matmul(cls_token_norm, visual_token_norm.permute(0, 2, 1)) / math.sqrt(self.in_dimension)
-        weight_softmax = F.softmax(weight, dim=2)
-        cls_token_out = torch.matmul(weight_softmax, visual_token_norm)
-        cls_token_out = cls_token_out + cls_token_in
-        
-        out = torch.cat((cls_token_out, visual_token), dim=1)
-        
-        return out
-
-class GA_channel_attention_block(nn.Module):
-    '''
-    Class-token Embedding
-    '''
-    def __init__(self, in_size, in_channels):
-        super(GA_channel_attention_block, self).__init__()
-        self.mlp = MLP_GA(in_channels)
+        self.mlp = MLP_GA(in_channels, 4)
         self.normalization = nn.LayerNorm(in_size)
         self.in_dimension = in_channels
         self.maxpool = nn.MaxPool1d(in_size[0]-1)

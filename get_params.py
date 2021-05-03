@@ -11,6 +11,7 @@ parser.add_argument('--model', help='model', type=str, required=True)
 parser.add_argument('--depth', help='depth', type=int, required=True)
 parser.add_argument('--channel', help='channel', type=int, required=True)
 parser.add_argument('--heads', help='heads', type=int, default=4)
+parser.add_argument('--tag', help='tag', required=True)
 
 args = parser.parse_args()
 
@@ -30,7 +31,7 @@ def get_params(model_name, depth, channel, heads):
         os.makedirs(save_path, exist_ok=True)
     
     
-    log_dir = os.path.join(save_path, 'number of params_{}-{}-{}.txt'.format(model_name, depth, channel))
+    log_dir = os.path.join(save_path, 'number of params_{}-{}-{}-{}-{}.txt'.format(model_name, depth, heads, channel, args.tag))
     logger = log.getLogger(__name__)
     formatter = log.Formatter('%(message)s')
     streamHandler = log.StreamHandler()

@@ -97,7 +97,7 @@ def model_eval(data_loader):
     accuracy = 0
     correct = 0
     with torch.no_grad():
-        for data, target in data_loader:   
+        for data, target in data_loader:
             data, target = data.cuda(), target.cuda()
             #####################
             output = model(data)
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     # save_path = os.path.join(save_path, now + '_' + args.model +
     #                          "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))
     
-    save_path = os.path.join(save_path, args.model + '-{}-{}-{}'.format(args.depth, args.channel, args.heads) +
+    save_path = os.path.join(save_path, args.model + '-{}-{}-{}'.format(args.depth, args.heads, args.channel) +
                              "_seed" + str(args.seed) + "_{}".format(args.tag))
     if not os.path.isdir(save_path):
         os.makedirs(save_path, exist_ok=True)
