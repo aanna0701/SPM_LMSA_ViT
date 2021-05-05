@@ -152,14 +152,15 @@ class MLP(nn.Module):
 
 class MLP_GA(nn.Module):
 
-    def __init__(self, in_channels, compression_ratio=4):
+    def __init__(self, in_channels, out_channels, compression_ratio=4):
         super(MLP_GA, self).__init__()
         self.in_channels = in_channels
         self.inter_channels = self.in_channels // compression_ratio
+        self.out_channels = out_channels
 
         self.fc1 = nn.Linear(self.in_channels, self.inter_channels, bias=False)
         self._init_weights(self.fc1)
-        self.fc2 = nn.Linear(self.inter_channels, self.in_channels, bias=False)
+        self.fc2 = nn.Linear(self.inter_channels, self.out_channels, bias=False)
         self._init_weights(self.fc2)
         self.dropout = nn.Dropout(0.1)
 
@@ -228,14 +229,15 @@ class GA_block(nn.Module):
     '''
     def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
-        self.mlp = MLP_GA(in_channels, 4)
+        self.mlp_node = MLP_GA(in_channels, in_channels, 4)
+        self.mlp_total = MLP_GA(in_channels * 2, in_channels, 4)
         self.normalization = nn.LayerNorm(in_size)
         self.in_dimension = in_channels
-        self.maxpool = nn.MaxPool1d(in_size[0]-1)
-        self.avgpool = nn.AvgPool1d(in_size[0]-1)
+        self.maxpool = nn.MaxPool1d(in_size[0]-2)
+        self.avgpool = nn.AvgPool1d(in_size[0]-2)
         self.sigmoid = nn.Sigmoid()
         
-    def forward(self, x, cls_token):
+    def forward(self, x, cls_token, edge_aggregation):
         '''
             [shape]
             x : (B, HW+1, C)
@@ -247,16 +249,23 @@ class GA_block(nn.Module):
             out : (B, HW+1, C)     
         '''
         visual_token, cls_token_in = x[:, 1:], cls_token
-        x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
-        visual_token_norm, cls_token_norm = x_norm[:, 1:], x_norm[:, (0, )]
+    
+        x_norm = self.normalization(torch.cat([cls_token_in, edge_aggregation, visual_token], dim=1))      
+        visual_token_norm, cls_token_norm = x_norm[:, 2:], x_norm[:, (0, )]
+        
+        edge_aggregation_norm = x[:, (1, )]
 
         visual_toekn_maxpool = self.maxpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
         visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
         
-        maxpool_embedding = self.mlp(visual_toekn_maxpool)
-        avgpool_embedding = self.mlp(visual_toekn_avgpool)
+        maxpool_embedding = self.mlp_node(visual_toekn_maxpool)
+        avgpool_embedding = self.mlp_node(visual_toekn_avgpool)
 
-        out_embedding = maxpool_embedding + avgpool_embedding
+        node_aggregation = maxpool_embedding + avgpool_embedding
+        
+        total_aggregation = torch.cat([node_aggregation, edge_aggregation_norm], dim=2)
+        
+        out_embedding = self.mlp_total(total_aggregation)
         out_embedding = self.sigmoid(out_embedding)
         out_attention = torch.mul(out_embedding, cls_token_norm)
         
@@ -338,7 +347,7 @@ class Transformer_Block(nn.Module):
         
         if GA_flag:
             self.normalization_GA = nn.LayerNorm(in_size)
-            self.GA = GA_block(in_size, in_channels)
+            self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
 
         self.GA_flag = GA_flag
 
@@ -369,8 +378,10 @@ class Transformer_Block(nn.Module):
         else:       
             '''
                 Global attribute update
-            '''          
-            x_inter2 = self.GA(x_res1, cls_token)
+            '''
+            edge_aggregation = x_MHSA[:, (0, )]
+            
+            x_inter2 = self.GA(x_res1, cls_token, edge_aggregation)
             x_inter2 = self.normalization_GA(x_inter2)
             
         
