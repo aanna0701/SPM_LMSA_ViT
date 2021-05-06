@@ -258,9 +258,11 @@ class GA_block(nn.Module):
         visual_toekn_maxpool = self.maxpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
         visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
         
-        maxpool_embedding = self.mlp_node(visual_toekn_maxpool)
-        avgpool_embedding = self.mlp_node(visual_toekn_avgpool)
-
+        embedding_concat = torch.cat([visual_toekn_maxpool, visual_toekn_avgpool], dim=1)
+        embedding_concat_mlp = self.mlp_node(embedding_concat)
+        
+        maxpool_embedding = embedding_concat_mlp[:, (0, )]
+        avgpool_embedding = embedding_concat_mlp[:, (1, )]
         node_aggregation = maxpool_embedding + avgpool_embedding
         
         total_aggregation = torch.cat([node_aggregation, edge_aggregation_norm], dim=2)
