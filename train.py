@@ -173,10 +173,6 @@ if __name__ == "__main__":
         model = m.ViT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'G-ViT-Lite':
         model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'ViT-P-Lite':
-        model = m.ViT_P_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'G-ViT-P-Lite':
-        model = m.ViT_P_Lite(args.depth, args.channel,GA= True, heads = args.heads, dropout=False)
         
     # trainers
 
