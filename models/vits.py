@@ -238,7 +238,7 @@ class GA_block(nn.Module):
         self.mean = nn.AvgPool1d(2)
         self.sigmoid = nn.Sigmoid()
         
-    def forward(self, x, cls_token):
+    def forward(self, x, cls_token, edge_aggregation):
         '''
             [shape]
             x : (B, HW+1, C)
@@ -251,8 +251,8 @@ class GA_block(nn.Module):
         '''
         
     
-        x_norm = self.normalization(x)      
-        visual_token_norm, edge_aggregation_out = x_norm[:, 1:], x_norm[:, (0, )]
+        x_norm = self.normalization(torch.cat([edge_aggregation, x[:, 1:]], dim=1))      
+        visual_token_norm, edge_aggregation_norm = x_norm[:, 1:], x_norm[:, (0, )]
         
 
         visual_token_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
@@ -265,12 +265,19 @@ class GA_block(nn.Module):
         # avgpool_embedding = node_aggregation[:, (1, )]
         # node_aggregation = maxpool_embedding + avgpool_embedding
         
-        node_aggregation_out = self.sigmoid(visual_token_avgpool)
-        total_aggregation = torch.mul(node_aggregation_out, edge_aggregation_out)
-                
         
-        cls_token_out = cls_token + total_aggregation
+        # concat = torch.cat([edge_aggregation_norm, visual_token_avgpool], dim=1)
+        # concat_nonliearity = self.mlp(concat)
+        # total_aggregation = concat_nonliearity[:, (0, )] + concat_nonliearity[:, (1, )]
+        
+        total_aggregation = edge_aggregation_norm + visual_token_avgpool
+        weighting = self.sigmoid(total_aggregation)
+        
+        total_aggregation_out = torch.mul(weighting, cls_token)
+        
+        cls_token_out = cls_token + total_aggregation_out
         out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
+        
         
         return out
     
@@ -378,8 +385,8 @@ class Transformer_Block(nn.Module):
             '''
                 Global attribute update
             '''
-            
-            x_inter2 = self.GA(x_res1, cls_token)
+            edge_aggregation = x_MHSA[:, (0, )]
+            x_inter2 = self.GA(x_res1, cls_token, edge_aggregation)
             x_inter2 = self.normalization_GA(x_inter2)
             
         
