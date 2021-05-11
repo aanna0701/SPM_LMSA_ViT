@@ -285,7 +285,6 @@ class GA_block(nn.Module):
     def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
         self.mlp = MLP_GA(in_channels, in_channels, 4)
-        # self.mlp_total = MLP_GA(in_channels * 2, in_channels, 4)
         self.normalization = nn.LayerNorm((2, in_size[1]))
         self.in_dimension = in_channels
         self.avgpool = nn.AvgPool1d(in_size[0]-2)
@@ -396,7 +395,8 @@ class Transformer_Block(nn.Module):
     def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
         super(Transformer_Block, self).__init__()
         self.normalization_1 = nn.LayerNorm(in_size)
-        self.normalization_2 = nn.LayerNorm(in_size)
+        if not GA_flag:
+            self.normalization_2 = nn.LayerNorm(in_size)
         
         
         self.MHSA = MHSA(in_channels, heads)
@@ -711,8 +711,9 @@ class ViT_pooling(nn.Module):
                 j += 1
                 if pooling=='PiT':
                     self.in_channels = 2 * self.in_channels
-                self.in_size = [(self.in_size[0] // 2) + 1, self.in_size[1]]
-                self.heads = 2 * self.heads
+                    self.heads = 2 * self.heads
+                self.in_size = [((self.in_size[0]-1) // 2) + 1, self.in_size[1]]
+                
             else:
                 self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
         

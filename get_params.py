@@ -3,6 +3,7 @@ import logging as log
 from models.model import *
 import numpy as np
 import argparse
+import models.model as m
 
 
 parser = argparse.ArgumentParser(description='get params')
@@ -17,14 +18,16 @@ args = parser.parse_args()
 
 def get_params(model_name, depth, channel, heads):
         
-    if model_name == 'ViT-Lite':
-        model = ViT_Lite(depth, channel, heads = heads, dropout=False)
-    elif model_name == 'G-ViT-Lite':
-        model = ViT_Lite(depth, channel,GA=True, heads = heads, dropout=False)
-    elif model_name == 'ViT-Lite-w_o-token':
-        model = ViT_Lite(depth, channel,cls_token=False, heads = heads, dropout=False)
-    elif model_name == 'G-ViT-Lite-w_o-token':
-        model = ViT_Lite(depth, channel,GA= True,cls_token=False, heads = heads, dropout=False)
+    # model load
+
+    if args.model == 'ViT-Lite':
+        model = m.ViT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'G-ViT-Lite':
+        model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
+    elif args.model == 'ViT-Lite-Pooling':
+        model = m.PiT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'G-ViT-Lite-Pooling':
+        model = m.PiT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
     
     save_path = os.path.join(os.getcwd(), 'params')
     if not os.path.isdir(save_path):
