@@ -209,8 +209,10 @@ class MLP_GA(nn.Module):
 #             cls_token_out : (B, 1, C)
 #             out : (B, HW+1, C)     
 #         '''
-#         visual_token, cls_token_in = x[:, 1:], cls_token
-#         x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
+#         # visual_token, cls_token_in = x[:, 1:], x[:, (0, )]
+#         cls_token_in = x[:, (0, )]
+#         # x_norm = self.normalization(torch.cat([cls_token_in, visual_token], dim=1))      
+#         x_norm = self.normalization(x)      
 #         visual_token_norm, cls_token_norm = x_norm[:, 1:], self.mlp(x_norm[:, (0, )])
 
 
@@ -219,10 +221,63 @@ class MLP_GA(nn.Module):
 #         cls_token_out = torch.matmul(weight_softmax, visual_token_norm)
 #         cls_token_out = cls_token_out + cls_token_in
         
-#         out = torch.cat((cls_token_out, visual_token), dim=1)
+#         out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
         
 #         return out
+# class GA_block(nn.Module):
+#     '''
+#     Class-token Embedding
+#     '''
+#     def __init__(self, in_size, in_channels):
+#         super(GA_block, self).__init__()
+#         self.mlp = MLP_GA(in_channels, in_channels, 4)
+#         # self.mlp_total = MLP_GA(in_channels * 2, in_channels, 4)
+#         self.in_dimension = in_channels
+#         self.maxpool = nn.MaxPool1d(in_size[0]-1)
+#         self.avgpool = nn.AvgPool1d(in_size[0]-2)
+#         self.sigmoid = nn.Sigmoid()
+        
+#     def forward(self, x, cls_token, edge_aggregation):
+#         '''
+#             [shape]
+#             x : (B, HW+1, C)
+#             visual_token : (B, HW, C)
+#             cls_token_in : (B, 1, C)
+#             weight : (B, 1, HW)
+#             weight_softmax : (B, 1, HW)
+#             cls_token_out : (B, 1, C)
+#             out : (B, HW+1, C)     
+#         '''
+        
+        
+        
+#         max_pool = self.maxpool(x)
+#         avg_pool = self.avgpool(x)
+        
+#         max_pool_mlp = self.mlp(max_pool)
+#         avg_pool_mlp = self.mlp(avg_pool)
 
+        
+#         # visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
+        
+#         # node_aggregation = torch.cat([visual_token_maxpool, visual_toekn_avgpool], dim=1)
+#         # node_aggregation = self.mlp(node_aggregation)
+        
+#         # maxpool_embedding = node_aggregation[:, (0, )]
+#         # avgpool_embedding = node_aggregation[:, (1, )]
+#         # node_aggregation = maxpool_embedding + avgpool_embedding
+        
+#         total_aggregation = max_pool_mlp + avg_pool_mlp
+#         weighting = self.sigmoid(total_aggregation)
+        
+#         total_aggregation_out = torch.mul(weighting, cls_token)
+        
+#         cls_token_out = cls_token + total_aggregation_out
+#         out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
+        
+        
+#         return out
+    
 class GA_block(nn.Module):
     '''
     Class-token Embedding
@@ -231,11 +286,10 @@ class GA_block(nn.Module):
         super(GA_block, self).__init__()
         self.mlp = MLP_GA(in_channels, in_channels, 4)
         # self.mlp_total = MLP_GA(in_channels * 2, in_channels, 4)
-        self.normalization = nn.LayerNorm(in_size)
+        self.normalization = nn.LayerNorm((2, in_size[1]))
         self.in_dimension = in_channels
-        self.maxpool = nn.MaxPool1d(in_size[0]-1)
-        self.avgpool = nn.AvgPool1d(in_size[0]-1)
-        self.mean = nn.AvgPool1d(2)
+        self.avgpool = nn.AvgPool1d(in_size[0]-2)
+        self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
         
     def forward(self, x, cls_token, edge_aggregation):
@@ -250,12 +304,15 @@ class GA_block(nn.Module):
             out : (B, HW+1, C)     
         '''
         
+        
+        edge_aggregation_avgpool = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
+        visual_token_avgpool = self.avgpool(x[:, 1:].permute(0, 2, 1)).permute(0, 2, 1)
     
-        x_norm = self.normalization(torch.cat([edge_aggregation, x[:, 1:]], dim=1))      
-        visual_token_norm, edge_aggregation_norm = x_norm[:, 1:], x_norm[:, (0, )]
+        x_norm = self.normalization(torch.cat([edge_aggregation_avgpool, visual_token_avgpool], dim=1))      
+        edge_aggregation_norm, visual_token_norm = x_norm[:, (0, )], x_norm[:, (1, )]
         
 
-        visual_token_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
+        
         # visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
         
         # node_aggregation = torch.cat([visual_token_maxpool, visual_toekn_avgpool], dim=1)
@@ -265,12 +322,7 @@ class GA_block(nn.Module):
         # avgpool_embedding = node_aggregation[:, (1, )]
         # node_aggregation = maxpool_embedding + avgpool_embedding
         
-        
-        # concat = torch.cat([edge_aggregation_norm, visual_token_avgpool], dim=1)
-        # concat_nonliearity = self.mlp(concat)
-        # total_aggregation = concat_nonliearity[:, (0, )] + concat_nonliearity[:, (1, )]
-        
-        total_aggregation = edge_aggregation_norm + visual_token_avgpool
+        total_aggregation = edge_aggregation_norm + visual_token_norm
         weighting = self.sigmoid(total_aggregation)
         
         total_aggregation_out = torch.mul(weighting, cls_token)
@@ -340,7 +392,6 @@ class GA_block(nn.Module):
 #         return out
 
 
-
 class Transformer_Block(nn.Module):
     def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
         super(Transformer_Block, self).__init__()
@@ -350,10 +401,11 @@ class Transformer_Block(nn.Module):
         
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
+        self.MLP_MHSA = MLP(in_channels, mlp_ratio)
         
         if GA_flag:
             self.normalization_GA = nn.LayerNorm(in_size)
-            self.GA = GA_block(in_size, in_channels)
+            self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
 
         self.GA_flag = GA_flag
 
@@ -385,7 +437,8 @@ class Transformer_Block(nn.Module):
             '''
                 Global attribute update
             '''
-            edge_aggregation = x_MHSA[:, (0, )]
+            edge_aggregation = x_MHSA
+            
             x_inter2 = self.GA(x_res1, cls_token, edge_aggregation)
             x_inter2 = self.normalization_GA(x_inter2)
             
@@ -507,39 +560,6 @@ class Classifier_2d(nn.Module):
 
         return out
 
-class Pooling_layer(nn.Module):
-    def __init__(self, in_channels):
-        super(Pooling_layer, self).__init__()
-        
-        self.conv = nn.Conv2d(in_channels, 2*in_channels, kernel_size=3, stride=2, padding=1, groups=in_channels)
-        self.fcl = nn.Linear(in_channels, 2*in_channels)
-        
-    def forward(self, x, EB):
-        '''
-        [shape]
-            x : (B, HW+1, C)
-            cls_token : (B, 1, C)
-            feature_token : (B, HW, C)
-            feature_token_reshape : (B, C, H, W)
-            pool_feature_token : (B, (H/2)(W/2), 2*C)
-            out : (B, (HW/2)+1, 2*C)
-        '''
-        cls_token = x[:, (0,)]
-        feature_token = x[:, 1:]
-        
-        B, HW, C = feature_token.shape
-        H = int(math.sqrt(HW))
-        feature_token_reshape = feature_token.permute(0, 2, 1).contiguous()
-        feature_token_reshape = feature_token_reshape.view((B, C, H, H))
-                
-        pool_feature_token = self.conv(feature_token_reshape)
-        pool_feature_token = pool_feature_token.view((B, 2*C, -1)).permute(0, 2, 1)
-        pool_cls_token = self.fcl(cls_token)
-        
-        out = torch.cat((pool_cls_token, pool_feature_token), dim=1)
-        
-        return out
-
 class ViT(nn.Module):
     def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
         super(ViT, self).__init__()
@@ -601,63 +621,138 @@ class ViT(nn.Module):
         return x_out
         
 
+class Pooling_layer(nn.Module):
+    def __init__(self, in_channels):
+        super(Pooling_layer, self).__init__()
+        
+        self.conv = nn.Conv2d(in_channels, 2*in_channels, kernel_size=3, stride=2, padding=1, groups=in_channels)
+        self.fcl = nn.Linear(in_channels, 2*in_channels)
+        
+    def forward(self, x, cls_token, dropout):
+        '''
+        [shape]
+            x : (B, HW+1, C)
+            cls_token : (B, 1, C)
+            feature_token : (B, HW, C)
+            feature_token_reshape : (B, C, H, W)
+            pool_feature_token : (B, (H/2)(W/2), 2*C)
+            out : (B, (HW/2)+1, 2*C)
+        '''
+        cls_token = cls_token
+        feature_token = x
+        
+        B, HW, C = feature_token.shape
+        H = int(math.sqrt(HW))
+        feature_token_reshape = feature_token.permute(0, 2, 1).contiguous()
+        feature_token_reshape = feature_token_reshape.view((B, C, H, H))
+                
+        pool_feature_token = self.conv(feature_token_reshape)
+        pool_feature_token = pool_feature_token.view((B, 2*C, -1)).permute(0, 2, 1)
+        pool_cls_token = self.fcl(cls_token)
+        
+        
+        return pool_feature_token, pool_cls_token
 
-class PiT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_channels, num_blocks, heads=8, mlp_ratio=4,num_classes=10, EB=False, IB=False):
-        super(PiT, self).__init__()
+class Pooling_layer_max(nn.Module):
+    def __init__(self):
+        super(Pooling_layer_max, self).__init__()
+        
+        self.maxpool = nn.MaxPool1d(2)
+        
+    def forward(self, x, cls_token, dropout):
+        '''
+        [shape]
+            x : (B, HW+1, C)
+            cls_token : (B, 1, C)
+            feature_token : (B, HW, C)
+            feature_token_reshape : (B, C, H, W)
+            pool_feature_token : (B, (H/2)(W/2), 2*C)
+            out : (B, (HW/2)+1, 2*C)
+        '''
+        
+        out = self.maxpool(x.permute(0, 2, 1)).permute(0, 2, 1)
+        
+        return out, cls_token
 
-        self.in_channels = inter_channels
+
+class ViT_pooling(nn.Module):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling='max'):
+        super(ViT_pooling, self).__init__()
+
+        self.in_channels = inter_dimension
         self.heads = heads
-        self.transformers = nn.ModuleList()
+        
+
+        self.in_size = (num_nodes + 1, inter_dimension)
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_channels, global_attribute=IB)
-        self.positional_embedding = Positional_Embedding(
-            spatial_dimension=num_nodes + 1, inter_channels=inter_channels)
-
+            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
         
+        self.dropout = dropout
+        
+        self.classifier = Classifier_1d(
+        num_classes=num_classes, in_channels=inter_dimension)
+        self.positional_embedding = Positional_Embedding(
+        spatial_dimension=num_nodes, inter_channels=inter_dimension)
+        
+        self.dropout_layer = nn.Dropout(0.1)
+        
+    
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.in_channels))
+        
+        self.transformers = nn.ModuleList()
+        
+        self.pooling = pooling
+
         j = 0
         for i in range(len(num_blocks)):
             if not j+1 == len(num_blocks):
-                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, True)
+                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA, True)
                 j += 1
-                self.in_channels = 2 * self.in_channels
+                if pooling=='PiT':
+                    self.in_channels = 2 * self.in_channels
+                self.in_size = [(self.in_size[0] // 2) + 1, self.in_size[1]]
                 self.heads = 2 * self.heads
             else:
-                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio)
+                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
         
         self.classifier = Classifier_1d(
             num_classes=num_classes, in_channels=self.in_channels)        
 
-        if EB:
-            self.EB = Equivariant_Block()
-        else:
-            self.EB = False
 
-    def make_layer(self, num_blocks, tr_block, mlp_ratio, pool_block=False):
-        for i in range(num_blocks):
+    def make_layer(self, num_blocks, tr_block, mlp_ratio, GA_flag, pool_block=False):
+        for _ in range(num_blocks):
             self.transformers.append(
-                tr_block(self.in_channels, self.heads, mlp_ratio))
+                tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
         if pool_block:
-            self.transformers.append(
-                Pooling_layer(self.in_channels))
+            if self.pooling == 'max':
+                self.transformers.append(
+                    Pooling_layer_max())
+            elif self.pooling == 'PiT':
+                self.transformers.append(
+                    Pooling_layer(self.in_channels))
 
 
     def forward(self, x):
         '''
         [shape]
             x : (B, 3, H, W)
-            x_patch_embedded = (B, HW+1, C)
-            x_tmp = (B, HW+1, C)
+            x_patch_embedded = (B, HW, C)
+            x_tmp = (B, HW, C)
             x_out = (B, classes)
         '''
         x_patch_embedded = self.patch_embedding(x)
-
         x_tmp = self.positional_embedding(x_patch_embedded)
-        x_tmp = F.dropout(x_tmp, 0.1)
+        cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))       
+       
+        if self.dropout:
+            x_tmp = self.dropout_layer(x_tmp)
+            cls_token = self.dropout_layer(cls_token)
+        
         for i in range(len(self.transformers)):
-            x_tmp = self.transformers[i](x_tmp, self.EB)
-        x_out = self.ssifier(x_tmp)
+            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
+                
+        x_out = self.classifier(cls_token)
 
         return x_out
-    
+        

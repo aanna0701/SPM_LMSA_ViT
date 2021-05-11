@@ -55,7 +55,7 @@ parser.add_argument('--weights', help='weights path', default=False)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Lite', 'PiT-Lite','G-ViT-Lite', 'G-PiT-Lite', 'ViT-P-Lite', 'G-ViT-P-Lite'], 'Unexpected model!'
+assert args.model in ['ViT-Lite', 'G-ViT-Lite', 'ViT-Lite-Pooling', 'G-ViT-Lite-Pooling'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -173,13 +173,16 @@ if __name__ == "__main__":
         model = m.ViT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'G-ViT-Lite':
         model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
+    elif args.model == 'ViT-Lite-Pooling':
+        model = m.PiT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'G-ViT-Lite-Pooling':
+        model = m.PiT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
         
     # trainers
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(
-        optimizer, 200, max_lr=args.lr, min_lr=0.00005, warmup_steps=5)
+    scheduler = CosineAnnealingWarmupRestarts(optimizer, 200, max_lr=args.lr, min_lr=0.00005, warmup_steps=5)
 
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
