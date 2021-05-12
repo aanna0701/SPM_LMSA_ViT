@@ -287,8 +287,11 @@ class GA_block(nn.Module):
         # self.mlp = MLP_GA(in_channels, in_channels, 4)
         self.in_dimension = in_channels
         self.avgpool = nn.AvgPool1d(in_size[0]-2)
+        # self.maxpool = nn.MaxPool1d(in_size[0]-2)
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
+        # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
+        # self.Linear = nn.Linear(in_channels, in_channels)
         
     def forward(self, x, cls_token, edge_aggregation):
         '''
@@ -305,19 +308,14 @@ class GA_block(nn.Module):
         
         edge_aggregation_avgpool = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
         node_aggregation_avgpool = self.avgpool(x[:, 1:].permute(0, 2, 1)).permute(0, 2, 1)
+        norm_edge_aggreation = edge_aggregation_avgpool.norm(2)
+        norm_node_aggreation = node_aggregation_avgpool.norm(2)
+        norm_total = norm_edge_aggreation + norm_node_aggreation
     
         # x_norm = self.normalization(torch.cat([edge_aggregation_avgpool, visual_token_avgpool], dim=1))      
         # edge_aggregation_norm, visual_token_norm = x_norm[:, (0, )], x_norm[:, (1, )]
-        edge_aggregation_norm = edge_aggregation_avgpool / edge_aggregation_avgpool.norm(2)
-        node_aggregation_norm = node_aggregation_avgpool / node_aggregation_avgpool.norm(2)
-        
-        # print('\nnorm edge: {}'.format(edge_aggregation_avgpool[0].norm(2)))
-        # print('norm visual: {}'.format(node_aggregation_avgpool[0].norm(2)))
-        
-        # print('\nnorm edge_norm: {}'.format(edge_aggregation_norm[0].norm(2)))
-        # print('norm visual_norm: {}'.format(node_aggregation_norm[0].norm(2)))
-        
-        
+        edge_aggregation_norm = (edge_aggregation_avgpool / norm_total) * norm_node_aggreation
+        node_aggregation_norm = (node_aggregation_avgpool / norm_total) * norm_edge_aggreation
         
         # visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
         

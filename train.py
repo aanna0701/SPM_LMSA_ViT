@@ -83,7 +83,7 @@ log_interval = 100
 batch_size = 128
 test_batch_size = 128
 epoch_init = 1
-epochs = 200
+epochs = 300
 ealry_stopping_patience = 50
 weight_decay = 0.03
 gamma_dict_list_best = []
@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr,
                       betas=(0.9, 0.999), weight_decay=weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(optimizer, 200, max_lr=args.lr, min_lr=0.00005, warmup_steps=5)
+    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
 
 
     logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
@@ -315,8 +315,8 @@ if __name__ == "__main__":
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss
                 }, save_path+'/best.pt')
-                gamma_dict_list_best, lambda_dict_list_best = get_gamma(
-                    model)
+                # gamma_dict_list_best, lambda_dict_list_best = get_gamma(
+                #     model)
 
         else:
             logger.debug(Fore.RED + Style.BRIGHT +
