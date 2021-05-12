@@ -20,14 +20,18 @@ def get_params(model_name, depth, channel, heads):
         
     # model load
 
-    if args.model == 'ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'G-ViT-Lite':
+    if args.model == 'ViT':
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'GiT':
         model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'ViT-Lite-Pooling':
-        model = m.PiT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'G-ViT-Lite-Pooling':
-        model = m.PiT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
+    elif args.model == 'P-ViT-Max-Pooling':
+        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'P-ViT-Conv-Pooling':
+        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'P-GiT-Max-Pooling':
+        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
+    elif args.model == 'P-GiT-Conv-Pooling':
+        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     
     save_path = os.path.join(os.getcwd(), 'params')
     if not os.path.isdir(save_path):

@@ -284,8 +284,7 @@ class GA_block(nn.Module):
     '''
     def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
-        self.mlp = MLP_GA(in_channels, in_channels, 4)
-        self.normalization = nn.LayerNorm((2, in_size[1]))
+        # self.mlp = MLP_GA(in_channels, in_channels, 4)
         self.in_dimension = in_channels
         self.avgpool = nn.AvgPool1d(in_size[0]-2)
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
@@ -305,12 +304,20 @@ class GA_block(nn.Module):
         
         
         edge_aggregation_avgpool = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        visual_token_avgpool = self.avgpool(x[:, 1:].permute(0, 2, 1)).permute(0, 2, 1)
+        node_aggregation_avgpool = self.avgpool(x[:, 1:].permute(0, 2, 1)).permute(0, 2, 1)
     
-        x_norm = self.normalization(torch.cat([edge_aggregation_avgpool, visual_token_avgpool], dim=1))      
-        edge_aggregation_norm, visual_token_norm = x_norm[:, (0, )], x_norm[:, (1, )]
+        # x_norm = self.normalization(torch.cat([edge_aggregation_avgpool, visual_token_avgpool], dim=1))      
+        # edge_aggregation_norm, visual_token_norm = x_norm[:, (0, )], x_norm[:, (1, )]
+        edge_aggregation_norm = edge_aggregation_avgpool / edge_aggregation_avgpool.norm(2)
+        node_aggregation_norm = node_aggregation_avgpool / node_aggregation_avgpool.norm(2)
         
-
+        # print('\nnorm edge: {}'.format(edge_aggregation_avgpool[0].norm(2)))
+        # print('norm visual: {}'.format(node_aggregation_avgpool[0].norm(2)))
+        
+        # print('\nnorm edge_norm: {}'.format(edge_aggregation_norm[0].norm(2)))
+        # print('norm visual_norm: {}'.format(node_aggregation_norm[0].norm(2)))
+        
+        
         
         # visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
         
@@ -321,12 +328,22 @@ class GA_block(nn.Module):
         # avgpool_embedding = node_aggregation[:, (1, )]
         # node_aggregation = maxpool_embedding + avgpool_embedding
         
-        total_aggregation = edge_aggregation_norm + visual_token_norm
+        total_aggregation = edge_aggregation_norm + node_aggregation_norm
         weighting = self.sigmoid(total_aggregation)
+                
         
         total_aggregation_out = torch.mul(weighting, cls_token)
         
+
+        
         cls_token_out = cls_token + total_aggregation_out
+        
+        # print('weighting: {}'.format(weighting[0].norm(2)))
+        # print('total_aggregation_out: {}'.format(total_aggregation_out[0].norm(2)))
+        # print('cls_token: {}'.format(cls_token[0].norm(2)))
+        # print('cls_token_out: {}'.format(cls_token_out[0].norm(2)))
+        # print('==========================================')
+        
         out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
         
         
@@ -709,7 +726,7 @@ class ViT_pooling(nn.Module):
             if not j+1 == len(num_blocks):
                 self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA, True)
                 j += 1
-                if pooling=='PiT':
+                if pooling=='conv':
                     self.in_channels = 2 * self.in_channels
                     self.heads = 2 * self.heads
                 self.in_size = [((self.in_size[0]-1) // 2) + 1, self.in_size[1]]
@@ -729,7 +746,7 @@ class ViT_pooling(nn.Module):
             if self.pooling == 'max':
                 self.transformers.append(
                     Pooling_layer_max())
-            elif self.pooling == 'PiT':
+            elif self.pooling == 'conv':
                 self.transformers.append(
                     Pooling_layer(self.in_channels))
 

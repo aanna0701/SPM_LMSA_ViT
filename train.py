@@ -55,7 +55,7 @@ parser.add_argument('--weights', help='weights path', default=False)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT-Lite', 'G-ViT-Lite', 'ViT-Lite-Pooling', 'G-ViT-Lite-Pooling'], 'Unexpected model!'
+assert args.model in ['ViT', 'GiT', 'P-ViT-Max-Pooling', 'P-ViT-Conv-Pooling', 'P-GiT-Max-Pooling', 'P-GiT-Conv-Pooling'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -169,14 +169,18 @@ if __name__ == "__main__":
 
     # model load
 
-    if args.model == 'ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'G-ViT-Lite':
-        model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'ViT-Lite-Pooling':
-        model = m.PiT_Lite(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'G-ViT-Lite-Pooling':
-        model = m.PiT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
+    if args.model == 'ViT':
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'GiT':
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
+    elif args.model == 'P-ViT-Max-Pooling':
+        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'P-ViT-Conv-Pooling':
+        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'P-GiT-Max-Pooling':
+        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
+    elif args.model == 'P-GiT-Conv-Pooling':
+        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
         
     # trainers
 
@@ -189,9 +193,10 @@ if __name__ == "__main__":
                                                 \n# Initial Learning Rate: {}\
                                                 \n# Seed: {}\
                                                 \n# depth: {}\
+                                                \n# heads: {}\
                                                 \n# channel: {}\
                                                 \n# Weigth decay: {}'
-                 .format(args.model, args.lr, args.seed, args.depth, args.channel, weight_decay) + Style.RESET_ALL)
+                 .format(args.model, args.lr, args.seed, args.depth, args.heads, args.channel, weight_decay) + Style.RESET_ALL)
 
 
 
