@@ -672,7 +672,7 @@ class Pooling_layer_max(nn.Module):
     def __init__(self):
         super(Pooling_layer_max, self).__init__()
         
-        self.maxpool = nn.MaxPool1d(2)
+        self.maxpool = nn.MaxPool2d(2)
         
     def forward(self, x, cls_token, dropout):
         '''
@@ -684,10 +684,18 @@ class Pooling_layer_max(nn.Module):
             pool_feature_token : (B, (H/2)(W/2), 2*C)
             out : (B, (HW/2)+1, 2*C)
         '''
+        B, HW, C = x.shape
+        H = int(math.sqrt(HW))
+        feature_token_reshape = x.permute(0, 2, 1).contiguous()
+        feature_token_reshape = feature_token_reshape.view((B, C, H, H))
+                
+        pool_feature_token = self.maxpool(feature_token_reshape)
+        pool_feature_token = pool_feature_token.view((B, C, -1)).permute(0, 2, 1)
         
-        out = self.maxpool(x.permute(0, 2, 1)).permute(0, 2, 1)
         
-        return out, cls_token
+        
+        
+        return pool_feature_token, cls_token
 
 
 class ViT_pooling(nn.Module):
@@ -728,6 +736,8 @@ class ViT_pooling(nn.Module):
                     self.in_channels = 2 * self.in_channels
                     self.heads = 2 * self.heads
                     self.in_size = [((self.in_size[0]-1) // 4) + 1, self.in_size[1]*2]
+                else:
+                    self.in_size = [((self.in_size[0]-1) // 4) + 1, self.in_size[1]]
                 
             else:
                 self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
