@@ -291,7 +291,7 @@ class GA_block(nn.Module):
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
-        # self.Linear = nn.Linear(in_channels, in_channels)
+        self.Linear = nn.Linear(in_channels, in_channels)
         
     def forward(self, x, cls_token, edge_aggregation):
         '''
@@ -330,7 +330,7 @@ class GA_block(nn.Module):
         weighting = self.sigmoid(total_aggregation)
                 
         
-        total_aggregation_out = torch.mul(weighting, cls_token)
+        total_aggregation_out = torch.mul(weighting, self.Linear(cls_token))
         
 
         

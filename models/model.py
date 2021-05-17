@@ -63,20 +63,20 @@ def P_GiT_max(num_blocks, channel, GA=True, heads=4, dropout=True, pooling='max'
 
 def P_ViT_conv(num_blocks, channel, GA=False, heads=4, dropout=True, pooling='conv'):
     if num_blocks == 1:
-        return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=12, num_blocks=[1, 3, 2], heads=1, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
+        return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
     elif num_blocks == 2:
         return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
     elif num_blocks == 3:
         return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=24, num_blocks=[2, 4, 3], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
     elif num_blocks == 4:
-        return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=24, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
+        return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=24, num_blocks=[3, 5, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
     elif num_blocks == 5:
         return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
 
 
 def P_GiT_conv(num_blocks, channel, GA=True, heads=4, dropout=True, pooling='conv'):
     if num_blocks == 1:
-        return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=12, num_blocks=[1, 3, 2], heads=1, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
+        return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
     elif num_blocks == 2:
         return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
     elif num_blocks == 3:
