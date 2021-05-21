@@ -195,8 +195,15 @@ class Pooling_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self):
+    def __init__(self, in_size):
         super(Pooling_block, self).__init__()
+        # self.mlp = MLP_GA(in_channels, in_channels, 4)
+        # self.avgpool = nn.AvgPool1d(in_size[0]-2)
+        # self.maxpool = nn.MaxPool1d(in_size[0]-2)
+        self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
+        # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
+        self.sigmoid = nn.Sigmoid()
+        # self.Linear = nn.Linear(in_channels, in_channels)
         
     def forward(self, x, edge_aggregation):
         '''
@@ -227,7 +234,7 @@ class Pooling_block(nn.Module):
         
         _, idx = torch.sort(channel_aggregation, dim=1)
     
-        
+            
     
         tmp = []
         for i in range(x.size(0)):
@@ -239,6 +246,7 @@ class Pooling_block(nn.Module):
         
         
         out = torch.cat((x[:, (0, )], nodes_pooled), dim=1)
+        
         
         return out
     
@@ -386,9 +394,7 @@ class Transformer_Block(nn.Module):
 class Transformer_Block_pool(nn.Module):
     def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
         super(Transformer_Block_pool, self).__init__()
-        self.normalization_1 = nn.LayerNorm(in_size)
-        if not GA_flag:
-            self.normalization_2 = nn.LayerNorm(in_size)
+        self.normalization_1 = nn.LayerNorm(in_size)           
         
         
         self.MHSA = MHSA(in_channels, heads)
@@ -399,8 +405,8 @@ class Transformer_Block_pool(nn.Module):
             self.normalization_GA = nn.LayerNorm([(in_size[0]//4)+1, in_size[1]])
             self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
         else:
-            
-            self.pool_block = Pooling_block()
+            self.normalization_2 = nn.LayerNorm([(in_size[0]//4)+1, in_size[1]])
+            self.pool_block = Pooling_block([in_size[0]+1, in_size[1]])
 
         self.GA_flag = GA_flag
 
@@ -430,7 +436,7 @@ class Transformer_Block_pool(nn.Module):
         
         if not self.GA_flag:
             x_inter2 = self.pool_block(x_res1, edge_aggregation)
-            x_inter2 = self.normalization_2(x_res1)
+            x_inter2 = self.normalization_2(x_inter2)
 
         else:       
             '''
@@ -779,18 +785,6 @@ class ViT_pooling_node(nn.Module):
             for _ in range(num_blocks):
                 self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
             
-            # if not idx != 1:
-            #     self.transformers.append(
-            #         tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-            #     idx -= 1
-            # else:
-            #     if pool_block:
-            #         self.transformers.append(
-            #             Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-            #     else:
-            #         self.transformers.append(
-            #             tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-
 
     def forward(self, x):
         '''
