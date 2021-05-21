@@ -55,7 +55,7 @@ parser.add_argument('--weights', help='weights path', default=False)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT', 'GiT', 'P-ViT-Max', 'P-ViT-Conv', 'P-GiT-Max', 'P-GiT-Conv'], 'Unexpected model!'
+assert args.model in ['ViT', 'GiT', 'P-ViT-Max', 'P-ViT-Conv', 'P-GiT-Max', 'P-GiT-Conv', 'P-ViT-Node', 'P-GiT-Node'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -176,11 +176,15 @@ if __name__ == "__main__":
     elif args.model == 'P-ViT-Max':
         model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'P-ViT-Conv':
-        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)
+        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)        
+    elif args.model == 'P-ViT-Node':
+        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'P-GiT-Max':
         model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     elif args.model == 'P-GiT-Conv':
         model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
+    elif args.model == 'P-GiT-Node':
+        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
         
     # trainers
 

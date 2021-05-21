@@ -2,6 +2,7 @@
 from models.nlb import *
 from models.resnet_cifar import *
 from models.vits import *
+from models.vits_pooling import *
 
 
 def resnet20():
@@ -85,6 +86,33 @@ def P_GiT_conv(num_blocks, channel, GA=True, heads=4, dropout=True, pooling='con
         return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=36, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
     elif num_blocks == 5:
         return ViT_pooling(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling)
+
+
+
+def P_ViT_node(num_blocks, channel, GA=False, heads=4, dropout=True):
+    if num_blocks == 1:
+        return ViT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=18, num_blocks=[0, 2, 3], heads=2, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 2:
+        return ViT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=24, num_blocks=[0, 2, 3], heads=2, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 3:
+        return ViT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=30, num_blocks=[0, 2, 3], heads=3, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 4:
+        return ViT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=36, num_blocks=[0, 2, 3], heads=3, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 5:
+        return ViT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout)
+
+
+def P_GiT_node(num_blocks, channel, GA=True, heads=4, dropout=True):
+    if num_blocks == 1:
+        return GiT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=18, num_blocks=[0, 2, 3], heads=2, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 2:
+        return GiT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=24, num_blocks=[0, 2, 3], heads=2, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 3:
+        return GiT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=30, num_blocks=[0, 2, 3], heads=3, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 4:
+        return GiT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=36, num_blocks=[0, 2, 3], heads=3, mlp_ratio=2, GA=GA, dropout=dropout)
+    elif num_blocks == 5:
+        return GiT_pooling_node(in_height=32, in_width=32, num_nodes=16*16, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout)
 
 
 

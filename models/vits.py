@@ -361,12 +361,17 @@ class GA_block(nn.Module):
         
         cls_token_out = cls_token + normalization * node_aggregation
         
+                
         # print('cls_token: {}'.format(cls_token[0].norm(2)))
         # print('nod_aggregation: {}'.format(node_aggregation[0].norm(2)))
         # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
         # print('='*20)
+    
         if pool:
+        
             _, idx = torch.sort(channel_aggregation, dim=1)
+        
+            
         
             tmp = []
             for i in range(x.size(0)):
@@ -374,7 +379,8 @@ class GA_block(nn.Module):
                 tmp.append(node_sorted.unsqueeze(0))
                 
             nodes_sorted = torch.cat(tmp, dim=0)
-            nodes_pooled = nodes_sorted[:, nodes_sorted.size(1)//2:]
+            nodes_pooled = nodes_sorted[:, nodes_sorted.size(1)//4*3:]
+            
             
             out = torch.cat((cls_token_out, nodes_pooled), dim=1)
         
@@ -444,7 +450,7 @@ class GA_block(nn.Module):
 
 
 class Transformer_Block(nn.Module):
-    def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False, pool_flag=False):
+    def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
         super(Transformer_Block, self).__init__()
         self.normalization_1 = nn.LayerNorm(in_size)
         if not GA_flag:
@@ -460,7 +466,6 @@ class Transformer_Block(nn.Module):
             self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
 
         self.GA_flag = GA_flag
-        self.pool = pool_flag
 
     def forward(self, x, cls_token, dropout=True):
         '''
@@ -492,7 +497,67 @@ class Transformer_Block(nn.Module):
             '''
             edge_aggregation = x_MHSA
             
-            x_inter2 = self.GA(x_res1, cls_token, edge_aggregation, self.pool)
+            x_inter2 = self.GA(x_res1, cls_token, edge_aggregation, False)
+            x_inter2 = self.normalization_GA(x_inter2)
+            
+        
+        x_MLP = self.MLP(x_inter2, dropout)
+        x_res2 = x_inter2 + x_MLP
+
+        if not cls_token == None:
+            return x_res2[:, 1:], x_res2[:, (0, )]        
+        else:
+            return x_res2
+
+class Transformer_Block_pool(nn.Module):
+    def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False, ):
+        super(Transformer_Block_pool, self).__init__()
+        self.normalization_1 = nn.LayerNorm(in_size)
+        if not GA_flag:
+            self.normalization_2 = nn.LayerNorm(in_size)
+        
+        
+        self.MHSA = MHSA(in_channels, heads)
+        self.MLP = MLP(in_channels, mlp_ratio)
+        self.MLP_MHSA = MLP(in_channels, mlp_ratio)
+        
+        if GA_flag:
+            self.normalization_GA = nn.LayerNorm([(in_size[0]//4)+1, in_size[1]])
+            self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
+
+        self.GA_flag = GA_flag
+
+    def forward(self, x, cls_token, dropout=True):
+        '''
+        [shape]
+            x : (B, HW, C)
+            x_inter1 : (B, HW, C)
+            x_MHSA : (B, HW, C)
+            x_res1 : (B, HW, C)
+            x_inter2 : (B, HW, C)
+            x_MLP : (B, HW, C)
+            x_res2 : (B, HW, C)
+        '''
+        if not cls_token == None:
+            x_in = torch.cat((cls_token, x), dim=1)
+        else:
+            x_in = x
+        x_inter1 = self.normalization_1(x_in)
+        '''
+            Node update
+        '''
+        x_MHSA = self.MHSA(x_inter1, dropout)
+        x_res1 = x_in + x_MHSA
+        if not self.GA_flag:
+            x_inter2 = self.normalization_2(x_res1)
+
+        else:       
+            '''
+                Global attribute update
+            '''
+            edge_aggregation = x_MHSA
+            
+            x_inter2 = self.GA(x_res1, cls_token, edge_aggregation, True)
             x_inter2 = self.normalization_GA(x_inter2)
             
         
@@ -795,11 +860,102 @@ class ViT_pooling(nn.Module):
             elif self.pooling == 'conv':
                 self.transformers.append(
                     Pooling_layer(self.in_channels))
-            elif self.poolin == 'node':
-                self.transformers.append(
-                    tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag, True))
+
+
+    def forward(self, x):
+        '''
+        [shape]
+            x : (B, 3, H, W)
+            x_patch_embedded = (B, HW, C)
+            x_tmp = (B, HW, C)
+            x_out = (B, classes)
+        '''
+        x_patch_embedded = self.patch_embedding(x)
+        x_tmp = self.positional_embedding(x_patch_embedded)
+        cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))       
+       
+        if self.dropout:
+            x_tmp = self.dropout_layer(x_tmp)
+            cls_token = self.dropout_layer(cls_token)
+        
+        for i in range(len(self.transformers)):
+            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
                 
+        x_out = self.classifier(cls_token)
+
+        return x_out
+        
+
+class ViT_pooling_node(nn.Module):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
+        super(ViT_pooling_node, self).__init__()
+        
+
+        self.in_channels = inter_dimension
+        self.heads = heads
+        
+
+        self.in_size = (num_nodes + 1, inter_dimension)
+
+        self.patch_embedding = Patch_Embedding(
+            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+        
+        self.dropout = dropout
+        
+        self.classifier = Classifier_1d(
+        num_classes=num_classes, in_channels=inter_dimension)
+        self.positional_embedding = Positional_Embedding(
+        spatial_dimension=num_nodes, inter_channels=inter_dimension)
+        
+        self.dropout_layer = nn.Dropout(0.1)
+        
+    
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.in_channels))
+        
+        self.transformers = nn.ModuleList()
+
+
+        j = 0
+        for i in range(len(num_blocks)):
+            if not j+1 == len(num_blocks):
+                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA, True)
+                j += 1
+                
+                
+            else:
+                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
+        
+        self.classifier = Classifier_1d(
+            num_classes=num_classes, in_channels=self.in_channels)        
+
+
+    def make_layer(self, num_blocks, tr_block, mlp_ratio, GA_flag, pool_block=False):
+        idx = num_blocks
+        if pool_block:
+            for _ in range(num_blocks):
             
+                if idx == 1:
+                    self.transformers.append(Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
+                    self.in_size = [((self.in_size[0]-1) // 4) + 1, self.in_size[1]]
+                else:
+                    idx -= 1
+                    self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
+                    
+        else:
+            for _ in range(num_blocks):
+                self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
+            
+            # if not idx != 1:
+            #     self.transformers.append(
+            #         tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
+            #     idx -= 1
+            # else:
+            #     if pool_block:
+            #         self.transformers.append(
+            #             Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
+            #     else:
+            #         self.transformers.append(
+            #             tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
 
 
     def forward(self, x):
