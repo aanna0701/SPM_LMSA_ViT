@@ -28,10 +28,12 @@ def get_params(model_name, depth, channel, heads):
         model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'P-ViT-Conv':
         model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)
+    elif args.model == 'P-ViT-Node':
+        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'P-GiT-Max':
         model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Conv':
-        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
+    elif args.model == 'P-GiT-Node':
+        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     
     save_path = os.path.join(os.getcwd(), 'params')
     if not os.path.isdir(save_path):
