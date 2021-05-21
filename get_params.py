@@ -24,13 +24,13 @@ def get_params(model_name, depth, channel, heads):
         model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'GiT':
         model = m.ViT_Lite(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Max-Pooling':
+    elif args.model == 'P-ViT-Max':
         model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Conv-Pooling':
+    elif args.model == 'P-ViT-Conv':
         model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Max-Pooling':
+    elif args.model == 'P-GiT-Max':
         model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Conv-Pooling':
+    elif args.model == 'P-GiT-Conv':
         model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     
     save_path = os.path.join(os.getcwd(), 'params')

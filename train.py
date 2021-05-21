@@ -55,7 +55,7 @@ parser.add_argument('--weights', help='weights path', default=False)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT', 'GiT', 'P-ViT-Max-Pooling', 'P-ViT-Conv-Pooling', 'P-GiT-Max-Pooling', 'P-GiT-Conv-Pooling'], 'Unexpected model!'
+assert args.model in ['ViT', 'GiT', 'P-ViT-Max', 'P-ViT-Conv', 'P-GiT-Max', 'P-GiT-Conv'], 'Unexpected model!'
 
 # gpus
 # GPU 할당 변경하기
@@ -173,13 +173,13 @@ if __name__ == "__main__":
         model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'GiT':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Max-Pooling':
+    elif args.model == 'P-ViT-Max':
         model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Conv-Pooling':
+    elif args.model == 'P-ViT-Conv':
         model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Max-Pooling':
+    elif args.model == 'P-GiT-Max':
         model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Conv-Pooling':
+    elif args.model == 'P-GiT-Conv':
         model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
         
     # trainers
@@ -206,62 +206,22 @@ if __name__ == "__main__":
     else:
         print(Fore.RED + Style.BRIGHT + '\n# Using Gpus {}'.format(torch.cuda.get_device_name(GPU_NUM)))
         
+
+
+    model.cuda()
+        
+        
     if args.weights:
-        checkpoint = torch.load(os.path.join(args.weights, best.pt))
+        checkpoint = torch.load(os.path.join(args.weights, 'best.pt'))
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch_init = checkpoint['epoch']
         loss = checkpoint['loss']
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
-
-    model.cuda()
 
     summary(model, (3, 32, 32))
 
-    # print gamma value
-    def get_gamma(model):
-
-        gamma_dict_list = []
-        labmda_dict_list = []
-
-        for name, param in model.named_parameters():
-
-            if '_gamma' in name:
-
-                gamma_dict = {}
-
-                gamma_value = param.item()
-                gamma_value_sigmoid = torch.sigmoid(torch.tensor(gamma_value))
-
-                gamma_dict['name'] = name
-                gamma_dict['gamma'] = gamma_value
-                gamma_dict['gamma_sigmoid'] = gamma_value_sigmoid
-
-                print(Fore.CYAN + Style.BRIGHT + '='*25 + Style.RESET_ALL)
-                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\ngamma: {}\ngamma_sigmoid: {}'
-                      .format(name, gamma_value, gamma_value_sigmoid) + Style.RESET_ALL)
-
-                gamma_dict_list.append(gamma_dict)
-
-            elif '_lambda' in name:
-
-                lambda_dict = {}
-
-                lambda_value = param.item()
-                lambda_value_sigmoid = torch.sigmoid(
-                    torch.tensor(lambda_value))
-
-                lambda_dict['name'] = name
-                lambda_dict['lambda'] = lambda_value
-                lambda_dict['lambda_sigmoid'] = lambda_value_sigmoid
-
-                print(Fore.CYAN + Style.BRIGHT + '\nblock: {}\nlambda: {}\nlambda_sigmoid: {}\n'
-                      .format(name, lambda_value,
-                              torch.sigmoid(torch.tensor(lambda_value))) + Style.RESET_ALL)
-
-                labmda_dict_list.append(lambda_dict)
-
-        return gamma_dict_list, labmda_dict_list
 
     
 
@@ -313,7 +273,8 @@ if __name__ == "__main__":
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss
+                    'loss': loss,
+                    'scheduler_state_dict': scheduler.state_dict()
                 }, save_path+'/best.pt')
                 # gamma_dict_list_best, lambda_dict_list_best = get_gamma(
                 #     model)
@@ -326,7 +287,8 @@ if __name__ == "__main__":
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss
+                'loss': loss,
+                'scheduler_state_dict': scheduler.state_dict()
             }, save_path+'/final.pt')
             sys.exit()
 
