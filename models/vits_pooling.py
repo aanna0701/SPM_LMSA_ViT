@@ -188,9 +188,6 @@ class MLP_GA(nn.Module):
         return x_out
 
 
-    
-
-    
 class Pooling_block(nn.Module):
     '''
     Class-token Embedding
@@ -224,7 +221,7 @@ class Pooling_block(nn.Module):
         '''
         
         nodes = x[:, 1:]
-     
+        
         edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
         channel_importance = self.sigmoid(edge_aggregation)
         channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
