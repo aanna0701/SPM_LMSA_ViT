@@ -260,7 +260,10 @@ class GA_block(nn.Module):
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
-        # self.Linear = nn.Linear(in_channels, in_channels)
+        self.softmax = nn.Softmax()
+        # self.mlp_edge = nn.Linear(in_channels, in_channels, bias=False)
+        # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
+        self.Linear = nn.Linear(in_channels, in_channels, bias=False)
         
     def forward(self, x, cls_token, edge_aggregation, pool=False):
         '''
@@ -282,22 +285,23 @@ class GA_block(nn.Module):
         
         
         edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        channel_importance = self.sigmoid(edge_aggregation)
+        channel_importance = self.softmax(edge_aggregation)
                 
         nodes = x[:, 1:]
         
         channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
-        node_importance = self.sigmoid(channel_aggregation)
+        node_importance = self.softmax(channel_aggregation)
         
         node_aggregation = torch.matmul(node_importance.permute(0, 2, 1), nodes)
+        weights = self.sigmoid(node_aggregation)
         
-        norm_node_aggregation = node_aggregation.norm(2)
-        norm_cls_token = cls_token.norm(2)
-        normalization = norm_cls_token / norm_node_aggregation
+        cls_token_out = cls_token + torch.mul(self.Linear(cls_token), weights)
         
-        cls_token_out = cls_token + normalization * node_aggregation
+        # cls_token_out = cls_token + node_aggregation
         
                 
+        # print('edge_aggregation: {}'.format(channel_importance[0].norm(2)))
+        # print('channel_aggregation: {}'.format(node_importance[0].norm(2)))
         # print('cls_token: {}'.format(cls_token[0].norm(2)))
         # print('nod_aggregation: {}'.format(node_aggregation[0].norm(2)))
         # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
