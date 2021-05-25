@@ -199,7 +199,7 @@ class Pooling_block(nn.Module):
         # self.maxpool = nn.MaxPool1d(in_size[0]-2)
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
-        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax()
         self.linear = nn.Linear(in_channels, in_channels, bias=False)
         # self.linear_node = nn.Linear(in_channels, in_channels, bias=False)
         # self.PE = Positional_Embedding((in_size[0]//4)+1, in_channels)
@@ -217,21 +217,28 @@ class Pooling_block(nn.Module):
         '''
         top_k = pooling_patch_size // reduction_ratio
         
+        # nodes = x[:, 1:]
+        
+        # edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
+        # node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
+        
+        # edge_aggregation_sigmoid = self.sigmoid(edge_aggregation)
+        # node_aggregation_sigmoid = self.sigmoid(node_aggregation)
+        
+        # channel_importance = edge_aggregation_sigmoid + node_aggregation_sigmoid
+        # channel_importance = self.linear(channel_importance)
+        
+        # channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
+        # node_importance = self.softmax(channel_aggregation)
+
+        edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
+        channel_importance = self.softmax(edge_aggregation)
+                
         nodes = x[:, 1:]
         
-        edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
-        
-        edge_aggregation_sigmoid = self.sigmoid(edge_aggregation)
-        node_aggregation_sigmoid = self.sigmoid(node_aggregation)
-        
-        channel_importance = edge_aggregation_sigmoid + node_aggregation_sigmoid
-        channel_importance = self.linear(channel_importance)
-        
         channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
-
-                
-        _, idx = torch.sort(channel_aggregation, dim=1)
+        node_importance = self.softmax(channel_aggregation)
+    
         
         # print('edge_aggregation: {}'.format(edge_aggregation[0].norm(2)))
         # print(e'node_aggregation: {}'.format(node_aggregation[0].norm(2)))
@@ -243,7 +250,7 @@ class Pooling_block(nn.Module):
         # print('='*20)
         nodes_sorted_tmp = []
         for i in range(x.size(1) // pooling_patch_size):
-            nodes_sorted = torch.topk(channel_aggregation[:, pooling_patch_size*i:pooling_patch_size*i+pooling_patch_size], top_k,dim=1)
+            nodes_sorted = torch.topk(node_importance[:, pooling_patch_size*i:pooling_patch_size*i+pooling_patch_size], top_k,dim=1)
             nodes_sorted_tmp.append(torch.cat(nodes_sorted, dim=-1))
            
         
@@ -263,6 +270,7 @@ class Pooling_block(nn.Module):
         del nodes_sorted_list
         
         nodes_pooled = torch.mul(nodes_sorted_mask.unsqueeze(-1), nodes_sorted)
+        nodes_pooled = nodes_pooled + nodes_sorted
                     
         #     for j in range(x.size(0)):
         #         node_sorted = nodes[j][idx_tensor[j, -4:].squeeze(-1).tolist()]  # extract most important node

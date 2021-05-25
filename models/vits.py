@@ -272,7 +272,7 @@ class GA_block(nn.Module):
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
         self.softmax = nn.Softmax()
-        # self.mlp_edge = nn.Linear(in_channels, in_channels, bias=False)
+        self.c = nn.Linear(in_channels, in_channels, bias=False)
         # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
         self.Linear = nn.Linear(in_channels, in_channels, bias=False)
         
@@ -293,7 +293,19 @@ class GA_block(nn.Module):
             channel_aggregation : (B, HW, 1)  
             node_importance : (B, HW, 1)
         '''
+        # nodes = x[:, 1:]
         
+        # edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
+        # node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
+        
+        # edge_aggregation_sigmoid = self.sigmoid(edge_aggregation)
+        # node_aggregation_sigmoid = self.sigmoid(node_aggregation)
+        
+        # channel_importance = edge_aggregation_sigmoid + node_aggregation_sigmoid
+        # channel_importance = self.linear(channel_importance)
+        
+        # channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
+        # node_importance = self.softmax(channel_aggregation)
         
         edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
         channel_importance = self.softmax(edge_aggregation)
