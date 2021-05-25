@@ -192,60 +192,98 @@ class Pooling_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self, in_size):
+    def __init__(self, in_size, in_channels):
         super(Pooling_block, self).__init__()
         # self.mlp = MLP_GA(in_channels, in_channels, 4)
-        # self.avgpool = nn.AvgPool1d(in_size[0]-2)
+        self.avgpool = nn.AvgPool1d(in_size[0]-2)
         # self.maxpool = nn.MaxPool1d(in_size[0]-2)
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
-        # self.Linear = nn.Linear(in_channels, in_channels)
+        self.linear = nn.Linear(in_channels, in_channels, bias=False)
+        # self.linear_node = nn.Linear(in_channels, in_channels, bias=False)
+        # self.PE = Positional_Embedding((in_size[0]//4)+1, in_channels)
         
-    def forward(self, x, edge_aggregation):
+    def forward(self, x, edge_aggregation, reduction_ratio=4, pooling_patch_size=4):
         '''
             [shape]
             x : (B, HW+1, C)
-            visual_token : (B, HW, C)
-            cls_token_in : (B, 1, C)
-            weight : (B, 1, HW)
-            weight_softmax : (B, 1, HW)
-            cls_token_out : (B, 1, C)
-            out : (B, HW+1, C)
-            
             edge_aggregation : (B, 1, C)
+            node_aggregation : (B, 1, C)
             channel_importance : (B, 1, C)
             nodes : (B, HW, C)
             channel_aggregation : (B, HW, 1)  
             node_importance : (B, HW, 1)
         '''
+        top_k = pooling_patch_size // reduction_ratio
         
         nodes = x[:, 1:]
         
         edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        channel_importance = self.sigmoid(edge_aggregation)
+        node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
+        
+        edge_aggregation_sigmoid = self.sigmoid(edge_aggregation)
+        node_aggregation_sigmoid = self.sigmoid(node_aggregation)
+        
+        channel_importance = edge_aggregation_sigmoid + node_aggregation_sigmoid
+        channel_importance = self.linear(channel_importance)
+        
         channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
 
-        
-
-        
+                
         _, idx = torch.sort(channel_aggregation, dim=1)
-    
-            
-    
-        tmp = []
+        
+        # print('edge_aggregation: {}'.format(edge_aggregation[0].norm(2)))
+        # print(e'node_aggregation: {}'.format(node_aggregation[0].norm(2)))
+        # print('edge_aggregation_sigmoid: {}'.format(edge_aggregation_sigmoid[0].norm(2)))
+        # print('node_aggregation_sigmoid: {}'.format(node_aggregation_sigmoid[0].norm(2)))
+        # print('channel_importance: {}'.format(channel_importance[0].norm(2)))
+        # print('channel_aggregation: {}'.format(channel_aggregation[0].norm(2)))
+        # # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
+        # print('='*20)
+        nodes_sorted_tmp = []
+        for i in range(x.size(1) // pooling_patch_size):
+            nodes_sorted = torch.topk(channel_aggregation[:, pooling_patch_size*i:pooling_patch_size*i+pooling_patch_size], top_k,dim=1)
+            nodes_sorted_tmp.append(torch.cat(nodes_sorted, dim=-1))
+           
+        
+        nodes_sorted = torch.cat(nodes_sorted_tmp, dim=1)
+        del nodes_sorted_tmp
+        # print(nodes_sorted_idx.shape)
+        
+        nodes_sorted_mask = nodes_sorted[:, :, 0]
+        nodes_sorted_idx = nodes_sorted[:, :, -1]
+        
+        nodes_sorted_list = []
         for i in range(x.size(0)):
-            node_sorted = nodes[i][idx[i].squeeze(-1).tolist()]
-            tmp.append(node_sorted.unsqueeze(0))
+            node_sorted = nodes[i][nodes_sorted_idx[i].squeeze(-1).tolist()]
+            nodes_sorted_list.append(node_sorted.unsqueeze(0))
             
-        nodes_sorted = torch.cat(tmp, dim=0)
-        nodes_pooled = nodes_sorted[:, nodes_sorted.size(1)//4*3:]
+        nodes_sorted = torch.cat(nodes_sorted_list, dim=0)
+        del nodes_sorted_list
+        
+        nodes_pooled = torch.mul(nodes_sorted_mask.unsqueeze(-1), nodes_sorted)
+                    
+        #     for j in range(x.size(0)):
+        #         node_sorted = nodes[j][idx_tensor[j, -4:].squeeze(-1).tolist()]  # extract most important node
+        #         nodes_pooled_tmp.append(node_sorted.unsqueeze(0))                
+        #     nodes_pooled_list.append(torch.cat(nodes_pooled_tmp, dim=0))
+        # nodes_pooled = torch.cat(nodes_pooled_list, dim=1)
+                
+        # tmp = []
+        # for i in range(x.size(0)):
+        #     node_sorted = nodes[i][idx[i].squeeze(-1).tolist()]
+        #     tmp.append(node_sorted.unsqueeze(0))
+            
+        # nodes_sorted = torch.cat(tmp, dim=0)
+        # nodes_pooled = nodes_sorted[:, nodes_sorted.size(1)//2:]
         
         
         out = torch.cat((x[:, (0, )], nodes_pooled), dim=1)
         
         
         return out
+        return self.PE(out.permute(0, 2, 1))
     
 class GA_block(nn.Module):
     '''
@@ -260,10 +298,7 @@ class GA_block(nn.Module):
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax()
-        # self.mlp_edge = nn.Linear(in_channels, in_channels, bias=False)
-        # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
-        self.Linear = nn.Linear(in_channels, in_channels, bias=False)
+        # self.Linear = nn.Linear(in_channels, in_channels)
         
     def forward(self, x, cls_token, edge_aggregation, pool=False):
         '''
@@ -285,23 +320,22 @@ class GA_block(nn.Module):
         
         
         edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        channel_importance = self.softmax(edge_aggregation)
+        channel_importance = self.sigmoid(edge_aggregation)
                 
         nodes = x[:, 1:]
         
         channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
-        node_importance = self.softmax(channel_aggregation)
+        node_importance = self.sigmoid(channel_aggregation)
         
         node_aggregation = torch.matmul(node_importance.permute(0, 2, 1), nodes)
-        weights = self.sigmoid(node_aggregation)
         
-        cls_token_out = cls_token + torch.mul(self.Linear(cls_token), weights)
+        norm_node_aggregation = node_aggregation.norm(2)
+        norm_cls_token = cls_token.norm(2)
+        normalization = norm_cls_token / norm_node_aggregation
         
-        # cls_token_out = cls_token + node_aggregation
+        cls_token_out = cls_token + normalization * node_aggregation
         
                 
-        # print('edge_aggregation: {}'.format(channel_importance[0].norm(2)))
-        # print('channel_aggregation: {}'.format(node_importance[0].norm(2)))
         # print('cls_token: {}'.format(cls_token[0].norm(2)))
         # print('nod_aggregation: {}'.format(node_aggregation[0].norm(2)))
         # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
@@ -393,7 +427,7 @@ class Transformer_Block(nn.Module):
             return x_res2
 
 class Transformer_Block_pool(nn.Module):
-    def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
+    def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False, reduction_ration=4, pooling_patch_size=4):
         super(Transformer_Block_pool, self).__init__()
         self.normalization_1 = nn.LayerNorm(in_size)           
         
@@ -403,13 +437,15 @@ class Transformer_Block_pool(nn.Module):
         self.MLP_MHSA = MLP(in_channels, mlp_ratio)
         
         if GA_flag:
-            self.normalization_GA = nn.LayerNorm([(in_size[0]//4)+1, in_size[1]])
+            self.normalization_GA = nn.LayerNorm([(in_size[0]//reduction_ration)+1, in_size[1]])
             self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
         else:
-            self.normalization_2 = nn.LayerNorm([(in_size[0]//4)+1, in_size[1]])
-            self.pool_block = Pooling_block([in_size[0]+1, in_size[1]])
+            self.normalization_2 = nn.LayerNorm([((in_size[0]//reduction_ration))+1, in_size[1]])
+            self.pool_block = Pooling_block([in_size[0]+1, in_size[1]], in_channels)
 
         self.GA_flag = GA_flag
+        self.r = reduction_ration
+        self.pp = pooling_patch_size
 
     def forward(self, x, cls_token, dropout=True):
         '''
@@ -436,7 +472,7 @@ class Transformer_Block_pool(nn.Module):
         edge_aggregation = x_MHSA
         
         if not self.GA_flag:
-            x_inter2 = self.pool_block(x_res1, edge_aggregation)
+            x_inter2 = self.pool_block(x_res1, edge_aggregation, reduction_ratio=self.r, pooling_patch_size=self.pp)
             x_inter2 = self.normalization_2(x_inter2)
 
         else:       
@@ -728,7 +764,7 @@ class GiT_pooling_node(nn.Module):
         
 
 class ViT_pooling_node(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
+    def __init__(self, in_height, in_width, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, reduction_ratio=4, pooling_patch_size=4):
         super(ViT_pooling_node, self).__init__()
         
 
@@ -754,6 +790,8 @@ class ViT_pooling_node(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.in_channels))
         
         self.transformers = nn.ModuleList()
+        self.r = reduction_ratio
+        self.pp = pooling_patch_size
 
 
         j = 0
@@ -776,8 +814,8 @@ class ViT_pooling_node(nn.Module):
             for _ in range(num_blocks):
             
                 if idx == 1:
-                    self.transformers.append(Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-                    self.in_size = [((self.in_size[0]-1) // 4) + 1, self.in_size[1]]
+                    self.transformers.append(Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag, self.r, self.pp))
+                    self.in_size = [(((self.in_size[0]-1) // self.r)) + 1, self.in_size[1]]
                 else:
                     idx -= 1
                     self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
