@@ -176,19 +176,19 @@ if __name__ == "__main__":
     if args.model == 'ViT':
         model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=True)
     elif args.model == 'GiT':
-        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=True)
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
     elif args.model == 'P-ViT-Max':
-        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=True)
+        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'P-ViT-Conv':
-        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=True)        
+        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)        
     elif args.model == 'P-ViT-Node':
-        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=True, reduction_ratio=args.r, pooling_patch_size=args.pp)
+        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False, reduction_ratio=args.r, pooling_patch_size=args.pp)
     elif args.model == 'P-GiT-Max':
-        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=True)
+        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     elif args.model == 'P-GiT-Conv':
-        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=True)
+        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     elif args.model == 'P-GiT-Node':
-        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=True, reduction_ratio=args.r, pooling_patch_size=args.pp)
+        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False, reduction_ratio=args.r, pooling_patch_size=args.pp)
         
     # trainers
 

@@ -84,3 +84,63 @@ class ViT_pooling(nn.Module):
 
         return x_out
         
+        
+class GA_block(nn.Module):
+    '''
+    Class-token Embedding
+    '''
+    def __init__(self, in_size, in_channels):
+        super(GA_block, self).__init__()
+        # self.mlp = MLP_GA(in_channels, in_channels, 4)
+        self.in_dimension = in_channels
+        self.avgpool = nn.AvgPool1d(in_size[0]-2)
+        # self.maxpool = nn.MaxPool1d(in_size[0]-2)
+        # self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
+        # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
+        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax(dim=1)
+        self.Linear = nn.Linear(in_channels, in_channels)
+        
+    def forward(self, x, cls_token, edge_aggregation):
+        '''
+            [shape]
+            x : (B, HW+1, C)
+            visual_token : (B, HW, C)
+            cls_token_in : (B, 1, C)
+            weight : (B, 1, HW)
+            weight_softmax : (B, 1, HW)
+            cls_token_out : (B, 1, C)
+            out : (B, HW+1, C)     
+        '''
+        
+        
+        
+        edge_aggregation_avgpool = self.avgpool(edge_aggregation)
+        node_importance = self.softmax(edge_aggregation_avgpool)
+
+        
+        node_aggregation = torch.matmul(node_importance.permute(0, 2, 1), x[:, 1:])
+        total_aggregation = self.sigmoid(node_aggregation)
+        
+        total_aggregation_out = torch.mul(total_aggregation, self.Linear(cls_token))
+        
+
+        
+        cls_token_out = cls_token + total_aggregation_out
+        
+        # print('node_importance: {}'.format(node_importance[0].norm(2)))
+        # print('node_aggregation: {}'.format(node_aggregation[0].norm(2)))
+        # print('total_aggregation: {}'.format(total_aggregation[0].norm(2)))
+        # print('total_aggregation_out: {}'.format(total_aggregation_out[0].norm(2)))
+        # print('cls_token: {}'.format(cls_token[0].norm(2)))
+        # print('cls_token_out: {}'.format(cls_token_out[0].norm(2)))
+        # print('==========================================')
+        
+        out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
+        
+        
+        return out
+    
+    
+            edge_aggregation = self.Linear(edge.permute(0, 3, 2, 1))
+            edge_aggregation = edge_aggregation.squeeze(-1)[:, 1:, 1:]

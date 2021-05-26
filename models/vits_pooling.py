@@ -205,6 +205,7 @@ class Pooling_block(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.theta = nn.Linear(in_channels, 1, bias=False)
         self._init_weights(self.theta)
+        # self.softmax_score = nn.Softmax(dim=1)
         # self.linear_node = nn.Linear(in_channels, in_channels, bias=False)
         # self.PE = Positional_Embedding((in_size[0]//4)+1, in_channels)
         
@@ -244,7 +245,7 @@ class Pooling_block(nn.Module):
         
         scailing = self.sigmoid(torch.cat([edge, nodes], dim=2))
         edge_dot_node = torch.matmul(scailing[:, :, :-self.in_dimension], scailing[:, :, -self.in_dimension:])
-        scores = self.theta(edge_dot_node)
+        scores = self.sigmoid(self.theta(edge_dot_node))
     
         
         # print('edge_aggregation: {}'.format(edge_aggregation[0].norm(2)))
