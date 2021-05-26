@@ -199,7 +199,8 @@ class Pooling_block(nn.Module):
         # self.maxpool = nn.MaxPool1d(in_size[0]-2)
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
-        self.softmax = nn.Softmax()
+        # self.softmax = nn.Softmax()
+        self.sigmoid = nn.Sigmoid()
         self.linear = nn.Linear(in_channels, in_channels, bias=False)
         # self.linear_node = nn.Linear(in_channels, in_channels, bias=False)
         # self.PE = Positional_Embedding((in_size[0]//4)+1, in_channels)
@@ -232,7 +233,7 @@ class Pooling_block(nn.Module):
         # node_importance = self.softmax(channel_aggregation)
 
         edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        channel_importance = self.softmax(edge_aggregation)
+        channel_importance = self.sigmoid(edge_aggregation)
                 
         nodes = x[:, 1:]
         

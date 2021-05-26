@@ -98,6 +98,8 @@ def model_eval(data_loader):
     loss = 0
     accuracy = 0
     correct = 0
+    
+    model.eval()
     with torch.no_grad():
         for data, target in data_loader:
             data, target = data.cuda(), target.cuda()
@@ -172,21 +174,21 @@ if __name__ == "__main__":
     # model load
 
     if args.model == 'ViT':
-        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=True)
     elif args.model == 'GiT':
-        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=True)
     elif args.model == 'P-ViT-Max':
-        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
+        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=True)
     elif args.model == 'P-ViT-Conv':
-        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)        
+        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=True)        
     elif args.model == 'P-ViT-Node':
-        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False, reduction_ratio=args.r, pooling_patch_size=args.pp)
+        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=True, reduction_ratio=args.r, pooling_patch_size=args.pp)
     elif args.model == 'P-GiT-Max':
-        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
+        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=True)
     elif args.model == 'P-GiT-Conv':
-        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
+        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=True)
     elif args.model == 'P-GiT-Node':
-        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False, reduction_ratio=args.r, pooling_patch_size=args.pp)
+        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=True, reduction_ratio=args.r, pooling_patch_size=args.pp)
         
     # trainers
 
@@ -251,6 +253,7 @@ if __name__ == "__main__":
                 logger.debug('\nTrain Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * len(data), len(train_loader.dataset),
                     100. * batch_idx / len(train_loader), loss.item()))
+            
 
         # Test Mode
         # batch norm이나 droput 등을 train mode로 변환
