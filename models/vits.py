@@ -20,6 +20,7 @@ class MHSA(nn.Module):
         self._init_weights(self.out)
         self.dropout = nn.Dropout(0.1)
         self.softmax = nn.Softmax(dim=-1)
+        self.edge = None
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -55,6 +56,7 @@ class MHSA(nn.Module):
                                inter_dimension).permute(0, 2, 1, 3)
 
         similarity = torch.matmul(q, k.transpose(3, 2))
+        self.edge = similarity
         similarity = similarity / math.sqrt(inter_dimension)
 
         attention = self.softmax(similarity)
@@ -65,7 +67,7 @@ class MHSA(nn.Module):
         out = self.out(out)
         if dropout:
             out = self.dropout(out)
-
+            
         return out
 
 
@@ -150,6 +152,72 @@ class MLP(nn.Module):
         return x_out
 
 
+      
+class GA_block(nn.Module):
+    '''
+    Class-token Embedding
+    '''
+    def __init__(self, in_size, in_channels):
+        super(GA_block, self).__init__()
+        # self.mlp = MLP_GA(in_channels, in_channels, 4)
+        self.in_dimension = in_channels
+        # self.avgpool = nn.AvgPool1d(in_size[0]-2)
+        # self.maxpool = nn.MaxPool1d(in_size[0]-2)
+        # self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
+        # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
+        self.sigmoid = nn.Sigmoid()
+        self.softmax_score = nn.Softmax(dim=1)
+        self.theta = nn.Linear(in_channels, 1, bias=False)
+        self._init_weights(self.theta)
+        self.phi = nn.Linear(in_channels, in_channels, bias=False)
+        self._init_weights(self.phi)
+        self.dropout = nn.Dropout(0.1)
+        
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
+        
+    def forward(self, x, cls_token, edge, dropout=False):
+        '''
+            [shape]
+            x : (B, HW+1, C)
+            edge : (B, HW, HW)
+            edge_dot_node : (B, HW, C)
+            scores : (B, HW, 1)
+            node_aggregation : (B, 1, C)
+            total_aggregation : (B, 1, C)
+            cls_token_out : (B, 1, C)
+            out : (B, HW+1, C)     
+        '''      
+                
+        scailing = self.sigmoid(torch.cat([edge, x[:, 1:]], dim=2))
+        edge_dot_node = torch.matmul(scailing[:, :, :-self.in_dimension], scailing[:, :, -self.in_dimension:])
+        scores = self.softmax_score(self.theta(edge_dot_node))
+        
+        node_aggregation = torch.matmul(scores.permute(0, 2, 1), self.phi(x[:, 1:]))        
+        total_aggregation = self.sigmoid(node_aggregation)
+        
+        total_aggregation_out = torch.mul(total_aggregation, cls_token)
+        
+        
+        cls_token_out = cls_token + total_aggregation_out
+        
+        # print('edge_dot_node: {}'.format(edge_dot_node[0].norm(2)))
+        # print('scores: {}'.format(scores[0].norm(2)))
+        # print('node_aggregation: {}'.format(node_aggregation[0].norm(2)))
+        # print('total_aggregation: {}'.format(total_aggregation[0].norm(2)))
+        # print('total_aggregation_out: {}'.format(total_aggregation_out[0].norm(2)))
+        # print('cls_token: {}'.format(cls_token[0].norm(2)))
+        # print('cls_token_out: {}'.format(cls_token_out[0].norm(2)))
+        # print('==========================================')
+        
+        out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
+        
+        if dropout:
+            out = self.dropout(out)
+        
+        return out
     
 # class GA_block(nn.Module):
 #     '''
@@ -164,9 +232,11 @@ class MLP(nn.Module):
 #         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
 #         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
 #         self.sigmoid = nn.Sigmoid()
-#         # self.Linear = nn.Linear(in_channels, in_channels)
+#         self.softmax = nn.Softmax()
+#         # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
+#         self.Linear = nn.Linear(in_channels, in_channels, bias=False)
         
-#     def forward(self, x, cls_token, edge_aggregation):
+#     def forward(self, x, cls_token, edge_aggregation, pool=False):
 #         '''
 #             [shape]
 #             x : (B, HW+1, C)
@@ -175,146 +245,74 @@ class MLP(nn.Module):
 #             weight : (B, 1, HW)
 #             weight_softmax : (B, 1, HW)
 #             cls_token_out : (B, 1, C)
-#             out : (B, HW+1, C)     
+#             out : (B, HW+1, C)
+            
+#             edge_aggregation : (B, 1, C)
+#             channel_importance : (B, 1, C)
+#             nodes : (B, HW, C)
+#             channel_aggregation : (B, HW, 1)  
+#             node_importance : (B, HW, 1)
 #         '''
+#         nodes = x[:, 1:]
         
+#         # edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
+#         # node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
         
-#         edge_aggregation_avgpool = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-#         node_aggregation_avgpool = self.avgpool(x[:, 1:].permute(0, 2, 1)).permute(0, 2, 1)
-#         norm_edge_aggreation = edge_aggregation_avgpool.norm(2)
-#         norm_node_aggreation = node_aggregation_avgpool.norm(2)
-#         norm_total = norm_edge_aggreation + norm_node_aggreation
-    
-#         # x_norm = self.normalization(torch.cat([edge_aggregation_avgpool, visual_token_avgpool], dim=1))      
-#         # edge_aggregation_norm, visual_token_norm = x_norm[:, (0, )], x_norm[:, (1, )]
-#         edge_aggregation_norm = (edge_aggregation_avgpool / norm_total) * norm_node_aggreation
-#         node_aggregation_norm = (node_aggregation_avgpool / norm_total) * norm_edge_aggreation
+#         # edge_aggregation_sigmoid = self.sigmoid(edge_aggregation)
+#         # node_aggregation_sigmoid = self.sigmoid(node_aggregation)
         
-#         # visual_toekn_avgpool = self.avgpool(visual_token_norm.permute(0, 2, 1)).permute(0, 2, 1)
+#         # channel_importance = edge_aggregation_sigmoid + node_aggregation_sigmoid
         
-#         # node_aggregation = torch.cat([visual_token_maxpool, visual_toekn_avgpool], dim=1)
-#         # node_aggregation = self.mlp(node_aggregation)
-        
-#         # maxpool_embedding = node_aggregation[:, (0, )]
-#         # avgpool_embedding = node_aggregation[:, (1, )]
-#         # node_aggregation = maxpool_embedding + avgpool_embedding
-        
-#         total_aggregation = edge_aggregation_norm + node_aggregation_norm
-#         weighting = self.sigmoid(total_aggregation)
-                
-        
-#         total_aggregation_out = torch.mul(weighting, cls_token)
+#         # channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
+#         # node_importance = self.softmax(channel_aggregation)
         
 
+#         edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
+#         channel_importance = self.softmax(edge_aggregation)
+                
+#         nodes = x[:, 1:]
         
-#         cls_token_out = cls_token + total_aggregation_out
+#         channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
+#         node_importance = self.softmax(channel_aggregation)
         
-#         # print('weighting: {}'.format(weighting[0].norm(2)))
-#         # print('total_aggregation_out: {}'.format(total_aggregation_out[0].norm(2)))
+
+#         node_aggregation = torch.matmul(node_importance.permute(0, 2, 1), nodes)
+        
+#         # cls_token_out = cls_token + torch.mul(self.Linear(cls_token), weights)
+        
+#         cls_token_out = cls_token + self.sigmoid(node_aggregation)
+        
+                
+#         # print('edge_aggregation: {}'.format(channel_importance[0].norm(2)))
+#         # print('channel_aggregation: {}'.format(node_importance[0].norm(2)))
 #         # print('cls_token: {}'.format(cls_token[0].norm(2)))
-#         # print('cls_token_out: {}'.format(cls_token_out[0].norm(2)))
-#         # print('==========================================')
+#         # print('nod_aggregation: {}'.format(node_aggregation[0].norm(2)))
+#         # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
+#         # print('='*20)
+    
+#         if pool:
         
-#         out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
+#             _, idx = torch.sort(channel_aggregation, dim=1)
+        
+            
+        
+#             tmp = []
+#             for i in range(x.size(0)):
+#                 node_sorted = nodes[i][idx[i].squeeze(-1).tolist()]
+#                 tmp.append(node_sorted.unsqueeze(0))
+                
+#             nodes_sorted = torch.cat(tmp, dim=0)
+#             nodes_pooled = nodes_sorted[:, nodes_sorted.size(1)//4*3:]
+            
+            
+#             out = torch.cat((cls_token_out, nodes_pooled), dim=1)
+        
+#         else:
+#             out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
         
         
 #         return out
-    
 
-class GA_block(nn.Module):
-    '''
-    Class-token Embedding
-    '''
-    def __init__(self, in_size, in_channels):
-        super(GA_block, self).__init__()
-        # self.mlp = MLP_GA(in_channels, in_channels, 4)
-        self.in_dimension = in_channels
-        # self.avgpool = nn.AvgPool1d(in_size[0]-2)
-        # self.maxpool = nn.MaxPool1d(in_size[0]-2)
-        self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
-        # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
-        self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax()
-        self.c = nn.Linear(in_channels, in_channels, bias=False)
-        # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
-        self.Linear = nn.Linear(in_channels, in_channels, bias=False)
-        
-    def forward(self, x, cls_token, edge_aggregation, pool=False):
-        '''
-            [shape]
-            x : (B, HW+1, C)
-            visual_token : (B, HW, C)
-            cls_token_in : (B, 1, C)
-            weight : (B, 1, HW)
-            weight_softmax : (B, 1, HW)
-            cls_token_out : (B, 1, C)
-            out : (B, HW+1, C)
-            
-            edge_aggregation : (B, 1, C)
-            channel_importance : (B, 1, C)
-            nodes : (B, HW, C)
-            channel_aggregation : (B, HW, 1)  
-            node_importance : (B, HW, 1)
-        '''
-        # nodes = x[:, 1:]
-        
-        # edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        # node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
-        
-        # edge_aggregation_sigmoid = self.sigmoid(edge_aggregation)
-        # node_aggregation_sigmoid = self.sigmoid(node_aggregation)
-        
-        # channel_importance = edge_aggregation_sigmoid + node_aggregation_sigmoid
-        # channel_importance = self.linear(channel_importance)
-        
-        # channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
-        # node_importance = self.softmax(channel_aggregation)
-        
-        edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        channel_importance = self.softmax(edge_aggregation)
-                
-        nodes = x[:, 1:]
-        
-        channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
-        node_importance = self.softmax(channel_aggregation)
-        
-        node_aggregation = torch.matmul(node_importance.permute(0, 2, 1), nodes)
-        weights = self.sigmoid(node_aggregation)
-        
-        cls_token_out = cls_token + torch.mul(self.Linear(cls_token), weights)
-        
-        # cls_token_out = cls_token + node_aggregation
-        
-                
-        # print('edge_aggregation: {}'.format(channel_importance[0].norm(2)))
-        # print('channel_aggregation: {}'.format(node_importance[0].norm(2)))
-        # print('cls_token: {}'.format(cls_token[0].norm(2)))
-        # print('nod_aggregation: {}'.format(node_aggregation[0].norm(2)))
-        # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
-        # print('='*20)
-    
-        if pool:
-        
-            _, idx = torch.sort(channel_aggregation, dim=1)
-        
-            
-        
-            tmp = []
-            for i in range(x.size(0)):
-                node_sorted = nodes[i][idx[i].squeeze(-1).tolist()]
-                tmp.append(node_sorted.unsqueeze(0))
-                
-            nodes_sorted = torch.cat(tmp, dim=0)
-            nodes_pooled = nodes_sorted[:, nodes_sorted.size(1)//4*3:]
-            
-            
-            out = torch.cat((cls_token_out, nodes_pooled), dim=1)
-        
-        else:
-            out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
-        
-        
-        return out
 
 
 class Transformer_Block(nn.Module):
@@ -328,12 +326,19 @@ class Transformer_Block(nn.Module):
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
         self.MLP_MHSA = MLP(in_channels, mlp_ratio)
+        self.linear = nn.Linear(heads, 1, bias=False)
+        self._init_weights(self.linear)
         
         if GA_flag:
             self.normalization_GA = nn.LayerNorm(in_size)
             self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
 
         self.GA_flag = GA_flag
+        
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)    
 
     def forward(self, x, cls_token, dropout=True):
         '''
@@ -363,9 +368,10 @@ class Transformer_Block(nn.Module):
             '''
                 Global attribute update
             '''
-            edge_aggregation = x_MHSA
+            edge = self.MHSA.edge
+            edge = self.linear(edge.permute(0, 3, 2, 1)).squeeze(-1)[:, 1:, 1:]
             
-            x_inter2 = self.GA(x_res1, cls_token, edge_aggregation, False)
+            x_inter2 = self.GA(x_res1, cls_token, edge, dropout)
             x_inter2 = self.normalization_GA(x_inter2)
             
         
