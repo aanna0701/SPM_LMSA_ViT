@@ -50,7 +50,6 @@ parser.add_argument('--channel', help='channel', type=int, required=True)
 parser.add_argument('--heads', help='heads', type=int, default=4)
 parser.add_argument('--tag', help='description of this training', required=True)
 parser.add_argument('--weights', help='weights path', default=False)
-parser.add_argument('--r', help='reduction_ratio', type=int, default=4)
 parser.add_argument('--pp', help='pooling patch size', type=int, default=4)
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
@@ -174,7 +173,7 @@ if __name__ == "__main__":
     # model load
 
     if args.model == 'ViT':
-        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=True)
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
     elif args.model == 'GiT':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
     elif args.model == 'P-ViT-Max':
@@ -182,13 +181,13 @@ if __name__ == "__main__":
     elif args.model == 'P-ViT-Conv':
         model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)        
     elif args.model == 'P-ViT-Node':
-        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False, reduction_ratio=args.r, pooling_patch_size=args.pp)
+        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False,  pooling_patch_size=args.pp)
     elif args.model == 'P-GiT-Max':
         model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     elif args.model == 'P-GiT-Conv':
         model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
     elif args.model == 'P-GiT-Node':
-        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False, reduction_ratio=args.r, pooling_patch_size=args.pp)
+        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False, pooling_patch_size=args.pp)
         
     # trainers
 
