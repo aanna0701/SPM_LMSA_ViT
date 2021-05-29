@@ -307,7 +307,7 @@ class Pooling_block(nn.Module):
     '''
     Class-token Embedding
     '''
-    def __init__(self, in_size, in_channels):
+    def __init__(self, in_size, in_channels, pooling_patch_size=4):
         super(Pooling_block, self).__init__()
         # self.mlp = MLP_GA(in_channels, in_channels, 4)
         self.avgpool = nn.AvgPool1d(in_size[0]-2)
@@ -329,13 +329,15 @@ class Pooling_block(nn.Module):
         
         self.in_channels = in_channels
         self.HW = in_size[0]-2
+        self.pp = int(math.sqrt(pooling_patch_size))
+        self.weights = nn.Parameter(torch.ones(in_channels, self.pp, self.pp))
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
         if layer.bias:
             nn.init.normal_(layer.bias, std=1e-6)
         
-    def forward(self, x, edge, pooling_patch_size=4):
+    def forward(self, x, edge):
         '''
             [shape]
             x : (B, HW+1, C)
@@ -346,8 +348,12 @@ class Pooling_block(nn.Module):
             channel_aggregation : (B, HW, 1)  
             node_importance : (B, HW, 1)
         '''
-        pp = int(math.sqrt(pooling_patch_size))
+        pp = self.pp
         B, _, _ = x.shape
+        weights_fixed = self.weights
+        weights_fixed = weights_fixed.unsqueeze(0)
+        weights_fixed.expand(B, self.in_channels, pp, pp)
+        
         
         nodes = x[:, 1:]
         
@@ -368,13 +374,14 @@ class Pooling_block(nn.Module):
          
         norm_scores = torch.norm(scores, dim=1, keepdim=True)
         norm_scores = norm_scores.expand(B, self.HW, 1)
-        scores = torch.div(scores, norm_scores)
+        scores_norm = torch.div(scores, norm_scores)
         
         concat_horizontal = torch.cat([nodes, scores], dim=2)
         concat_2d = concat_horizontal.permute(0, 2, 1).view(B, self.in_channels+1, int(math.sqrt(self.HW)), -1)
         
         nodes_2d = concat_2d[:, :-1]
         scores_2d = concat_2d[:, (-1,)]
+        scores_2d = self.sigmoid(scores_2d)
 
         
 
@@ -383,9 +390,14 @@ class Pooling_block(nn.Module):
             for j in range(int(math.sqrt(x.size(1))) // pp):
                 score_sliced = scores_2d[:, :, pp*i:pp*i+pp, pp*j:pp*j+pp]
 
-                weights_2d = self.score(score_sliced.flatten(start_dim=2))
-                weights_2d = weights_2d.view(B, 1, pp, pp)
-                weights_2d.expand(B, self.in_channels, pp, -1)
+
+                # weights_2d = self.score(score_sliced.flatten(start_dim=2))
+                # weights_2d = weights_2d.view(B, 1, pp, pp)              
+                # weights_2d.expand(B, self.in_channels, pp, -1)
+                
+                weights_2d = torch.mul(weights_fixed, score_sliced) + weights_fixed
+                
+                
                 
                 weighted_2d = torch.matmul(nodes_2d[:, :, pp*i:pp*i+pp, pp*j:pp*j+pp], weights_2d)
 
@@ -582,10 +594,9 @@ class Transformer_Block_pool(nn.Module):
             self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
         else:
             self.normalization_2 = nn.LayerNorm([in_size[0], in_size[1]])
-            self.pool_block = Pooling_block([in_size[0]+1, in_size[1]], in_channels)
+            self.pool_block = Pooling_block([in_size[0]+1, in_size[1]], in_channels, pooling_patch_size)
 
         self.GA_flag = GA_flag
-        self.pp = pooling_patch_size
         
         self.linear = nn.Linear(heads, 1, bias=False)
         self._init_weights(self.linear)
@@ -638,7 +649,7 @@ class Transformer_Block_pool(nn.Module):
         x_res2 = x_inter2 + x_MLP
         
         
-        x_res2 = self.pool_block(x_res2, edge, pooling_patch_size=self.pp)
+        x_res2 = self.pool_block(x_res2, edge)
 
         if not cls_token == None:
             return x_res2[:, 1:], x_res2[:, (0, )]        
