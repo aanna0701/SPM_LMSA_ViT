@@ -217,8 +217,7 @@ class Pooling_block(nn.Module):
         self.HW = in_size[0]-2
         self.pp = int(math.sqrt(pooling_patch_size))
         
-        self.weights = nn.Parameter(torch.empty(1, self.in_channels, self.pp+1, self.pp+1))
-        nn.init.kaiming_normal_(self.weights)
+        self.weights = nn.Parameter(torch.ones(1, self.in_channels, self.pp+1, self.pp+1))
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -249,16 +248,17 @@ class Pooling_block(nn.Module):
         
         score_nodes = torch.matmul(nodes, cls_embed.permute(0, 2, 1))   # (B, HW, 1)
         
-        norm_scores = torch.norm(score_nodes, dim=1, keepdim=True)  # (B, 1, 1)
-        norm_scores = norm_scores.expand(B, self.HW, 1) # (B, HW, 1)
-        scores_norm = torch.div(score_nodes, norm_scores)   # (B, HW, 1)
-        scores_norm = scores_norm.expand(B, nodes.size(1), self.in_channels) # (B, HW, C)
+        # norm_scores = torch.norm(score_nodes, dim=1, keepdim=True)  # (B, 1, 1)
+        # norm_scores = norm_scores.expand(B, self.HW, 1) # (B, HW, 1)
+        # scores_norm = torch.div(score_nodes, norm_scores) # (B, HW, 1)
+        scores_norm = score_nodes.expand(B, nodes.size(1), self.in_channels) # (B, HW, C)
         
         concat_horizontal = torch.cat([nodes, scores_norm], dim=2)  # (B, HW, 2C)
         concat_2d = concat_horizontal.permute(0, 2, 1).view(B, self.in_channels*2, int(math.sqrt(self.HW)), -1)     # (B, 2C, H, W)
         
         nodes_2d = concat_2d[:, :self.in_channels]  # (B, C, H, W)
         scores_2d = concat_2d[:, self.in_channels:] # (B, C, H, W)
+        scores_2d = self.sigmoid(scores_2d)
         
         loop = int(math.sqrt(x.size(1))) // pp
 
@@ -280,7 +280,10 @@ class Pooling_block(nn.Module):
                     weights_fixed_templete = weights_fixed_h
                 
                 score_sliced = scores_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w]
-                score_sliced = self.score(score_sliced)
+                
+                # print(score_sliced.shape)
+                # score_sliced = self.score(score_sliced)
+                
                 
                 weights_2d = torch.mul(weights_fixed_templete, score_sliced) + weights_fixed_templete
 
@@ -288,19 +291,19 @@ class Pooling_block(nn.Module):
                 weighted_2d = torch.mul(nodes_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w], weights_2d)
                 weighted_2d = weighted_2d.view(B, self.in_channels, -1)
                 weighted_sum = torch.sum(weighted_2d, dim=-1, keepdim=True).permute(0, 2, 1)
-                weighted_channel_expand = self.channel(weighted_sum)
     
-                nodes_pooled_tmp.append(weighted_channel_expand)
+                nodes_pooled_tmp.append(weighted_sum)
         
         
         nodes_pooled = torch.cat(nodes_pooled_tmp, dim=1)
+        nodes_out = self.channel(nodes_pooled)
        
    
 
         # out_nodes = self.out_nodes(nodes_pooled)
         # out_cls = self.out_cls(cls_token)
         
-        out = torch.cat([self.cls(x[:, (0,)]), nodes_pooled], dim=1)
+        out = torch.cat([self.cls(x[:, (0,)]), nodes_out], dim=1)
         
         return out
 
