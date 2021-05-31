@@ -188,121 +188,6 @@ class MLP_GA(nn.Module):
         return x_out
 
 
-
-# class Pooling_block(nn.Module):
-#     '''
-#     Class-token Embedding
-#     '''
-#     def __init__(self, in_size, in_channels):
-#         super(Pooling_block, self).__init__()
-#         # self.mlp = MLP_GA(in_channels, in_channels, 4)
-#         # self.avgpool = nn.AvgPool1d(in_size[0]-2)
-#         # self.maxpool = nn.MaxPool1d(in_size[0]-2)
-#         # self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
-#         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
-#         # self.softmax = nn.Softmax()
-#         self.sigmoid = nn.Sigmoid()
-#         # self.tanh = nn.Tanh()
-#         # self.softmax_score = nn.Softmax(dim=1)
-#         self.linear_cls = nn.Linear(in_channels, in_channels, bias=False)
-#         self._init_weights(self.linear_cls)
-#         self.out_nodes = nn.Linear(in_channels * 2, in_channels * 2, bias=False)
-#         self._init_weights(self.out_nodes)
-#         self.out_cls = nn.Linear(in_channels, in_channels * 2, bias=False)
-#         self._init_weights(self.out_cls)
-#         self.PE = Positional_Embedding((in_size[0]//4)+1, in_channels*2)
-#         self.in_dimension = in_channels
-#         self.nonlinear_nodes = MLP_GA(in_channels, in_channels, 2)
-#         self.nonlinear_cls = MLP_GA(in_channels, in_channels, 2)
-#         # self._init_weights(self.fc_cls_token)
-#         self.layernorm = nn.LayerNorm([in_size[0]-1, in_size[1]])
-#         self.score = nn.Softmax(dim=2)
-#         self.in_channels = in_channels
-        
-#     def _init_weights(self,layer):
-#         nn.init.kaiming_normal_(layer.weight)
-#         if layer.bias:
-#             nn.init.normal_(layer.bias, std=1e-6)
-        
-#     def forward(self, x, pooling_patch_size=4):
-#         '''
-#             [shape]
-#             x : (B, HW+1, C)
-#             edge_aggregation : (B, 1, C)
-#             node_aggregation : (B, 1, C)
-#             channel_importance : (B, 1, C)
-#             nodes : (B, HW, C)
-#             channel_aggregation : (B, HW, 1)  
-#             node_importance : (B, HW, 1)
-#         '''
-#         pp = int(math.sqrt(pooling_patch_size))
-        
-#         # nodes = x[:, 1:]
-        
-#         # edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-#         # node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
-        
-#         # edge_aggregation_sigmoid = self.sigmoid(edge_aggregation)
-#         # node_aggregation_sigmoid = self.sigmoid(node_aggregation)
-        
-#         # channel_importance = edge_aggregation_sigmoid + node_aggregation_sigmoid
-#         # channel_importance = self.linear(channel_importance)
-        
-#         # channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
-#         # node_importance = self.softmax(channel_aggregation)
-
-#         # nodes = x[:, 1:]
-#         # cls_token = self.fc_cls_token(x[:, (0,)])
-        
-#         B, HW, C = x.shape
-#         HW = HW-1
-        
-#         layernorm = self.layernorm(x)
-        
-#         # cls_token = self.nonlinear_cls(layernorm[:, (0,)])
-#         cls_token = layernorm[:, (0,)]
-#         nodes_horizontal = layernorm[:, 1:]
-#         scores_horizontal = torch.matmul(nodes_horizontal,cls_token.permute(0, 2, 1))        
-#         norm_scores = torch.norm(scores_horizontal, dim=1, keepdim=True)
-#         norm_scores = norm_scores.expand(B, HW, 1)
-#         scores_horizontal = torch.div(scores_horizontal, norm_scores)
-        
-#         concat_horizontal = torch.cat([nodes_horizontal, scores_horizontal], dim=2)
-#         concat_2d = concat_horizontal.permute(0, 2, 1).view(B, C+1, int(math.sqrt(HW)), -1)
-        
-#         nodes_2d = concat_2d[:, :-1]
-#         scores_2d = concat_2d[:, (-1,)]
-
-        
-
-#         nodes_pooled_tmp = []
-#         for i in range(int(math.sqrt(x.size(1))) // pp):
-#             for j in range(int(math.sqrt(x.size(1))) // pp):
-#                 score_sliced = scores_2d[:, :, pp*i:pp*i+pp, pp*j:pp*j+pp]
-
-#                 weights_2d = self.score(score_sliced.flatten(start_dim=2))
-#                 weights_2d = weights_2d.view(B, 1, pp, pp)
-#                 weights_2d.expand(B, C, pp, -1)
-                
-#                 weighted_2d = torch.matmul(nodes_2d[:, :, pp*i:pp*i+pp, pp*j:pp*j+pp], weights_2d)
-
-#                 weighted_2d = weighted_2d.view(B, C, -1)
-#                 weighted_sum = torch.sum(weighted_2d, dim=-1, keepdim=True).permute(0, 2, 1)
-    
-#                 nodes_pooled_tmp.append(weighted_sum)
-        
-        
-#         nodes_pooled = torch.cat(nodes_pooled_tmp, dim=1)
-       
-   
-
-#         # out_nodes = self.out_nodes(nodes_pooled)
-#         # out_cls = self.out_cls(cls_token)
-        
-#         out = torch.cat([layernorm[:, (0,)], nodes_pooled], dim=1)
-        
-#         return self.out_cls(out)
-
 class Pooling_block(nn.Module):
     '''
     Class-token Embedding
@@ -318,19 +203,18 @@ class Pooling_block(nn.Module):
         self.sigmoid = nn.Sigmoid()
         # self.tanh = nn.Tanh()
         # self.softmax_score = nn.Softmax(dim=1)
-        self.linear = nn.Linear(in_channels, in_channels, bias=False)
-        self._init_weights(self.linear)
-        self.out_nodes = nn.Linear(in_channels * 2, in_channels * 2, bias=False)
-        self._init_weights(self.out_nodes)
-        self.out_cls = nn.Linear(in_channels, in_channels * 2, bias=False)
-        self._init_weights(self.out_cls)
+        self.cls = nn.Linear(in_channels, in_channels * 2, bias=False)
+        self._init_weights(self.cls)
+        self.channel = nn.Linear(in_channels, in_channels * 2, bias=False)
+        self._init_weights(self.channel)
+        
         self.layernorm = nn.LayerNorm([in_size[0]-1, in_size[1]])
-        self.score = nn.Softmax(dim=2)
+        self.score = nn.Softmax2d()
         
         self.in_channels = in_channels
         self.HW = in_size[0]-2
         self.pp = int(math.sqrt(pooling_patch_size))
-        self.weights = nn.Parameter(torch.ones(in_channels, self.pp, self.pp))
+        self.weights = nn.Parameter(torch.ones(in_channels, self.pp+1, self.pp+1))
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -352,20 +236,25 @@ class Pooling_block(nn.Module):
         B, _, _ = x.shape
         weights_fixed = self.weights
         weights_fixed = weights_fixed.unsqueeze(0)
-        weights_fixed.expand(B, self.in_channels, pp, pp)
+        weights_fixed = weights_fixed.expand(B, self.in_channels, pp+1, pp+1)
         
         
         nodes = x[:, 1:]
         
-        edge_aggregation = self.avgpool_2(edge.permute(0, 2, 1)).permute(0, 2, 1)
-        node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
+        edge_global = self.avgpool_2(edge.permute(0, 2, 1)).permute(0, 2, 1)
+        node_glboal = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
         
-        concat_aggregation = torch.cat([edge_aggregation, node_aggregation], dim=1)
+        norm = torch.norm(torch.cat([edge_global, node_glboal], dim=1), dim=2, keepdim=True)
+        scale_edge = torch.div(norm[:, (1,)], norm[:, (0, )]+norm[:, (1, )])
+        scale_node = torch.div(norm[:, (0,)], norm[:, (0, )]+norm[:, (1, )])
         
-        sigmoid_aggregation = self.sigmoid(concat_aggregation)
+        edge_global_scaled = torch.mul(scale_edge, edge_global)
+        node_global_scaled = torch.mul(scale_node, node_glboal)
         
-        channel_importance = torch.sum(sigmoid_aggregation, dim=1, keepdim=True)
-        channel_importance = self.linear(channel_importance)
+        concat_total_global = torch.cat([edge_global_scaled, node_global_scaled], dim=1) 
+        sigmoid_total_global = self.sigmoid(concat_total_global)
+        
+        channel_importance = torch.sum(sigmoid_total_global, dim=1, keepdim=True)
         
         scores = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
 
@@ -376,35 +265,52 @@ class Pooling_block(nn.Module):
         norm_scores = norm_scores.expand(B, self.HW, 1)
         scores_norm = torch.div(scores, norm_scores)
         
-        concat_horizontal = torch.cat([nodes, scores], dim=2)
+        concat_horizontal = torch.cat([nodes, scores_norm], dim=2)
         concat_2d = concat_horizontal.permute(0, 2, 1).view(B, self.in_channels+1, int(math.sqrt(self.HW)), -1)
         
         nodes_2d = concat_2d[:, :-1]
+        # nodes_2d_pad = F.pad(nodes_2d, (0, 1, 0, 1))
         scores_2d = concat_2d[:, (-1,)]
-        scores_2d = self.sigmoid(scores_2d)
+        scores_2d = scores_2d.expand(B, self.in_channels, scores_2d.size(2), scores_2d.size(3))
+        # scores_2d = self.sigmoid(scores_2d)
+        # scores_2d_pad = F.pad(scores_2d, (0, 1, 0, 1))
 
-        
+        loop = int(math.sqrt(x.size(1))) // pp
 
         nodes_pooled_tmp = []
-        for i in range(int(math.sqrt(x.size(1))) // pp):
-            for j in range(int(math.sqrt(x.size(1))) // pp):
-                score_sliced = scores_2d[:, :, pp*i:pp*i+pp, pp*j:pp*j+pp]
+        for i in range(loop):
+            if i == loop-1:
+                h = pp
+                weights_fixed_h = weights_fixed[:, :, :-1]
+                
+            else:
+                h = pp+1
+                weights_fixed_h = weights_fixed
+            for j in range(loop):
+                if j == loop-1:
+                    w = pp
+                    weights_fixed_templete = weights_fixed_h[:, :, :, :-1]
+                else:
+                    w = pp+1
+                    weights_fixed_templete = weights_fixed_h
+                
+                score_sliced = scores_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w]
+                score_sliced = self.score(score_sliced)
 
 
                 # weights_2d = self.score(score_sliced.flatten(start_dim=2))
                 # weights_2d = weights_2d.view(B, 1, pp, pp)              
                 # weights_2d.expand(B, self.in_channels, pp, -1)
                 
-                weights_2d = torch.mul(weights_fixed, score_sliced) + weights_fixed
-                
-                
-                
-                weighted_2d = torch.matmul(nodes_2d[:, :, pp*i:pp*i+pp, pp*j:pp*j+pp], weights_2d)
+                weights_2d = torch.mul(weights_fixed_templete, score_sliced) + weights_fixed_templete
 
+                                
+                weighted_2d = torch.mul(nodes_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w], weights_2d)
                 weighted_2d = weighted_2d.view(B, self.in_channels, -1)
                 weighted_sum = torch.sum(weighted_2d, dim=-1, keepdim=True).permute(0, 2, 1)
+                weighted_channel_expand = self.channel(weighted_sum)
     
-                nodes_pooled_tmp.append(weighted_sum)
+                nodes_pooled_tmp.append(weighted_channel_expand)
         
         
         nodes_pooled = torch.cat(nodes_pooled_tmp, dim=1)
@@ -414,10 +320,142 @@ class Pooling_block(nn.Module):
         # out_nodes = self.out_nodes(nodes_pooled)
         # out_cls = self.out_cls(cls_token)
         
-        out = torch.cat([x[:, (0,)], nodes_pooled], dim=1)
+        out = torch.cat([self.cls(x[:, (0,)]), nodes_pooled], dim=1)
         
-        return self.out_cls(out)
+        return out
+
+
+# class Pooling_block(nn.Module):
+#     '''
+#     Class-token Embedding
+#     '''
+#     def __init__(self, in_size, in_channels, pooling_patch_size=4):
+#         super(Pooling_block, self).__init__()
+#         # self.mlp = MLP_GA(in_channels, in_channels, 4)
+#         self.avgpool = nn.AvgPool1d(in_size[0]-2)
+#         # self.maxpool = nn.MaxPool1d(in_size[0]-2)
+#         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
+#         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
+#         # self.softmax = nn.Softmax()
+#         self.sigmoid = nn.Sigmoid()
+#         # self.tanh = nn.Tanh()
+#         # self.softmax_score = nn.Softmax(dim=1)
+#         self.linear = nn.Linear(in_channels, in_channels, bias=False)
+#         self._init_weights(self.linear)
+#         self.out = nn.Linear(in_channels, in_channels * 2, bias=False)
+#         self._init_weights(self.out)
+        
+#         self.layernorm = nn.LayerNorm([in_size[0]-1, in_size[1]])
+#         self.score = nn.Softmax2d()
+        
+#         self.in_channels = in_channels
+#         self.HW = in_size[0]-2
+#         self.pp = int(math.sqrt(pooling_patch_size))
+#         self.weights = nn.Parameter(torch.ones(in_channels, self.pp+1, self.pp+1))
+        
+#     def _init_weights(self,layer):
+#         nn.init.kaiming_normal_(layer.weight)
+#         if layer.bias:
+#             nn.init.normal_(layer.bias, std=1e-6)
+        
+#     def forward(self, x, edge):
+#         '''
+#             [shape]
+#             x : (B, HW+1, C)
+#             edge_aggregation : (B, 1, C)
+#             node_aggregation : (B, 1, C)
+#             channel_importance : (B, 1, C)
+#             nodes : (B, HW, C)
+#             channel_aggregation : (B, HW, 1)  
+#             node_importance : (B, HW, 1)
+#         '''
+#         pp = self.pp
+#         B, _, _ = x.shape
+#         weights_fixed = self.weights
+#         weights_fixed = weights_fixed.unsqueeze(0)
+#         weights_fixed = weights_fixed.expand(B, self.in_channels, pp+1, pp+1)
+        
+        
+#         nodes = x[:, 1:]
+        
+#         edge_aggregation = self.avgpool_2(edge.permute(0, 2, 1)).permute(0, 2, 1)
+#         node_aggregation = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
+        
+#         concat_aggregation = torch.cat([edge_aggregation, node_aggregation], dim=1)
+        
+#         sigmoid_aggregation = self.sigmoid(concat_aggregation)
+        
+#         channel_importance = torch.sum(sigmoid_aggregation, dim=1, keepdim=True)
+#         channel_importance = self.linear(channel_importance)
+        
+#         scores = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
+
+        
+#         # cls_token = self.nonlinear_cls(layernorm[:, (0,)])
+         
+#         norm_scores = torch.norm(scores, dim=1, keepdim=True)
+#         norm_scores = norm_scores.expand(B, self.HW, 1)
+#         scores_norm = torch.div(scores, norm_scores)
+        
+#         concat_horizontal = torch.cat([nodes, scores_norm], dim=2)
+#         concat_2d = concat_horizontal.permute(0, 2, 1).view(B, self.in_channels+1, int(math.sqrt(self.HW)), -1)
+        
+#         nodes_2d = concat_2d[:, :-1]
+#         # nodes_2d_pad = F.pad(nodes_2d, (0, 1, 0, 1))
+#         scores_2d = concat_2d[:, (-1,)]
+#         scores_2d = scores_2d.expand(B, self.in_channels, scores_2d.size(2), scores_2d.size(3))
+#         # scores_2d = self.sigmoid(scores_2d)
+#         # scores_2d_pad = F.pad(scores_2d, (0, 1, 0, 1))
+
+#         loop = int(math.sqrt(x.size(1))) // pp
+
+#         nodes_pooled_tmp = []
+#         for i in range(loop):
+#             if i == loop-1:
+#                 h = pp
+#                 weights_fixed_h = weights_fixed[:, :, :-1]
+                
+#             else:
+#                 h = pp+1
+#                 weights_fixed_h = weights_fixed
+#             for j in range(loop):
+#                 if j == loop-1:
+#                     w = pp
+#                     weights_fixed_templete = weights_fixed_h[:, :, :, :-1]
+#                 else:
+#                     w = pp+1
+#                     weights_fixed_templete = weights_fixed_h
+                
+#                 score_sliced = scores_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w]
+#                 score_sliced = self.score(score_sliced)
+
+
+#                 # weights_2d = self.score(score_sliced.flatten(start_dim=2))
+#                 # weights_2d = weights_2d.view(B, 1, pp, pp)              
+#                 # weights_2d.expand(B, self.in_channels, pp, -1)
+                
+#                 weights_2d = torch.mul(weights_fixed_templete, score_sliced) + weights_fixed_templete
+
+                                
+#                 weighted_2d = torch.mul(nodes_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w], weights_2d)
+#                 weighted_2d = weighted_2d.view(B, self.in_channels, -1)
+#                 weighted_sum = torch.sum(weighted_2d, dim=-1, keepdim=True).permute(0, 2, 1)
     
+#                 nodes_pooled_tmp.append(weighted_sum)
+        
+        
+#         nodes_pooled = torch.cat(nodes_pooled_tmp, dim=1)
+       
+   
+
+#         # out_nodes = self.out_nodes(nodes_pooled)
+#         # out_cls = self.out_cls(cls_token)
+        
+#         out = torch.cat([x[:, (0,)], nodes_pooled], dim=1)
+        
+#         return self.out(out)
+    
+  
 
 class GA_block(nn.Module):
     '''

@@ -361,7 +361,7 @@ class GA_block(nn.Module):
         edge_global_scaled = torch.mul(scale_edge, edge_global)
         node_global_scaled = torch.mul(scale_node, node_glboal)
         
-        concat_total_global = torch.cat([edge_global_scaled, node_global_scaled], dim=1) * 4
+        concat_total_global = torch.cat([edge_global_scaled, node_global_scaled], dim=1) 
         sigmoid_total_global = self.sigmoid(concat_total_global)
         
         channel_attention = torch.sum(sigmoid_total_global, dim=1, keepdim=True)
