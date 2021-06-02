@@ -62,7 +62,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print()
-    print(Back.BLUE + Fore.BLACK + "[Averaged stats] " + "{}".format(metric_logger))
+    print(Back.BLUE + Fore.BLACK + "  [Averaged stats] " + "{}  ".format(metric_logger))
     print()
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
@@ -95,7 +95,7 @@ def evaluate(data_loader, model, device):
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print()
-    print(Back.RED + Fore.BLACK + '[Acc@1] {top1.global_avg:.3f} [Acc@5] {top5.global_avg:.3f} [loss] {losses.global_avg:.3f}'
+    print(Back.RED + Fore.BLACK + '  [Acc@1] {top1.global_avg:.3f} [Acc@5] {top5.global_avg:.3f} [loss] {losses.global_avg:.3f}  '
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
     print()
 
