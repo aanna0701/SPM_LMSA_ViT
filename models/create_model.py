@@ -30,9 +30,9 @@ def self_Attention_full(global_attribute=False):
 
 
 
-def make_ViT(depth, channel, GA=False, cls_token=True, heads=4, dropout=False):
+def make_ViT(depth, channel, GA=False, cls_token=True, heads=4, dropout=False, num_classes=10):
     if cls_token:
-        return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=channel, depth=depth, heads=heads, mlp_ratio=2, GA=GA, dropout=dropout)
+        return ViT(in_height=32, in_width=32, num_nodes=8*8, inter_dimension=channel, depth=depth, heads=heads, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes)
    
 
 
