@@ -141,9 +141,9 @@ def get_args_parser():
     parser.add_argument('--finetune', default='', help='finetune from checkpoint')
 
     # Dataset parameters
-    parser.add_argument('--data-path', default='/dataset', type=str,
+    parser.add_argument('--data_path', default='/dataset', type=str,
                         help='dataset path')
-    parser.add_argument('--data-set', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET', 'INAT', 'INAT19'],
+    parser.add_argument('--data_set', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET', 'INAT', 'INAT19'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--inat-category', default='name',
                         choices=['kingdom', 'phylum', 'class', 'order', 'supercategory', 'family', 'genus', 'name'],
