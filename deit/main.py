@@ -273,11 +273,6 @@ def main(args, model_name):
     elif args.model == 'G-DeiT':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
     
-    if args.data_set == 'IMNET':
-        summary(model, (3, 224, 224))
-    else:
-        summary(model, (3, 32, 32))
-
     '''
         Finetuning settings
     '''
@@ -392,6 +387,11 @@ def main(args, model_name):
                 utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
+
+    if args.data_set == 'IMNET':
+        summary(model, (3, 224, 224))
+    else:
+        summary(model, (3, 32, 32))
 
     '''
         Evaluation mode
