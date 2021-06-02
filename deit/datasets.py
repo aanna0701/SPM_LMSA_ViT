@@ -83,8 +83,10 @@ def build_dataset(is_train, args):
 
 def build_transform(is_train, args):
     resize_im = args.input_size > 32
+    t = []
     if is_train:
         # this should always dispatch to transforms_imagenet_train
+        t.append(transforms.RandomHorizontalFlip())
         if args.data_set != 'IMNET':
             transform = create_transform(
                 input_size=args.input_size,
@@ -113,7 +115,7 @@ def build_transform(is_train, args):
                 args.input_size, padding=4)
         return transform
 
-    t = []
+    
     if resize_im:
         size = int((256 / 224) * args.input_size)
         t.append(
