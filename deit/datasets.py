@@ -96,6 +96,7 @@ def build_transform(is_train, args):
                 re_mode=args.remode,
                 re_count=args.recount,
             )
+            transforms.insert(0, RandAugment(1, 5))
         else:
                 transform = create_transform(
                 input_size=args.input_size,
@@ -124,9 +125,9 @@ def build_transform(is_train, args):
 
     t.append(transforms.ToTensor())
     if args.data_set == 'CIFAR10':
-        t.append([transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)), RandAugment(1, 5)])
+        t.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
     elif args.data_set == 'CIFAR100':
-        t.append([transforms.Normalize((0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)), RandAugment(1, 5)])
+        t.append(transforms.Normalize((0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)))
     elif args.data_set == 'IMNET':
         t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
     return transforms.Compose(t)
