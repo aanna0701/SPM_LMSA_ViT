@@ -428,6 +428,7 @@ def main(args, model_name):
             
         test_stats = evaluate(data_loader_val, model, device)
 
+        print(Back.CYAN + Fore.BLACK + f"  Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.2f}%  ")
         
         if max_accuracy < test_stats["acc1"]:
             print(Back.CYAN + "  Best model update  ")
@@ -457,7 +458,7 @@ def main(args, model_name):
                 }, checkpoint_path)
         
     
-        print(Back.CYAN + Fore.BLACK + f"  Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%  ")
+        
         print(Back.CYAN + Fore.BLACK + f'  Max accuracy: {max_accuracy:.2f}%  ')
         print()
 
