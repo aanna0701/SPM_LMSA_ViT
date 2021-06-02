@@ -1,11 +1,8 @@
 import os
-from glob import glob
 import sys
 from colorama import init, Fore, Style
 import argparse
 import numpy as np
-from PIL import Image
-from datetime import datetime
 from training_functions import EarlyStopping
 import logging as log
 from tqdm import tqdm
@@ -13,18 +10,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchsummary import summary
-import torchvision
 from torchvision import datasets, transforms
-from torch.utils.data import Dataset, DataLoader
 # from adamp import AdamP
 from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import random
 
-import models.model as m
+import models.create_model as m
+
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
@@ -40,7 +35,7 @@ kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
 
 parser = argparse.ArgumentParser(description='Train')
 parser.add_argument('--dataset_dir', help='path of input images',
-                    default='/media/CVIP/Hyundai2020/dataset/training/0809')
+                    default=None)
 parser.add_argument('--lr', help='Learning Rate', default=0.01, type=float)
 parser.add_argument('--model', help='model', required=True)
 parser.add_argument('--gpu', help='gpu number to use', default='multi')

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
-from models.deepsets import Equivariant_Block
+import time
 
 
 class MHSA(nn.Module):
@@ -200,11 +200,13 @@ class Pooling_block(nn.Module):
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         # self.softmax = nn.Softmax()
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
         # self.tanh = nn.Tanh()
-        # self.softmax_score = nn.Softmax(dim=1)
+        self.softmax_score = nn.Softmax(dim=2)
         self.ebed_cls = nn.Linear(in_channels, in_channels, bias=False)       
         self._init_weights(self.ebed_cls)
+        self.ebed_nodes = nn.Linear(in_channels, in_channels, bias=False)       
+        self._init_weights(self.ebed_nodes)
         self.cls = nn.Linear(in_channels, in_channels * 2, bias=False)
         self._init_weights(self.cls)
         self.channel = nn.Linear(in_channels, in_channels * 2, bias=False)
@@ -217,7 +219,8 @@ class Pooling_block(nn.Module):
         self.HW = in_size[0]-2
         self.pp = int(math.sqrt(pooling_patch_size))
         
-        self.weights = nn.Parameter(torch.ones(1, self.in_channels, self.pp+1, self.pp+1))
+        self.weights = nn.Parameter(torch.ones(1, self.in_channels, 9, (in_size[0]-2)//4))
+        
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -238,67 +241,77 @@ class Pooling_block(nn.Module):
         pp = self.pp
         B, _, _ = x.shape
         weights_fixed = self.weights
-        weights_fixed = weights_fixed.expand(B, self.in_channels, pp+1, pp+1)
+        weights_fixed = weights_fixed.expand(B, self.in_channels, 9, self.HW//4)    # (B, C, hw, HW/4)
         
         
         nodes = x[:, 1:]    # (B, HW, C)
         cls = x[:, (0, )]   # (B, 1, C)
         
         cls_embed = self.ebed_cls(cls)  # (B, 1, C)
+        nodes_embed = self.ebed_nodes(nodes)
         
-        score_nodes = torch.matmul(nodes, cls_embed.permute(0, 2, 1))   # (B, HW, 1)
+        score_nodes = torch.matmul(nodes_embed, cls_embed.permute(0, 2, 1))   # (B, HW, 1)
         
-        # norm_scores = torch.norm(score_nodes, dim=1, keepdim=True)  # (B, 1, 1)
-        # norm_scores = norm_scores.expand(B, self.HW, 1) # (B, HW, 1)
-        # scores_norm = torch.div(score_nodes, norm_scores) # (B, HW, 1)
         scores_norm = score_nodes.expand(B, nodes.size(1), self.in_channels) # (B, HW, C)
+        
         
         concat_horizontal = torch.cat([nodes, scores_norm], dim=2)  # (B, HW, 2C)
         concat_2d = concat_horizontal.permute(0, 2, 1).view(B, self.in_channels*2, int(math.sqrt(self.HW)), -1)     # (B, 2C, H, W)
+        concat_pad = F.pad(concat_2d, (0, 1, 0, 1)) # (B, 2C, H+1, W+1)
         
-        nodes_2d = concat_2d[:, :self.in_channels]  # (B, C, H, W)
-        scores_2d = concat_2d[:, self.in_channels:] # (B, C, H, W)
-        scores_2d = self.sigmoid(scores_2d)
+
+        # scores_2d = self.sigmoid(scores_2d)
         
         loop = int(math.sqrt(x.size(1))) // pp
 
-        nodes_pooled_tmp = []
+        sliced = []
+        h = pp+1
+        w = pp+1
         for i in range(loop):
-            if i == loop-1:
-                h = pp
-                weights_fixed_h = weights_fixed[:, :, :-1]
-                
-            else:
-                h = pp+1
-                weights_fixed_h = weights_fixed
+            
             for j in range(loop):
-                if j == loop-1:
-                    w = pp
-                    weights_fixed_templete = weights_fixed_h[:, :, :, :-1]
-                else:
-                    w = pp+1
-                    weights_fixed_templete = weights_fixed_h
-                
-                score_sliced = scores_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w]
-                
-                # print(score_sliced.shape)
-                # score_sliced = self.score(score_sliced)
                 
                 
-                weights_2d = torch.mul(weights_fixed_templete, score_sliced) + weights_fixed_templete
+                score_sliced = concat_pad[:, self.in_channels:][:, :, pp*i:pp*i+h, pp*j:pp*j+w]    # (B, C, h, w)
+                # score_softmax = self.softmax_score(score_sliced.flatten(start_dim=2)).view(B, self.in_channels, h, w)   # (B, C, h, w)
+                
+                nodes_sliced = concat_pad[:, :self.in_channels][:, :, pp*i:pp*i+h, pp*j:pp*j+w]    # (B, C, h, w)
+                nodes_flatten = nodes_sliced.flatten(start_dim=2).unsqueeze(-1)   # (B, C, hw, 1)
+                
+                
+                # weights_2d = torch.mul(weights_fixed, score_softmax) + weights_fixed    # (B, C, h, w)
+                score_flatten = score_sliced.flatten(start_dim=2).unsqueeze(-1)   # (B, C, hw, 1)
 
                                 
-                weighted_2d = torch.mul(nodes_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w], weights_2d)
-                weighted_2d = weighted_2d.view(B, self.in_channels, -1)
-                weighted_sum = torch.sum(weighted_2d, dim=-1, keepdim=True).permute(0, 2, 1)
+                # weighted_2d = torch.mul(nodes_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w], weights_2d)
+                # # print(weighted_2d[0])
+                # weighted_2d = weighted_2d.view(B, self.in_channels, -1)
+                
+                # weighted_sum = torch.sum(weighted_2d, dim=-1, keepdim=True).permute(0, 2, 1)
+                # print(weighted_sum[0])
     
-                nodes_pooled_tmp.append(weighted_sum)
+                sliced.append(torch.cat([nodes_flatten, score_flatten], dim=2))
         
         
-        nodes_pooled = torch.cat(nodes_pooled_tmp, dim=1)
+        sliced_concat = torch.cat(sliced, dim=-1)  # (B, C, 2*hw, HW / 4)
+        
+        score_sliced = sliced_concat[:, :, h*w:]    # (B, C, hw, HW/4)
+        nodes_sliced = sliced_concat[:, :, :h*w]    # (B, C, hw, HW/4)
+        
+        # norm_score = torch.sum(score_sliced, dim=2, keepdim=True)
+        # score_softmax = torch.div(score_sliced, norm_score)
+        
+        score_softmax = self.softmax_score(score_sliced) # (B, C, hw, HW/4)
+        weights = weights_fixed + torch.mul(weights_fixed, score_softmax)   # (B, C, hw, HW/4)
+        
+        # print(score_softmax[0][0][:, (0,)])
+        
+        sliced_mul = torch.mul(weights, nodes_sliced)  # (B, C, hw, HW/4)
+        nodes_pooled = torch.sum(sliced_mul, dim=2).permute(0, 2, 1)  # (B, HW/4, C)
+        
         nodes_out = self.channel(nodes_pooled)
-       
-   
+
+
 
         # out_nodes = self.out_nodes(nodes_pooled)
         # out_cls = self.out_cls(cls_token)
@@ -980,8 +993,12 @@ class ViT_pooling(nn.Module):
             x_tmp = self.dropout_layer(x_tmp)
             cls_token = self.dropout_layer(cls_token)
         
+        start = time.time()        
+        
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
+            
+        print("inference time: {}".format(time.time()-start))
                 
         x_out = self.classifier(cls_token)
 
@@ -1163,10 +1180,13 @@ class ViT_pooling_node(nn.Module):
         if self.dropout:
             x_tmp = self.dropout_layer(x_tmp)
             cls_token = self.dropout_layer(cls_token)
+            
+        start = time.time()
         
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
                 
+        print("inference time: {}".format(time.time()-start))
         x_out = self.classifier(cls_token)
 
         return x_out
