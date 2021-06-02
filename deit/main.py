@@ -160,6 +160,7 @@ def get_args_parser():
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--dist-eval', action='store_true', default=False, help='Enabling distributed evaluation')
     parser.add_argument('--num_workers', default=4, type=int)
+    parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--pin-mem', action='store_true',
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no-pin-mem', action='store_false', dest='pin_mem',
@@ -181,7 +182,9 @@ def main(args, model_name):
     if args.distillation_type != 'none' and args.finetune and not args.eval:
         raise NotImplementedError("Finetuning with distillation not yet supported")
 
-    device = torch.device(args.device)
+    GPU_NUM = int(args.gpu) # 원하는 GPU 번호 입력
+    device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu')
+    torch.cuda.set_device(device) # change allocation of current GPU
 
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
@@ -257,22 +260,11 @@ def main(args, model_name):
     print(Back.GREEN + Fore.BLACK + "  Creating model: {}  ".format(model_name)+ Style.RESET_ALL)
     
 
-    if args.model == 'ViT':
+    if args.model == 'DeiT':
         model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'GiT':
+    elif args.model == 'G-DeiT':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Max':
-        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Conv':
-        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)        
-    elif args.model == 'P-ViT-Node':
-        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False,  pooling_patch_size=args.pp)
-    elif args.model == 'P-GiT-Max':
-        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Conv':
-        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Node':
-        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False, pooling_patch_size=args.pp)
+    
 
     '''
         Finetuning settings
@@ -473,8 +465,8 @@ def main(args, model_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DeiT training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
-    assert args.model in ['ViT', 'GiT', 'P-ViT-Max', 'P-ViT-Conv', 'P-GiT-Max', 'P-GiT-Conv', 'P-ViT-Node', 'P-GiT-Node'], 'Unexpected model!'
-    model_name = args.model + "-{}-{}-{}-Seed{}".format(args.depth, args.heads, args.channel, args.seed)
+    assert args.model in ['DeiT', 'G-DeiT'], 'Unexpected model!'
+    model_name = args.model + "-{}-{}-{}-{}-Seed{}".format(args.depth, args.heads, args.channel, args.data_set, args.seed)
     if args.output_dir:
         Path(os.path.join(os.getcwd(), args.output_dir, model_name)).mkdir(parents=True, exist_ok=True)
     main(args, model_name)
