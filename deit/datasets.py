@@ -10,7 +10,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
 
 import os
-import sys
+from randaugment import RandAugment
 
 class INatDataset(ImageFolder):
     def __init__(self, root, train=True, year=2018, transform=None, target_transform=None,
@@ -86,16 +86,27 @@ def build_transform(is_train, args):
     resize_im = args.input_size > 32
     if is_train:
         # this should always dispatch to transforms_imagenet_train
-        transform = create_transform(
-            input_size=args.input_size,
-            is_training=True,
-            color_jitter=args.color_jitter,
-            auto_augment=args.aa,
-            interpolation=args.train_interpolation,
-            re_prob=args.reprob,
-            re_mode=args.remode,
-            re_count=args.recount,
-        )
+        if args.data_set != 'IMNET':
+            transform = create_transform(
+                input_size=args.input_size,
+                is_training=True,
+                color_jitter=args.color_jitter,
+                interpolation=args.train_interpolation,
+                re_prob=args.reprob,
+                re_mode=args.remode,
+                re_count=args.recount,
+            )
+        else:
+                transform = create_transform(
+                input_size=args.input_size,
+                is_training=True,
+                color_jitter=args.color_jitter,
+                auto_augment=args.aa,
+                interpolation=args.train_interpolation,
+                re_prob=args.reprob,
+                re_mode=args.remode,
+                re_count=args.recount,
+            )
         if not resize_im:
             # replace RandomResizedCropAndInterpolation with
             # RandomCrop
@@ -113,9 +124,9 @@ def build_transform(is_train, args):
 
     t.append(transforms.ToTensor())
     if args.data_set == 'CIFAR10':
-        t.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
+        t.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)), RandAugment(1, 5))
     elif args.data_set == 'CIFAR100':
-        t.append(transforms.Normalize((0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)))
+        t.append(transforms.Normalize((0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)), RandAugment(1, 5))
     elif args.data_set == 'IMNET':
         t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
     return transforms.Compose(t)
