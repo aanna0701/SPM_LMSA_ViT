@@ -10,7 +10,6 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
 
 import os
-from randaugment import RandAugment
 
 class INatDataset(ImageFolder):
     def __init__(self, root, train=True, year=2018, transform=None, target_transform=None,
@@ -96,7 +95,6 @@ def build_transform(is_train, args):
                 re_mode=args.remode,
                 re_count=args.recount,
             )
-            transforms.insert(0, RandAugment(1, 5))
         else:
                 transform = create_transform(
                 input_size=args.input_size,

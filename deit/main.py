@@ -30,6 +30,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 sys.path.insert(0, './models')
 from models import create_model as m
+from randaugment import RandAugment
 
 init(autoreset=True)
 
@@ -199,6 +200,7 @@ def main(args, model_name):
         Build dataset
     '''
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
+    dataset_train.transform.insert(0, RandAugment(1, 5))
     dataset_val, _ = build_dataset(is_train=False, args=args)
 
     if True:  # args.distributed:
