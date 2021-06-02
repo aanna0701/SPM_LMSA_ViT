@@ -388,10 +388,6 @@ def main(args, model_name):
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
 
-    if args.data_set == 'IMNET':
-        summary(model, (3, 224, 224))
-    else:
-        summary(model, (3, 32, 32))
 
     '''
         Evaluation mode
@@ -408,6 +404,12 @@ def main(args, model_name):
 
     print(Back.GREEN + Fore.BLACK + f"  Start training for {args.epochs} epochs  ")
     print()
+    
+    if args.data_set == 'IMNET':
+        summary(model, (3, 224, 224))
+    else:
+        summary(model, (3, 32, 32))
+    
     start_time = time.time()
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
