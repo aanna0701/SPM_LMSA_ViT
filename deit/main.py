@@ -318,6 +318,7 @@ def main(args, model_name):
     # linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
     # args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
+    loss_scaler = NativeScaler()
 
     lr_scheduler, _ = create_scheduler(args, optimizer)
 
@@ -384,7 +385,8 @@ def main(args, model_name):
             args.start_epoch = checkpoint['epoch'] + 1
             if args.model_ema:
                 utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
-
+            if 'scaler' in checkpoint:
+                loss_scaler.load_state_dict(checkpoint['scaler'])
 
 
     '''
@@ -416,7 +418,7 @@ def main(args, model_name):
 
         train_stats = train_one_epoch(
             model, criterion, data_loader_train,
-            optimizer, device, epoch,
+            optimizer, device, epoch, loss_scaler,
             args.clip_grad, model_ema, mixup_fn,
             set_training_mode=args.finetune == ''  # keep in eval mode during finetuning
         )
@@ -439,6 +441,7 @@ def main(args, model_name):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'model_ema': get_state_dict(model_ema),
+                    'scaler': loss_scaler.state_dict(),
                     'args': args,
                 }, checkpoint_path)
         else:
@@ -450,6 +453,7 @@ def main(args, model_name):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'model_ema': get_state_dict(model_ema),
+                    'scaler': loss_scaler.state_dict(),
                     'args': args,
                 }, checkpoint_path)
         
