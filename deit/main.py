@@ -18,6 +18,7 @@ from timm.scheduler import create_scheduler
 from timm.optim import create_optimizer
 from timm.utils import NativeScaler, get_state_dict, ModelEma
 
+from torchsummary import summary
 from datasets import build_dataset
 from engine import train_one_epoch, evaluate
 from losses import DistillationLoss
@@ -259,12 +260,23 @@ def main(args, model_name):
     print()
     print(Back.GREEN + Fore.BLACK + "  Creating model: {}  ".format(model_name)+ Style.RESET_ALL)
     
+    if args.data_set == 'CIFAR10':
+        n_classes = 10
+    elif args.data_set == 'CIFAR100':
+        n_classes = 100
+    elif args.data_set == 'IMNET':
+        n_classes = 1000
 
     if args.model == 'DeiT':
-        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
+
     elif args.model == 'G-DeiT':
-        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
     
+    if args.data_set == 'IMNET':
+        summary(model, (3, 224, 224))
+    else:
+        summary(model, (3, 32, 32))
 
     '''
         Finetuning settings
