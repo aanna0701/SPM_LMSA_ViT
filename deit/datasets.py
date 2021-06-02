@@ -89,7 +89,7 @@ def build_transform(is_train, args):
             transform = create_transform(
                 input_size=args.input_size,
                 is_training=True,
-                color_jitter=args.color_jitter,
+                auto_augment='rand-m5-n1',
                 interpolation=args.train_interpolation,
                 re_prob=args.reprob,
                 re_mode=args.remode,
