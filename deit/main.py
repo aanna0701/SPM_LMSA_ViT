@@ -30,6 +30,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 sys.path.insert(0, './models')
 from models import create_model as m
+from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 
 init(autoreset=True)
 
@@ -319,7 +320,8 @@ def main(args, model_name):
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
 
-    lr_scheduler, _ = create_scheduler(args, optimizer)
+    # lr_scheduler, _ = create_scheduler(args, optimizer)
+    lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
 
     criterion = LabelSmoothingCrossEntropy()
 
