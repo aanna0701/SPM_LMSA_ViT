@@ -63,7 +63,7 @@ def get_args_parser():
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
-    parser.add_argument('--weight-decay', type=float, default=0.05,
+    parser.add_argument('--weight_decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
@@ -254,8 +254,7 @@ def main(args, model_name):
     '''
         Create model (custom model)
     '''
-    
-    
+       
     
     print()
     print(Back.GREEN + Fore.BLACK + "  Creating model: {}  ".format(model_name)+ Style.RESET_ALL)
