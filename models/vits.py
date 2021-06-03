@@ -315,11 +315,6 @@ class GA_block(nn.Module):
     '''
     def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
-        self.mlp1 = nn.Linear(in_channels, in_channels // 2, bias=False)
-        self._init_weights(self.mlp1)
-        self.mlp2 = nn.Linear(in_channels // 2, in_channels, bias=False)
-        self._init_weights(self.mlp2)
-        self.gelu = nn.GELU()
         self.in_dimension = in_channels
         self.avgpool = nn.AvgPool1d(in_size[0]-2)
         # self.maxpool = nn.MaxPool1d(in_size[0]-2)
@@ -358,22 +353,21 @@ class GA_block(nn.Module):
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_glboal = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
-        norm = torch.norm(torch.cat([edge_global, node_glboal], dim=1), dim=2, keepdim=True)
+        norm = torch.norm(torch.cat([edge_global, node_glboal], dim=1), dim=2, keepdim=True, p=1)
         scale_edge = torch.div(norm[:, (1,)], norm[:, (0, )]+norm[:, (1, )])
         scale_node = torch.div(norm[:, (0,)], norm[:, (0, )]+norm[:, (1, )])
+        
+        
         
         edge_global_scaled = torch.mul(scale_edge, edge_global)
         node_global_scaled = torch.mul(scale_node, node_glboal)
         
-
         
         channel_attention = edge_global_scaled + node_global_scaled # (B, 1, C)
         
         
         
         channel_attention = self.sigmoid(channel_attention) # (B, 1, C)
-        
-        
        
         
         cls_token_out = cls_token + torch.mul(self.linear(cls_token), channel_attention)    #(B, 1, C)
