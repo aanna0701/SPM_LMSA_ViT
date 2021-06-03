@@ -3,7 +3,7 @@
 import os
 import json
 
-from .autoaugment import CIFAR10Policy
+from autoaugment import CIFAR10Policy
 
 from torchvision import datasets, transforms
 from torchvision.datasets.folder import ImageFolder, default_loader
