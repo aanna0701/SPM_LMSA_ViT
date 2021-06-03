@@ -1,9 +1,9 @@
 import os
 import logging as log
-from models.model import *
+
 import numpy as np
 import argparse
-import models.model as m
+import models.create_model as m
 
 
 parser = argparse.ArgumentParser(description='get params')

@@ -17,7 +17,7 @@ from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import random
-
+from deit.autoaugment import CIFAR10Policy
 import models.create_model as m
 
 
@@ -150,9 +150,11 @@ if __name__ == "__main__":
                          transform=transforms.Compose([
                              transforms.ToTensor(),
                              transforms.RandomHorizontalFlip(),
-                             transforms.RandomCrop(32, 4),
+                             transforms.RandomCrop(32, padding=4, fill=128),
+                             CIFAR10Policy(),
                              transforms.Normalize(
-                                 (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))
+                                 (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
+                             
                          ])),
         batch_size=batch_size, shuffle=True)
 

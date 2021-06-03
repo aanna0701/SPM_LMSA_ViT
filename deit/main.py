@@ -38,6 +38,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
     parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--epochs', default=300, type=int)
+    parser.add_argument('--tag', type=str)
 
     # Model parameters
     parser.add_argument('--model', default='deit_base_patch16_224', type=str, metavar='MODEL',
@@ -69,7 +70,7 @@ def get_args_parser():
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
                         help='LR scheduler (default: "cosine"')
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                         help='learning rate (default: 5e-4)')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
                         help='learning rate noise on/off epoch percentages')
@@ -84,7 +85,7 @@ def get_args_parser():
 
     parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
                         help='epoch interval to decay LR')
-    parser.add_argument('--warmup-epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--warmup_epochs', type=int, default=5, metavar='N',
                         help='epochs to warmup LR, if scheduler supports')
     parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
                         help='epochs to cooldown LR at min_lr, after cyclic schedule ends')
@@ -174,6 +175,17 @@ def get_args_parser():
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     return parser
+
+import math
+
+# def adjust_learning_rate(optimizer, epoch, args):
+#     lr = args.lr
+#     if epoch < args.warmup_epochs:
+#         lr = lr / (args.warmup_epochs - epoch)
+#     lr *= 0.5 * (1. + math.cos(math.pi * (epoch - args.warmup_epochs) / (args.epochs - args.warmup_epochs)))
+
+#     for param_group in optimizer.param_groups:
+#         param_group['lr'] = lr
 
 
 def main(args, model_name):
@@ -320,8 +332,8 @@ def main(args, model_name):
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
 
-    # lr_scheduler, _ = create_scheduler(args, optimizer)
-    lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
+    lr_scheduler, _ = create_scheduler(args, optimizer)
+    # lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
 
     criterion = LabelSmoothingCrossEntropy()
 
@@ -330,8 +342,10 @@ def main(args, model_name):
         criterion = SoftTargetCrossEntropy()
     elif args.smoothing:
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
+        
     else:
         criterion = torch.nn.CrossEntropyLoss()
+        
 
     '''
         Distillation
@@ -382,7 +396,6 @@ def main(args, model_name):
         model_without_ddp.load_state_dict(checkpoint['model'])
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
             if args.model_ema:
                 utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
@@ -417,13 +430,14 @@ def main(args, model_name):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
 
+        # adjust_learning_rate(optimizer, epoch, args)
+        
         train_stats = train_one_epoch(
             model, criterion, data_loader_train,
             optimizer, device, epoch, loss_scaler,
             args.clip_grad, model_ema, mixup_fn,
             set_training_mode=args.finetune == ''  # keep in eval mode during finetuning
         )
-
         lr_scheduler.step(epoch)
         
             
@@ -439,7 +453,6 @@ def main(args, model_name):
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'model_ema': get_state_dict(model_ema),
                     'scaler': loss_scaler.state_dict(),
@@ -451,7 +464,6 @@ def main(args, model_name):
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'model_ema': get_state_dict(model_ema),
                     'scaler': loss_scaler.state_dict(),
@@ -482,7 +494,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('DeiT training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
     assert args.model in ['DeiT', 'G-DeiT'], 'Unexpected model!'
-    model_name = args.model + "-{}-{}-{}-{}-Seed{}".format(args.depth, args.heads, args.channel, args.data_set, args.seed)
+    model_name = args.model + "-{}-{}-{}-{}-{}-Seed{}".format(args.depth, args.heads, args.channel, args.data_set, args.tag, args.seed)
     if args.output_dir:
         Path(os.path.join(os.getcwd(), args.output_dir, model_name)).mkdir(parents=True, exist_ok=True)
     main(args, model_name)
