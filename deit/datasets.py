@@ -89,7 +89,10 @@ def build_transform(is_train, args):
         t.append(transforms.RandomHorizontalFlip())
         if args.data_set != 'IMNET':
             t.append(CIFAR10Policy())
-            
+            transform = create_transform(
+                input_size=args.input_size,
+                is_training=True,
+            )
         else:
                 transform = create_transform(
                 input_size=args.input_size,
