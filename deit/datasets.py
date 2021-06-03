@@ -3,13 +3,13 @@
 import os
 import json
 
+from .autoaugment import CIFAR10Policy
+
 from torchvision import datasets, transforms
 from torchvision.datasets.folder import ImageFolder, default_loader
 
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
-
-import os
 
 class INatDataset(ImageFolder):
     def __init__(self, root, train=True, year=2018, transform=None, target_transform=None,
@@ -88,11 +88,10 @@ def build_transform(is_train, args):
         # this should always dispatch to transforms_imagenet_train
         t.append(transforms.RandomHorizontalFlip())
         if args.data_set != 'IMNET':
+            t.append(CIFAR10Policy())
             transform = create_transform(
                 input_size=args.input_size,
                 is_training=True,
-                auto_augment='rand-m5-n1',
-                interpolation=args.train_interpolation,
                 re_prob=args.reprob,
                 re_mode=args.remode,
                 re_count=args.recount,
