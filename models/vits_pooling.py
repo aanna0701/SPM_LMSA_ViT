@@ -589,14 +589,12 @@ class Pooling_block(nn.Module):
 #         return self.out(out)
     
   
-
 class GA_block(nn.Module):
     '''
     Class-token Embedding
     '''
     def __init__(self, in_size, in_channels):
         super(GA_block, self).__init__()
-        # self.mlp = MLP_GA(in_channels, in_channels, 4)
         self.in_dimension = in_channels
         self.avgpool = nn.AvgPool1d(in_size[0]-2)
         # self.maxpool = nn.MaxPool1d(in_size[0]-2)
@@ -630,22 +628,33 @@ class GA_block(nn.Module):
             channel_aggregation : (B, HW, 1)  
             node_importance : (B, HW, 1)
         '''
-        nodes = x[:, 1:]
+        nodes = x[:, 1:]    # (B, HW, C)
+        print(nodes.shape)
         
-        edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)
-        node_glboal = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)
+        edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
+        node_glboal = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
-        norm = torch.norm(torch.cat([edge_global, node_glboal], dim=1), dim=2, keepdim=True)
+        norm = torch.norm(torch.cat([edge_global, node_glboal], dim=1), dim=2, keepdim=True, p=1)
         scale_edge = torch.div(norm[:, (1,)], norm[:, (0, )]+norm[:, (1, )])
         scale_node = torch.div(norm[:, (0,)], norm[:, (0, )]+norm[:, (1, )])
+        
+        
         
         edge_global_scaled = torch.mul(scale_edge, edge_global)
         node_global_scaled = torch.mul(scale_node, node_glboal)
         
-        channel_attention = edge_global_scaled + node_global_scaled
-        channel_attention = self.sigmoid(channel_attention)
-
-        cls_token_out = cls_token + torch.mul(self.linear(cls_token), channel_attention)
+        
+        channel_attention = edge_global_scaled + node_global_scaled # (B, 1, C)
+        
+        
+        
+        channel_attention = self.sigmoid(channel_attention) # (B, 1, C)
+       
+        
+        cls_token_out = cls_token + torch.mul(self.linear(cls_token), channel_attention)    #(B, 1, C)
+        # print(channel_attention[0])
+        # print(cls_token_out[0])
+        # print('\n\n====')
 
         # edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
         # channel_importance = self.softmax(edge_aggregation)
@@ -673,13 +682,11 @@ class GA_block(nn.Module):
         # print('cls_token: {}\n\n'.format(cls_token[0].norm(2)))
         # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
         # print('='*20)
-    
-       
+
         out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
         
         
         return out
-
 
 
 class Transformer_Block(nn.Module):
@@ -693,8 +700,9 @@ class Transformer_Block(nn.Module):
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
         self.MLP_MHSA = MLP(in_channels, mlp_ratio)
-        self.linear = nn.Linear(heads, 1, bias=False)
-        self._init_weights(self.linear)
+        # self.linear = nn.Linear(heads, 1, bias=False)
+        # self._init_weights(self.linear)
+        self.avgpool = nn.AvgPool1d(heads)
         
         if GA_flag:
             self.normalization_GA = nn.LayerNorm(in_size)
@@ -735,10 +743,9 @@ class Transformer_Block(nn.Module):
             '''
                 Global attribute update
             '''
-            edge = self.MHSA.edge
-            edge = self.linear(edge.permute(0, 3, 2, 1)).squeeze(-1)[:, 1:, 1:]
+            edge_per_node = x_MHSA
             
-            x_inter2 = self.GA(x_res1, cls_token, edge, dropout)
+            x_inter2 = self.GA(x_res1, cls_token, edge_per_node, dropout)
             x_inter2 = self.normalization_GA(x_inter2)
             
         
