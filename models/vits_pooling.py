@@ -629,7 +629,6 @@ class GA_block(nn.Module):
             node_importance : (B, HW, 1)
         '''
         nodes = x[:, 1:]    # (B, HW, C)
-        print(nodes.shape)
         
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_glboal = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
@@ -1000,12 +999,9 @@ class ViT_pooling(nn.Module):
             x_tmp = self.dropout_layer(x_tmp)
             cls_token = self.dropout_layer(cls_token)
         
-        start = time.time()        
         
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
-            
-        print("inference time: {}".format(time.time()-start))
                 
         x_out = self.classifier(cls_token)
 
