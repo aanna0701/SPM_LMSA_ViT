@@ -208,7 +208,7 @@ def main(args):
         mixup_fn = Mixup(
             mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
             prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
-            label_smoothing=0.1, num_classes=args.n_classes)
+            label_smoothing=0.1, num_classes=n_classes)
     '''
         Data Loader
     '''
