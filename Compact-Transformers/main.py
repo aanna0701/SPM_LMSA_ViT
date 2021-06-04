@@ -52,7 +52,7 @@ def init_parser():
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
-    parser.add_argument('--disable_aug', action='store_true', help='disable augmentation policies for training')
+    parser.add_argument('--enable_aug', action='store_true', help='disable augmentation policies for training')
 
     parser.add_argument('--gpu', default=0, type=int)
 
@@ -176,7 +176,7 @@ def main(args):
         Data Augmentation
     '''
     augmentations = []
-    if not args.disable_aug:
+    if args.enable_aug:
         print(Fore.YELLOW+'*'*80)
         print('Autoaugmentation used')
         print('*'*80 + Style.RESET_ALL)
