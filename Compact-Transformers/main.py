@@ -155,7 +155,7 @@ def main(args):
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
                                   weight_decay=args.weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
+    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=5)
 
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
@@ -308,7 +308,7 @@ def cls_validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=
     avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
     total_mins = -1 if time_begin is None else (time() - time_begin) / 60
     print(Fore.BLUE+'*'*80)
-    logger.debug(f'[Epoch {epoch+1}] \t Top-1 {avg_acc1:6.2f} \t lr {lr} \t Time: {total_mins:.2f}')
+    logger.debug(f'[Epoch {epoch+1}] \t Top-1 {avg_acc1:6.2f} \t lr {lr:.6f} \t Time: {total_mins:.2f}')
     
 
     return avg_acc1
