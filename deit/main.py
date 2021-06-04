@@ -36,7 +36,7 @@ init(autoreset=True)
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
-    parser.add_argument('--batch-size', default=128, type=int)
+    parser.add_argument('--batch-size', default=1024, type=int)
     parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--tag', type=str)
 
@@ -46,7 +46,7 @@ def get_args_parser():
     parser.add_argument('--depth', help='depth', type=int, required=True)
     parser.add_argument('--channel', help='channel', type=int, required=True)
     parser.add_argument('--heads', help='heads', type=int, required=True)
-    parser.add_argument('--input_size', help='input size', type=int, default=32)
+    parser.add_argument('--input_size', help='input size', type=int, default=224)
 
     parser.add_argument('--model-ema', action='store_true')
     parser.add_argument('--no-model-ema', action='store_false', dest='model_ema')
@@ -65,7 +65,7 @@ def get_args_parser():
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
-    parser.add_argument('--weight_decay', type=float, default=0.03,
+    parser.add_argument('--weight_decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
