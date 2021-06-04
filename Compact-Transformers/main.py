@@ -129,7 +129,8 @@ def main(args):
     print()
     
 
-    criterion = LabelSmoothingCrossEntropy()
+    # criterion = LabelSmoothingCrossEntropy()
+    criterion = nn.CrossEntropyLoss
 
     if (not args.no_cuda) and torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
