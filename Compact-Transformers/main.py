@@ -2,7 +2,8 @@
 
 import argparse
 from time import time
-import math
+from timm.data.auto_augment import rand_augment_transform
+from timm.data.mixup import Mixup
 import numpy as np
 import random
 import logging as log
@@ -15,12 +16,12 @@ import torchvision.datasets as datasets
 from colorama import init, Fore, Back, Style
 from torchsummary import summary
 from utils.losses import LabelSmoothingCrossEntropy
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 import models.create_model as m
-model_names = ['deit', 'g-deit', 'vit', 'g-vit']
 
 best_acc1 = 0
 
@@ -28,94 +29,95 @@ def init_parser():
     parser = argparse.ArgumentParser(description='CIFAR10 quick training script')
 
     # Data args
-    parser.add_argument('--data_path', default='/dataset', type=str,
-                        help='dataset path')
+    parser.add_argument('--data_path', default='/dataset', type=str, help='dataset path')
+   
+    parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET'], type=str, help='Image Net dataset path')
 
-    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
-                        help='number of data loading workers (default: 4)')
+    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
 
-    parser.add_argument('--print-freq', default=10, type=int, metavar='N',
-                        help='log frequency (by iteration)')
-
-    parser.add_argument('--checkpoint-path',
-                        type=str,
-                        default='checkpoint.pth',
-                        help='path to checkpoint (default: checkpoint.pth)')
+    parser.add_argument('--print-freq', default=10, type=int, metavar='N', help='log frequency (by iteration)')
 
     # Optimization hyperparams
-    parser.add_argument('--epochs', default=300, type=int, metavar='N',
-                        help='number of total epochs to run')
-    parser.add_argument('--warmup', default=5, type=int, metavar='N',
-                        help='number of warmup epochs')
-    parser.add_argument('-b', '--batch-size', default=128, type=int,
-                        metavar='N',
-                        help='mini-batch size (default: 128)', dest='batch_size')
-    parser.add_argument('--lr', default=0.0005, type=float,
-                        help='initial learning rate')
-    parser.add_argument('--weight-decay', default=3e-2, type=float,
-                        help='weight decay (default: 1e-4)')
-    parser.add_argument('--clip-grad-norm', default=0., type=float,
-                        help='gradient norm clipping (default: 0 (disabled))')
+    parser.add_argument('--epochs', default=300, type=int, metavar='N', help='number of total epochs to run')
+    
+    parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
+    
+    parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
+    
+    parser.add_argument('--lr', default=0.0005, type=float, help='initial learning rate')
+    
+    parser.add_argument('--weight-decay', default=3e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model',
-                        type=str.lower,
-                        choices=model_names,
-                        default='cct_2', dest='model')
+    parser.add_argument('--model', type=str, default='deit', choices=['deit', 'g-deit', 'vit', 'g-vit'])
 
-    parser.add_argument('-p', '--positional-embedding',
-                        type=str.lower,
-                        choices=['learnable', 'sine', 'none'],
-                        default='learnable', dest='positional_embedding')
+    parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
-    parser.add_argument('--conv-layers', default=2, type=int,
-                        help='number of convolutional layers (cct only)')
-
-    parser.add_argument('--conv-size', default=3, type=int,
-                        help='convolution kernel size (cct only)')
-
-    parser.add_argument('--patch-size', default=4, type=int,
-                        help='image patch size (vit and cvt only)')
-
-    parser.add_argument('--disable-cos', action='store_true',
-                        help='disable cosine lr schedule')
-
-    parser.add_argument('--disable_aug', action='store_true',
-                        help='disable augmentation policies for training')
+    parser.add_argument('--disable_aug', action='store_true', help='disable augmentation policies for training')
 
     parser.add_argument('--gpu', default=0, type=int)
 
-    parser.add_argument('--no-cuda', action='store_true',
-                        help='disable cuda')
+    parser.add_argument('--no-cuda', action='store_true', help='disable cuda')
 
-    parser.add_argument('--label_smoothing', action='store_true',
-                        help='label smoothing')
+    parser.add_argument('--label_smoothing', action='store_true', help='label smoothing')
 
-    parser.add_argument('--channel', type=int,
-                        help='disable cuda')
+    parser.add_argument('--channel', type=int, help='disable cuda')
 
-    parser.add_argument('--heads', type=int,
-                        help='disable cuda')
+    parser.add_argument('--heads', type=int, help='disable cuda')
 
-    parser.add_argument('--depth', type=int,
-                        help='disable cuda')
+    parser.add_argument('--depth', type=int, help='disable cuda')
 
-    parser.add_argument('--tag', type=str,
-                        help='tag')
+    parser.add_argument('--tag', type=str, help='tag')
 
-    parser.add_argument('--seed', type=int,
-                        help='seed')
+    parser.add_argument('--seed', type=int, help='seed')
+    
+    # Mixup params
+    parser.add_argument('--mixup', type=float, default=0.8, help='mixup alpha, mixup enabled if > 0. (default: 0.8)')
+    
+    parser.add_argument('--cutmix', type=float, default=1.0, help='cutmix alpha, cutmix enabled if > 0. (default: 1.0)')
+    
+    parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None, help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
+    
+    parser.add_argument('--mixup-prob', type=float, default=1.0, help='Probability of performing mixup or cutmix when either/both is enabled')
+    
+    parser.add_argument('--mixup-switch-prob', type=float, default=0.5, help='Probability of switching to cutmix when both mixup and cutmix enabled')
+    
+    parser.add_argument('--mixup-mode', type=str, default='batch', help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+
+    parser.add_argument('--enable_mix', action='store_true', help='Enabling mixup')
+
+    # Autoaugmentation
+    parser.add_argument('--rand_aug', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
+                        help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)')
+    
+    parser.add_argument('--enable_rand_aug', action='store_true', help='Enabling randaugment')
 
     return parser
 
 
 def main(args):
     global best_acc1
-    
-    
-    img_size = 32
-    n_classes = 10
-    img_mean, img_std = [0.4914, 0.4822, 0.4465], [0.2470, 0.2435, 0.2616]
+
+    '''
+        Dataset
+    '''
+    if args.dataset == 'CIFAR10':
+        n_classes = 10
+        img_mean, img_std = (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
+        img_size = 32
         
+    elif args.dataset == 'CIFAR100':
+        n_classes = 100
+        img_mean, img_std = (0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
+        img_size = 32
+        
+    elif args.dataset == 'IMNET':
+        n_classes = 1000
+        img_mean, img_std = IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+        img_size = 224
+    
+    '''
+        Model 
+    '''    
     if args.model == 'deit':
         model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
 
@@ -131,20 +133,28 @@ def main(args):
         args.disable_aug = True
         
     print(Fore.GREEN+'*'*80)
-    logger.debug(f"  Creating model: {model_name}  ")
-    
+    logger.debug(f"  Creating model: {model_name}  ")    
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.debug(f'  Number of params: {n_parameters}  ')
     logger.debug(f'  Initial learning rate: {args.lr:.6f}  ')
     logger.debug(f"  Start training for {args.epochs} epochs  ")
     print('*'*80+Style.RESET_ALL)
     
+    '''
+        Criterion
+    '''
+    
     if args.label_smoothing:
-        print(Back.YELLOW + Fore.BLACK)
-        print('label smoothing used'+ Style.RESET_ALL)
+        print(Fore.YELLOW + '*'*80)
+        print('label smoothing used')
+        print('*'*80+Style.RESET_ALL)
         criterion = LabelSmoothingCrossEntropy()
     else:
         criterion = nn.CrossEntropyLoss()
+        
+    '''
+        GPU
+    '''
 
     if (not args.no_cuda) and torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
@@ -152,13 +162,19 @@ def main(args):
         criterion = criterion.cuda(args.gpu)
         
     summary(model, (3, 32, 32))
+    
+    '''
+        Trainer
+    '''
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
                                   weight_decay=args.weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=5)
-
+    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=args.warmup)
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
+    '''
+        Data Augmentation
+    '''
     augmentations = []
     if not args.disable_aug:
         print(Fore.YELLOW+'*'*80)
@@ -168,76 +184,82 @@ def main(args):
         augmentations += [
             CIFAR10Policy()
         ]
-    augmentations += [        
-        
+    elif args.enable_rand_aug:
+        print(Fore.YELLOW+'*'*80)
+        print('Randaugmentation used')
+        print('*'*80 + Style.RESET_ALL)
+        augmentations += [
+            rand_augment_transform(config_str=args.rand_aug)]
+    augmentations += [                
         transforms.RandomHorizontalFlip(),
         transforms.RandomCrop(32, padding=4),
         transforms.ToTensor(),
         *normalize,
     ]
-
     augmentations = transforms.Compose(augmentations)
-    train_dataset = datasets.CIFAR10(root=args.data_path, train=True, download=True,
-                                     transform=augmentations, )
-
+    '''
+        Mixup
+    '''
+    mixup_fn = None
+    if args.enable_mix:
+        print(Fore.YELLOW+'*'*80)
+        print('Mixup used')
+        print('*'*80 + Style.RESET_ALL)
+        mixup_fn = Mixup(
+            mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
+            prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
+            label_smoothing=args.smoothing, num_classes=args.n_classes)
+    '''
+        Data Loader
+    '''
+    train_dataset = datasets.CIFAR10(
+        root=args.data_path, train=True, download=True, transform=augmentations)
     val_dataset = datasets.CIFAR10(
         root=args.data_path, train=False, download=False, transform=transforms.Compose([
-            
-            
-            transforms.Resize(img_size),
-            transforms.ToTensor(),
-            *normalize,
-        ]))
+        transforms.Resize(img_size),
+        transforms.ToTensor(),
+        *normalize]))
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers)
-
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers)
-
+    '''
+        Training
+    '''
     print()
     print("Beginning training")
+    print()
     time_begin = time()
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
-        cls_train(train_loader, model, criterion, optimizer, epoch, args)
+        cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn)
         acc1 = cls_validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch, time_begin=time_begin)
         if acc1 > best_acc1:
             best_acc1 = acc1
             torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
-            logger.debug(f'Best model update \t {best_acc1:.2f}')
+            logger.debug('Best model update')
             
         scheduler.step()
+        logger.debug(f'Best acc {best_acc1:.2f}')
         print('*'*80+Style.RESET_ALL)
 
     total_mins = (time() - time_begin) / 60
     print(Fore.RED+'*'*80)
     logger.debug(f'Script finished in {total_mins:.2f} minutes, '
           f'best top-1: {best_acc1:.2f}, '
-          f'final top-1: {acc1:.2f}' + Style.RESET_ALL)
+          f'final top-1: {acc1:.2f}')
     print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
-def get_lr(optimizer):
-    for param_group in optimizer.param_groups:
-        return param_group['lr']
-
-def adjust_learning_rate(optimizer, epoch, args):
-    lr = args.lr
-    if hasattr(args, 'warmup') and epoch < args.warmup:
-        lr = lr / (args.warmup - epoch)
-    elif not args.disable_cos:
-        lr *= 0.5 * (1. + math.cos(math.pi * (epoch - args.warmup) / (args.epochs - args.warmup)))
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
+
 
 def accuracy(output, target):
     with torch.no_grad():
@@ -253,7 +275,7 @@ def accuracy(output, target):
         return res
 
 
-def cls_train(train_loader, model, criterion, optimizer, epoch, args):
+def cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn=None):
     model.train()
     loss_val, acc1_val = 0, 0
     n = 0
@@ -261,6 +283,10 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
         if (not args.no_cuda) and torch.cuda.is_available():
             images = images.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)
+        
+        if mixup_fn:
+            images, target = mixup_fn(images, target)
+        
         output = model(images)
 
         loss = criterion(output, target)
@@ -272,10 +298,6 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
 
         optimizer.zero_grad()
         loss.backward()
-
-        if args.clip_grad_norm > 0:
-            nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.clip_grad_norm, norm_type=2)
-
         optimizer.step()
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
