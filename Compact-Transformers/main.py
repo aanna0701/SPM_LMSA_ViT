@@ -19,7 +19,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import models.create_model as m
-model_names = ['deit', 'g-deit']
+model_names = ['deit', 'g-deit', 'vit', 'g-vit']
 
 best_acc1 = 0
 
@@ -78,13 +78,16 @@ def init_parser():
     parser.add_argument('--disable-cos', action='store_true',
                         help='disable cosine lr schedule')
 
-    parser.add_argument('--disable-aug', action='store_true',
+    parser.add_argument('--disable_aug', action='store_true',
                         help='disable augmentation policies for training')
 
     parser.add_argument('--gpu', default=0, type=int)
 
     parser.add_argument('--no-cuda', action='store_true',
                         help='disable cuda')
+
+    parser.add_argument('--label_smoothing', action='store_true',
+                        help='label smoothing')
 
     parser.add_argument('--channel', type=int,
                         help='disable cuda')
@@ -104,8 +107,6 @@ def init_parser():
     return parser
 
 
-
-
 def main(args):
     global best_acc1
     
@@ -119,19 +120,30 @@ def main(args):
 
     elif args.model == 'g-deit':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+
+    elif args.model == 'vit':
+        model = m.make_ViT(args.depth, args.channel,GA=False, heads = args.heads, num_classes=n_classes)
+        args.disable_aug = True
+    
+    elif args.model == 'g-vit':
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+        args.disable_aug = True
         
     print(Back.GREEN + Fore.BLACK )
     logger.debug(f"  Creating model: {model_name}  ")
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.debug(f'  Number of params: {n_parameters}  ')
-    logger.debug(f'  Initial learning rate: {args.lr}  ')
+    logger.debug(f'  Initial learning rate: {args.lr:.6f}  ')
     logger.debug(f"  Start training for {args.epochs} epochs  " + Style.RESET_ALL)
     print()
     
-
-    criterion = LabelSmoothingCrossEntropy()
-    # criterion = nn.CrossEntropyLoss
+    if args.label_smoothing:
+        print(Back.YELLOW + Fore.BLACK)
+        print('label smoothing used'+ Style.RESET_ALL)
+        criterion = LabelSmoothingCrossEntropy()
+    else:
+        criterion = nn.CrossEntropyLoss()
 
     if (not args.no_cuda) and torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
@@ -147,6 +159,8 @@ def main(args):
 
     augmentations = []
     if not args.disable_aug:
+        print(Back.YELLOW + Fore.BLACK)
+        print('Autoaugmentation used' + Style.RESET_ALL)
         from utils.autoaug import CIFAR10Policy
         augmentations += [
             CIFAR10Policy()
@@ -177,6 +191,7 @@ def main(args):
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers)
 
+    print()
     print("Beginning training")
     time_begin = time()
     for epoch in range(args.epochs):
