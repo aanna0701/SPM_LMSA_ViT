@@ -162,7 +162,7 @@ def main(args):
     augmentations = []
     if not args.disable_aug:
         print(Fore.YELLOW+'*'*80)
-        print('Autoaugmentation used' + Style.RESET_ALL)
+        print('Autoaugmentation used')
         print('*'*80 + Style.RESET_ALL)
         from utils.autoaug import CIFAR10Policy
         augmentations += [
