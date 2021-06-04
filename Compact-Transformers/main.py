@@ -189,7 +189,7 @@ def main(args):
         print('Randaugmentation used')
         print('*'*80 + Style.RESET_ALL)
         augmentations += [
-            rand_augment_transform(config_str=args.rand_aug)]
+            rand_augment_transform(config_str=args.rand_aug, hparams=None)]
     augmentations += [                
         transforms.RandomHorizontalFlip(),
         transforms.RandomCrop(32, padding=4),
