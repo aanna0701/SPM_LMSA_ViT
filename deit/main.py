@@ -144,7 +144,7 @@ def get_args_parser():
     parser.add_argument('--finetune', default='', help='finetune from checkpoint')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='/dataset', type=str,
+    parser.add_argument('--data_path', default='/dataset/IMNET', type=str,
                         help='dataset path')
     parser.add_argument('--data_set', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET', 'INAT', 'INAT19'],
                         type=str, help='Image Net dataset path')
@@ -327,8 +327,8 @@ def main(args, model_name):
         Loss function
     '''
 
-    # linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
-    # args.lr = linear_scaled_lr
+    linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
+    args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
 
