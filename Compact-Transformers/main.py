@@ -121,16 +121,17 @@ def main(args):
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
         
     print(Back.GREEN + Fore.BLACK )
-    logger.debug("  Creating model: {}  ".format(model_name))
+    logger.debug(f"  Creating model: {model_name}  ")
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.debug('  number of params: {}  '.format(n_parameters))
+    logger.debug(f'  Number of params: {n_parameters}  ')
+    logger.debug(f'  Initial learning rate: {args.lr}  ')
     logger.debug(f"  Start training for {args.epochs} epochs  " + Style.RESET_ALL)
     print()
     
 
-    # criterion = LabelSmoothingCrossEntropy()
-    criterion = nn.CrossEntropyLoss
+    criterion = LabelSmoothingCrossEntropy()
+    # criterion = nn.CrossEntropyLoss
 
     if (not args.no_cuda) and torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
@@ -181,17 +182,25 @@ def main(args):
     for epoch in range(args.epochs):
         adjust_learning_rate(optimizer, epoch, args)
         cls_train(train_loader, model, criterion, optimizer, epoch, args)
-        acc1 = cls_validate(val_loader, model, criterion, args, epoch=epoch, time_begin=time_begin)
-        best_acc1 = max(acc1, best_acc1)
+        acc1 = cls_validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch, time_begin=time_begin)
+        if acc1 > best_acc1:
+            best_acc1 = acc1
+            torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
+            print(Back.BLUE + Fore.BLACK)
+            logger.debug(f'Best model update \t \t {best_acc1:.2f}' + Style.RESET_ALL)
+            print()
 
     total_mins = (time() - time_begin) / 60
-    print(Back.BLUE + Fore.BLACK)
+    print(Back.RED + Fore.BLACK)
     logger.debug(f'Script finished in {total_mins:.2f} minutes, '
           f'best top-1: {best_acc1:.2f}, '
           f'final top-1: {acc1:.2f}' + Style.RESET_ALL)
     print()
-    torch.save(model.state_dict(), args.checkpoint_path)
+    torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
 
 def adjust_learning_rate(optimizer, epoch, args):
     lr = args.lr
@@ -248,7 +257,7 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
             logger.debug(f'[Epoch {epoch+1}][Train][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f}')
 
 
-def cls_validate(val_loader, model, criterion, args, epoch=None, time_begin=None):
+def cls_validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=None):
     model.eval()
     loss_val, acc1_val = 0, 0
     n = 0
@@ -273,7 +282,7 @@ def cls_validate(val_loader, model, criterion, args, epoch=None, time_begin=None
     avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
     total_mins = -1 if time_begin is None else (time() - time_begin) / 60
     print(Back.BLUE + Fore.BLACK)
-    logger.debug(f'[Epoch {epoch+1}] \t \t Top-1 {avg_acc1:6.2f} \t \t Time: {total_mins:.2f}' + Style.RESET_ALL)
+    logger.debug(f'[Epoch {epoch+1}] \t \t Top-1 {avg_acc1:6.2f} \t \t lr {lr} \t \t Time: {total_mins:.2f}' + Style.RESET_ALL)
     print()
 
     return avg_acc1
