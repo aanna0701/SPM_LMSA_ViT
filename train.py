@@ -1,6 +1,6 @@
 import os
 import sys
-from colorama import init, Fore, Style
+from colorama import init, Fore, Style, Back
 import argparse
 import numpy as np
 from training_functions import EarlyStopping
@@ -19,6 +19,9 @@ import numpy as np
 import random
 from deit.autoaugment import CIFAR10Policy
 import models.create_model as m
+from time import time
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from models.losses import LabelSmoothingCrossEntropy
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
@@ -27,7 +30,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
 # constants
 
-init(autoreset=True)
 use_cuda = True
 kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
 
@@ -45,14 +47,16 @@ parser.add_argument('--channel', help='channel', type=int, required=True)
 parser.add_argument('--heads', help='heads', type=int, default=4)
 parser.add_argument('--tag', help='description of this training', required=True)
 parser.add_argument('--weights', help='weights path', default=False)
-parser.add_argument('--pp', help='pooling patch size', type=int, default=4)
+parser.add_argument('--dataset', help='dataset', type=str, default='CIFAR10')
+parser.add_argument('--able_aug', action='store_true')
+parser.add_argument('--label_smoothing', action='store_true')
 # parser.add_argument('--n_blocks', help='number of Self-Attention blocks',
 #                     type=int, default=0, required=True)
 
 args = parser.parse_args()
 
-assert args.model in ['ViT', 'GiT', 'P-ViT-Max', 'P-ViT-Conv', 'P-GiT-Max', 'P-GiT-Conv', 'P-ViT-Node', 'P-GiT-Node'], 'Unexpected model!'
-
+assert args.model in ['vit', 'g-vit', 'deit', 'g-deit'], 'Unexpected model!'
+assert args.dataset in ['CIFAR10', 'CIFAR100', 'IMNET'], 'Unexpected dataset!'
 # gpus
 # GPU 할당 변경하기
 
@@ -61,7 +65,9 @@ if not args.gpu == 'multi':
     device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(device) # change allocation of current GPU
 
-# random seed
+'''
+random seed
+'''
 
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed(args.seed)
@@ -72,13 +78,14 @@ torch.manual_seed(args.seed)
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
-# varaiables
+'''
+varaiables
+'''
 
 FINETUNING = False
-log_interval = 100
+log_interval = 10
 batch_size = 128
 test_batch_size = 128
-epoch_init = 1
 epochs = 300
 ealry_stopping_patience = 50
 weight_decay = 0.03
@@ -86,229 +93,218 @@ gamma_dict_list_best = []
 lambda_dict_list_best = []
 best_train_loss = 100000
 best_train_accuracy = 0
+global n_classes
+if args.dataset == 'CIFAR10':
+    n_classes = 10
+    img_mean, img_std = (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
+elif args.dataset == 'CIFAR100':
+    n_classes = 100
+    img_mean, img_std = (0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
+elif args.dataset == 'IMNET':
+    n_classes = 1000
+    img_mean, img_std = IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 
-def model_eval(data_loader):
-    loss = 0
-    accuracy = 0
-    correct = 0
+save_path = os.path.join(os.getcwd(), "save")
+save_path = os.path.join(save_path, args.model + f'-{args.depth}-{args.heads}-{args.channel}' + "_seed" + str(args.seed) + f"-{args.tag}")
+os.makedirs(save_path, exist_ok=True)
+
+'''    
+logger
+'''
+
+log_dir = os.path.join(save_path, 'log.txt')
+logger = log.getLogger(__name__)
+formatter = log.Formatter('%(message)s')
+streamHandler = log.StreamHandler()
+fileHandler = log.FileHandler(log_dir, 'w')
+streamHandler.setFormatter(formatter)
+fileHandler.setFormatter(formatter)
+logger.addHandler(streamHandler)
+logger.addHandler(fileHandler)
+logger.setLevel(level=log.DEBUG)
+
+
+####################################################################################
+
+def model_train(model, data_loader, optimizer, criterion, epoch):
+    model.train()
+    train_loss, train_accuracy = 0, 0
+    n = 0
+
+    for batch_idx, (data, target) in enumerate(data_loader):
+        data, target = data.cuda(), target.cuda()
+        optimizer.zero_grad()   # backpropagation 계산 전 opimizer 초기화
+        #####################
+        output = model(data)
+        #####################
+        n += data.size(0)
+        loss = criterion(output, target)
+        loss.backward()     # backpropagation 수행
+        optimizer.step()    # weight update
+        train_loss += loss.item() * data.size(0)
+        train_accuracy += accuracy(output, target) * data.size(0)
+
+        if batch_idx % log_interval == 0:
+            avg_loss, avg_acc = train_loss/n, train_accuracy/n
+            logger.debug(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(data_loader.dataset)} ({100. * batch_idx / len(data_loader):.0f}%)]\tTrain Loss: {avg_loss:.6f}\tTrain Acc: {avg_acc:6.2f}\tLR: {get_lr(optimizer):.6f}')
     
+    return train_loss/n, train_accuracy/n
+
+
+def model_eval(model, data_loader, criterion, epoch):
+    eval_loss = 0
+    eval_accuracy = 0
     model.eval()
+    n = 0
     with torch.no_grad():
-        for data, target in data_loader:
+        for batch_idx, (data, target) in enumerate(data_loader):
             data, target = data.cuda(), target.cuda()
             #####################
             output = model(data)
             #####################
+            n += data.size(0)
             # sum up batch loss
-            loss += F.cross_entropy(output,
-                                    target, reduction='sum').item()
-            # get the index of the max log-probability
-            pred = output.argmax(dim=1, keepdim=True)
-            correct += pred.eq(target.view_as(pred)).sum().item()
-    loss /= len(data_loader.dataset)
-    accuracy = 100. * correct / len(data_loader.dataset)
-    return loss, accuracy
-
-
-if __name__ == "__main__":
-
-    # save path
-
-    save_path = os.path.join(os.getcwd(), "save")
-    # save_path = os.path.join(save_path, now + '_' + args.model +
-    #                          "(" + str(args.n_blocks) + ")" + "_seed" + str(args.seed))
+            eval_loss += criterion(output,target).item() * data.size(0)
+            eval_accuracy += accuracy(output, target) * data.size(0)
+            
+            if batch_idx % log_interval == 0:
+                avg_loss, avg_acc = eval_loss/n, eval_accuracy/n
+                logger.debug(f'Eval Epoch: {epoch} [{batch_idx * len(data)}/{len(data_loader.dataset)} ({100. * batch_idx / len(data_loader):.0f}%)]\tEval Loss: {avg_loss:.6f}\tEval Acc: {avg_acc:6.2f}')
     
-    save_path = os.path.join(save_path, args.model + '-{}-{}-{}'.format(args.depth, args.heads, args.channel) +
-                             "_seed" + str(args.seed) + "_{}".format(args.tag))
-    if not os.path.isdir(save_path):
-        os.makedirs(save_path, exist_ok=True)
+    eval_loss /= n
+    eval_accuracy /= n
+    return eval_loss, eval_accuracy
 
-    # logger
 
-    log_dir = os.path.join(save_path, 'log.txt')
-    logger = log.getLogger(__name__)
-    formatter = log.Formatter('%(message)s')
-    streamHandler = log.StreamHandler()
-    fileHandler = log.FileHandler(log_dir, 'w')
-    streamHandler.setFormatter(formatter)
-    fileHandler.setFormatter(formatter)
-    logger.addHandler(streamHandler)
-    logger.addHandler(fileHandler)
-    logger.setLevel(level=log.DEBUG)
+def accuracy(output, target, topk=(1,)):
+    """Computes the precision@k for the specified values of k"""
+    maxk = max(topk)
+    batch_size = target.size(0)
 
-    # training objects
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
 
-    writer = SummaryWriter()
-    early_stopping = EarlyStopping(
-        patience=ealry_stopping_patience, verbose=1, mode='max')
+    res = []
+    for k in topk:
+        correct_k = correct[:k].view(-1).float().sum(0)
+        res.append(correct_k.mul_(100.0 / batch_size))
+    return float(res[0])
 
-    # data loaders
 
-    train_loader = torch.utils.data.DataLoader(
-        datasets.CIFAR10(args.dataset_dir, train=True, download=True,
-                         transform=transforms.Compose([
-                             transforms.ToTensor(),
-                             transforms.RandomHorizontalFlip(),
-                             transforms.RandomCrop(32, padding=4, fill=128),
-                             CIFAR10Policy(),
-                             transforms.Normalize(
-                                 (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
-                             
-                         ])),
-        batch_size=batch_size, shuffle=True)
-
-    test_loader = torch.utils.data.DataLoader(
-        datasets.CIFAR10(args.dataset_dir, train=False, download=True,
-                         transform=transforms.Compose([
-                             transforms.ToTensor(),
-                             transforms.Normalize(
-                                 (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))
-                         ])),
-        batch_size=batch_size, shuffle=True)
-
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
+    
+    
+def main(args, save_path):
     # model load
-
-    if args.model == 'ViT':
-        model = m.make_ViT(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'GiT':
-        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Max':
-        model = m.P_ViT_max(args.depth, args.channel, heads = args.heads, dropout=False)
-    elif args.model == 'P-ViT-Conv':
-        model = m.P_ViT_conv(args.depth, args.channel, heads = args.heads, dropout=False)        
-    elif args.model == 'P-ViT-Node':
-        model = m.P_ViT_node(args.depth, args.channel, heads = args.heads, dropout=False,  pooling_patch_size=args.pp)
-    elif args.model == 'P-GiT-Max':
-        model = m.P_GiT_max(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Conv':
-        model = m.P_GiT_conv(args.depth, args.channel, GA=True,heads = args.heads, dropout=False)
-    elif args.model == 'P-GiT-Node':
-        model = m.P_GiT_node(args.depth, args.channel, GA=True,heads = args.heads, dropout=False, pooling_patch_size=args.pp)
-        
-    # trainers
-
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr,
-                      betas=(0.9, 0.999), weight_decay=weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
-
-
-    logger.debug(Fore.MAGENTA + Style.BRIGHT + '\n# Model: {}\
-                                                \n# Initial Learning Rate: {}\
-                                                \n# Seed: {}\
-                                                \n# depth: {}\
-                                                \n# heads: {}\
-                                                \n# channel: {}\
-                                                \n# Weigth decay: {}'
-                 .format(args.model, args.lr, args.seed, args.depth, args.heads, args.channel, weight_decay) + Style.RESET_ALL)
-
-
-
+    if args.model == 'deit':
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
+    elif args.model == 'g-deit':
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+    elif args.model == 'vit':
+        model = m.make_ViT(args.depth, args.channel,GA=False, heads = args.heads, num_classes=n_classes)
+        args.able_aug = True    
+    elif args.model == 'g-vit':
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+        args.able_aug = True
+    
+    
+    print(Fore.RED  + '*'*20)
+    logger.debug(f'Model: {args.model}\nInitial Learning Rate: {args.lr}\nSeed: {args.seed}\ndepth: {args.depth}\nheads: {args.heads}\nchannel: {args.channel}\nWeigth decay: {weight_decay}')      
+    
     if args.gpu=='multi':  # Using multi-gpu
         model = nn.DataParallel(model)
-        print(Fore.RED + Style.BRIGHT + '\n# Multi Gpus Used!!' + Style.RESET_ALL)
+        print('Multi Gpus Used!!')
     else:
-        print(Fore.RED + Style.BRIGHT + '\n# Using Gpus {}'.format(torch.cuda.get_device_name(GPU_NUM)))
+        print(f'Using Gpus {torch.cuda.get_device_name(GPU_NUM)}')      
+   
+    # data loaders
+    augmentations = []
+    
+    if args.able_aug:
+        print('Auto augmentation used')
+        augmentations += [CIFAR10Policy()]  
+            
+           
+    augmentations += [transforms.RandomHorizontalFlip(),                             
+                        transforms.RandomCrop(32, padding=4),                             
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]
+    train_loader = torch.utils.data.DataLoader(
+        datasets.CIFAR10(args.dataset_dir, train=True, download=True,
+                            transform=transforms.Compose(augmentations)), batch_size=batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(
+        datasets.CIFAR10(args.dataset_dir, train=False, download=True,
+                            transform=transforms.Compose([
+                            transforms.ToTensor(),
+                            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))])), batch_size=batch_size, shuffle=True)
         
-
-
-    model.cuda()
-        
-        
+    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=weight_decay)
+    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
+    
+    if args.label_smoothing:
+        print('Label smoothing used')
+        criterion = LabelSmoothingCrossEntropy()
+    else:
+        criterion = nn.CrossEntropyLoss()
+    print('*'*20 + Style.RESET_ALL)
+    model.cuda(device)      
+    criterion.cuda(device)  
+    
+    epoch_init = 0
     if args.weights:
         checkpoint = torch.load(os.path.join(args.weights, 'best.pt'))
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch_init = checkpoint['epoch']
-        loss = checkpoint['loss']
+        epoch_init = checkpoint['epoch'] + 1
+        train_loss = checkpoint['loss']
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
-
-    summary(model, (3, 32, 32))
-
-
+    summary(model, (3, 32, 32))    
+    best_acc = 0  
+    print()
+    print("Beginning training")
+    print()
+    time_begin = time()
     
-
-    # training loop
-
-    for epoch in tqdm(range(epoch_init, epochs+1)):
-        # Train Mode
-        model.train()
-
-        for batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.cuda(), target.cuda()
-            optimizer.zero_grad()   # backpropagation 계산 전 opimizer 초기화
-            #####################
-            output = model(data)
-            #####################
-            loss = F.cross_entropy(output, target)
-            loss.backward()     # backpropagation 수행
-            optimizer.step()    # weight update
-
-            if batch_idx % log_interval == 0:
-                logger.debug('\nTrain Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), loss.item()))
-            
-
-        # Test Mode
-        # batch norm이나 droput 등을 train mode로 변환
-        model.eval()
-
-        train_loss, train_accuracy = model_eval(train_loader)
-        test_loss, test_accuracy = model_eval(test_loader)
-
-        logger.debug(Fore.BLUE + Style.BRIGHT +
-                     '\ntrain_loss {}\ntrain_accuracy {}\n\ntest_loss {}\ntest_accuracy {}\n'.format(train_loss, train_accuracy, test_loss, test_accuracy))
-
-        if best_train_accuracy < train_accuracy:
-            best_train_accuracy = train_accuracy
-        if best_train_loss > train_loss:
-            best_train_loss = train_loss
-
-        # early stopping
-        early_stop = early_stopping.validate(test_accuracy)
-
-        if not early_stop:
-            if early_stopping.best_value <= test_accuracy:
-                logger.debug(Fore.GREEN + Style.BRIGHT +
-                             '\nbest model updates!!!!!\n')
-                # model.state_dict(): 딕셔너리 형태로 모델의 Layer와 Weight가 저장되어있음.
-                torch.save({
+    for epoch in range(epoch_init, epochs):
+        train_loss, train_acc = model_train(model, train_loader, optimizer, criterion, epoch)
+        eval_loss, eval_acc = model_eval(model, test_loader, criterion, epoch)        
+        logger.debug(f'[Train]\t\t Loss: {train_loss:.6f}\t\t Acc: {train_acc:6.2f}')
+        logger.debug(f'[Eval]\t\t Loss: {eval_loss:.6f}\t\t Acc: {eval_acc:6.2f}')
+        
+        if eval_acc > best_acc:
+            best_acc = eval_acc
+            print(Fore.BLUE  + '*'*80)
+            logger.debug(f'[Best model update] Best accuracy: {best_acc:6.2f}')
+            print('*'*80 + Style.RESET_ALL)
+            torch.save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss,
+                    'loss': train_loss,
                     'scheduler_state_dict': scheduler.state_dict()
-                }, save_path+'/best.pt')
-                # gamma_dict_list_best, lambda_dict_list_best = get_gamma(
-                #     model)
-
-        else:
-            logger.debug(Fore.RED + Style.BRIGHT +
-                         '\nbest test acc: {}\nbest_train_loss: {}\nbest_train_acc: {}'.format(early_stopping.best_value, best_train_loss, best_train_loss))
-            # model.state_dict(): 딕셔너리 형태로 모델의 Layer와 Weight가 저장되어있음.
-            torch.save({
-                'epoch': epoch + 1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
-                'scheduler_state_dict': scheduler.state_dict()
-            }, save_path+'/final.pt')
-            sys.exit()
-
+                }, save_path+'/best.pt')            
+        
         # Learning Rate Schedule
         scheduler.step()
+        
+    total_mins = (time() - time_begin) / 60
+    print(Fore.YELLOW + '*'*20)
+    logger.debug(f'Training is done \t \t Best Eval accuracy: {best_acc:.2f} \t \t # of parameters: {n_parameters} \t \t Training time: {total_mins:.2f} minutes')
+    print('*'*20)
+    
+    
+    torch.save(model.state_dict(), save_path+'/final.pt')
 
-        # Tensorboard monitoring
-        writer.add_scalar('Loss/train/', loss, epoch)
-        writer.add_scalar('Loss/test/', test_loss, epoch)
-        writer.add_scalar('Accuracy/test/', test_accuracy, epoch)
-        writer.add_scalar('Learning Rate/',
-                          optimizer.param_groups[0]['lr'], epoch)
+if __name__ == "__main__":
 
-    logger.debug(Fore.RED + Style.BRIGHT + '\nbest val acc: {}\nbest train acc: {}\nbest train loss: {}\
-        \nmodel: {}-{}-{}\nseed: {}\nweight_decay: {}\nbest gamma: {}\nbest lambda: {}'
-                 .format(early_stopping.best_value, best_train_accuracy, best_train_loss, args.model, args.depth, args.channel,
-                         args.seed, weight_decay, gamma_dict_list_best,
-                         lambda_dict_list_best))
+    if not os.path.isdir(save_path):
+        os.makedirs(save_path, exist_ok=True)      
+        
+    main(args, save_path)
+
