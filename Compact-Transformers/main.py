@@ -18,6 +18,7 @@ from utils.losses import LabelSmoothingCrossEntropy
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 import models.create_model as m
 model_names = ['deit', 'g-deit', 'vit', 'g-vit']
 
@@ -129,14 +130,14 @@ def main(args):
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
         args.disable_aug = True
         
-    print(Back.GREEN + Fore.BLACK )
+    print(Fore.GREEN+'*'*80)
     logger.debug(f"  Creating model: {model_name}  ")
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.debug(f'  Number of params: {n_parameters}  ')
     logger.debug(f'  Initial learning rate: {args.lr:.6f}  ')
-    logger.debug(f"  Start training for {args.epochs} epochs  " + Style.RESET_ALL)
-    print()
+    logger.debug(f"  Start training for {args.epochs} epochs  ")
+    print('*'*80+Style.RESET_ALL)
     
     if args.label_smoothing:
         print(Back.YELLOW + Fore.BLACK)
@@ -154,29 +155,35 @@ def main(args):
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
                                   weight_decay=args.weight_decay)
+    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
 
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
     augmentations = []
     if not args.disable_aug:
-        print(Back.YELLOW + Fore.BLACK)
+        print(Fore.YELLOW+'*'*80)
         print('Autoaugmentation used' + Style.RESET_ALL)
+        print('*'*80 + Style.RESET_ALL)
         from utils.autoaug import CIFAR10Policy
         augmentations += [
             CIFAR10Policy()
         ]
-    augmentations += [
+    augmentations += [        
+        
         transforms.RandomHorizontalFlip(),
+        transforms.RandomCrop(32, padding=4),
         transforms.ToTensor(),
         *normalize,
     ]
 
     augmentations = transforms.Compose(augmentations)
     train_dataset = datasets.CIFAR10(root=args.data_path, train=True, download=True,
-                                     transform=augmentations)
+                                     transform=augmentations, )
 
     val_dataset = datasets.CIFAR10(
         root=args.data_path, train=False, download=False, transform=transforms.Compose([
+            
+            
             transforms.Resize(img_size),
             transforms.ToTensor(),
             *normalize,
@@ -195,22 +202,23 @@ def main(args):
     print("Beginning training")
     time_begin = time()
     for epoch in range(args.epochs):
-        adjust_learning_rate(optimizer, epoch, args)
+        # adjust_learning_rate(optimizer, epoch, args)
         cls_train(train_loader, model, criterion, optimizer, epoch, args)
         acc1 = cls_validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch, time_begin=time_begin)
         if acc1 > best_acc1:
             best_acc1 = acc1
             torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
-            print(Back.BLUE + Fore.BLACK)
-            logger.debug(f'Best model update \t \t {best_acc1:.2f}' + Style.RESET_ALL)
-            print()
+            logger.debug(f'Best model update \t {best_acc1:.2f}')
+            
+        scheduler.step()
+        print('*'*80+Style.RESET_ALL)
 
     total_mins = (time() - time_begin) / 60
-    print(Back.RED + Fore.BLACK)
+    print(Fore.RED+'*'*80)
     logger.debug(f'Script finished in {total_mins:.2f} minutes, '
           f'best top-1: {best_acc1:.2f}, '
           f'final top-1: {acc1:.2f}' + Style.RESET_ALL)
-    print()
+    print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
 def get_lr(optimizer):
@@ -227,6 +235,9 @@ def adjust_learning_rate(optimizer, epoch, args):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
 
 def accuracy(output, target):
     with torch.no_grad():
@@ -269,7 +280,7 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-            logger.debug(f'[Epoch {epoch+1}][Train][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f}')
+            logger.debug(f'[Epoch {epoch+1}][Train][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f} \t LR {get_lr(optimizer):.6f}')
 
 
 def cls_validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=None):
@@ -296,9 +307,9 @@ def cls_validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=
 
     avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
     total_mins = -1 if time_begin is None else (time() - time_begin) / 60
-    print(Back.BLUE + Fore.BLACK)
-    logger.debug(f'[Epoch {epoch+1}] \t \t Top-1 {avg_acc1:6.2f} \t \t lr {lr} \t \t Time: {total_mins:.2f}' + Style.RESET_ALL)
-    print()
+    print(Fore.BLUE+'*'*80)
+    logger.debug(f'[Epoch {epoch+1}] \t Top-1 {avg_acc1:6.2f} \t lr {lr} \t Time: {total_mins:.2f}')
+    
 
     return avg_acc1
 
