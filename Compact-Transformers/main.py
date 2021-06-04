@@ -14,7 +14,6 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from colorama import init, Fore, Back, Style
 from torchsummary import summary
-from src import cct as cct_models
 from utils.losses import LabelSmoothingCrossEntropy
 import os
 import sys
