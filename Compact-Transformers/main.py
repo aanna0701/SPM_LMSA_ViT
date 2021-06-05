@@ -120,17 +120,18 @@ def main(args):
     '''    
     if args.model == 'deit':
         model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
+        enable_Autoaug = True
 
     elif args.model == 'g-deit':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+        enable_Autoaug = True
 
     elif args.model == 'vit':
         model = m.make_ViT(args.depth, args.channel,GA=False, heads = args.heads, num_classes=n_classes)
-        args.disable_aug = True
+        
     
     elif args.model == 'g-vit':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
-        args.disable_aug = True
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"  Creating model: {model_name}  ")    
@@ -176,7 +177,7 @@ def main(args):
         Data Augmentation
     '''
     augmentations = []
-    if args.enable_aug:
+    if enable_Autoaug:
         print(Fore.YELLOW+'*'*80)
         print('Autoaugmentation used')
         print('*'*80 + Style.RESET_ALL)
