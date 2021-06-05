@@ -196,7 +196,7 @@ def main(args):
     augmentations += [                
         transforms.RandomHorizontalFlip(),
         transforms.RandomCrop(32, padding=4),
-        transforms.ToTensor(dtype=torch.long),
+        transforms.ToTensor(),
         *normalize,
     ]
     augmentations = transforms.Compose(augmentations)
@@ -224,7 +224,7 @@ def main(args):
     val_dataset = datasets.CIFAR10(
         root=args.data_path, train=False, download=False, transform=transforms.Compose([
         transforms.Resize(img_size),
-        transforms.ToTensor(dtype=torch.long),
+        transforms.ToTensor(),
         *normalize]))
 
     train_loader = torch.utils.data.DataLoader(
