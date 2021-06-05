@@ -31,7 +31,7 @@ def init_parser():
 
     # Data args
     parser.add_argument('--data_path', default='/dataset', type=str, help='dataset path')
-
+   
     parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET'], type=str, help='Image Net dataset path')
 
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
@@ -135,6 +135,13 @@ def main(args):
     
     elif args.model == 'g-vit':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+
+    elif args.model == 'pit':
+        model = m.P_ViT_conv(args.depth, GA=False, num_classes=n_classes)
+        
+    
+    elif args.model == 'g-pit':
+        model = m.P_ViT_conv(args.depth, GA=True, num_classes=n_classes)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"  Creating model: {model_name}  ")    
@@ -173,7 +180,7 @@ def main(args):
     '''
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
-                                weight_decay=args.weight_decay)
+                                  weight_decay=args.weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=args.warmup)
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
@@ -181,7 +188,14 @@ def main(args):
         Data Augmentation
     '''
     augmentations = []
-    if enable_Autoaug:
+    if args.enable_rand_aug:
+        print(Fore.YELLOW+'*'*80)
+        print('Randaugmentation used')
+        print('*'*80 + Style.RESET_ALL)
+        augmentations += [
+            rand_augment_transform(config_str=args.rand_aug, hparams={'img_mean': img_mean})]
+    
+    else:
         print(Fore.YELLOW+'*'*80)
         print('Autoaugmentation used')
         print('*'*80 + Style.RESET_ALL)
@@ -189,18 +203,14 @@ def main(args):
         augmentations += [
             CIFAR10Policy()
         ]
-    elif args.enable_rand_aug:
-        print(Fore.YELLOW+'*'*80)
-        print('Randaugmentation used')
-        print('*'*80 + Style.RESET_ALL)
-        augmentations += [
-            rand_augment_transform(config_str=args.rand_aug, hparams={'img_mean': img_mean})]
+    
     augmentations += [                
         transforms.RandomHorizontalFlip(),
         transforms.RandomCrop(32, padding=4),
         transforms.ToTensor(),
-        *normalize,
-    ]
+        *normalize]
+    
+    
     augmentations = transforms.Compose(augmentations)
     '''
         Mixup
