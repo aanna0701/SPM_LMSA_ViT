@@ -101,7 +101,7 @@ def build_transform(is_train, args):
             )
             
             t.append(transforms.RandomHorizontalFlip())
-            # t.append(transforms.RandomCrop(32, padding=4))
+            t.append(transforms.RandomCrop(32, padding=4))
         else:
                 transform = create_transform(
                 input_size=args.input_size,
@@ -132,3 +132,7 @@ def build_transform(is_train, args):
     elif args.data_set == 'IMNET':
         t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
     return transforms.Compose(t)
+
+
+
+
