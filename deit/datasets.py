@@ -86,13 +86,16 @@ def build_transform(is_train, args):
     t = []
     if is_train:
         # this should always dispatch to transforms_imagenet_train
-        t.append(transforms.RandomHorizontalFlip())
+        
         if args.data_set != 'IMNET':
-            t.append(CIFAR10Policy())
+            
             transform = create_transform(
                 input_size=args.input_size,
                 is_training=True,
             )
+            t.append(CIFAR10Policy())
+            t.append(transforms.RandomHorizontalFlip())
+            t.append(transforms.RandomCrop(32, padding=4))
         else:
                 transform = create_transform(
                 input_size=args.input_size,

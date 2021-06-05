@@ -31,7 +31,7 @@ def init_parser():
 
     # Data args
     parser.add_argument('--data_path', default='/dataset', type=str, help='dataset path')
-   
+
     parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET'], type=str, help='Image Net dataset path')
 
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
@@ -152,10 +152,7 @@ def main(args):
         print(Fore.YELLOW + '*'*80)
         print('label smoothing used')
         print('*'*80+Style.RESET_ALL)
-        if args.enable_mix:
-            criterion = SoftTargetCrossEntropy()
-        else:
-            criterion = LabelSmoothingCrossEntropy()
+        criterion = LabelSmoothingCrossEntropy()
     
     else:
         criterion = nn.CrossEntropyLoss()
@@ -176,7 +173,7 @@ def main(args):
     '''
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
-                                  weight_decay=args.weight_decay)
+                                weight_decay=args.weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=args.warmup)
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
