@@ -92,8 +92,9 @@ def build_transform(is_train, args):
             transform = create_transform(
                 input_size=args.input_size,
                 is_training=True,
+                auto_augment=args.aa,
             )
-            t.append(CIFAR10Policy())
+            
             t.append(transforms.RandomHorizontalFlip())
             t.append(transforms.RandomCrop(32, padding=4))
         else:

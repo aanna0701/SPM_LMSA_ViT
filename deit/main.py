@@ -259,6 +259,7 @@ def main(args, model_name):
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
     if mixup_active:
+        print("MIXUP!!!!!!!!!!!!")
         mixup_fn = Mixup(
             mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
             prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
@@ -279,10 +280,10 @@ def main(args, model_name):
     elif args.data_set == 'IMNET':
         n_classes = 1000
 
-    if args.model == 'DeiT':
+    if args.model == 'deit':
         model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
 
-    elif args.model == 'G-DeiT':
+    elif args.model == 'g-deit':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
     
     '''
@@ -332,8 +333,8 @@ def main(args, model_name):
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
 
-    lr_scheduler, _ = create_scheduler(args, optimizer)
-    # lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=1e-6, warmup_steps=5)
+    # lr_scheduler, _ = create_scheduler(args, optimizer)
+    lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=5)
 
     criterion = LabelSmoothingCrossEntropy()
 
