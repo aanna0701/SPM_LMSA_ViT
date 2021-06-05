@@ -49,7 +49,7 @@ def init_parser():
     
     parser.add_argument('--weight-decay', default=3e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['deit', 'g-deit', 'vit', 'g-vit'])
+    parser.add_argument('--model', type=str, default='deit', choices=['deit', 'g-deit', 'vit', 'g-vit', 'pit', 'g-pit'])
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
