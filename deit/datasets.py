@@ -92,7 +92,6 @@ def build_transform(is_train, args):
             transform = create_transform(
                 input_size=args.input_size,
                 is_training=True,
-                auto_augment=args.aa,
             )
             
             t.append(transforms.RandomHorizontalFlip())
