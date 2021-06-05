@@ -162,7 +162,7 @@ def main(args):
         model.cuda(args.gpu)
         criterion = criterion.cuda(args.gpu)
         
-    summary(model, (3, 32, 32))
+    
     
     '''
         Trainer
@@ -231,6 +231,9 @@ def main(args):
     '''
         Training
     '''
+    
+    summary(model, (3, 32, 32))
+    
     print()
     print("Beginning training")
     print()
