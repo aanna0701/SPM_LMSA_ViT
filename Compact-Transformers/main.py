@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from colorama import init, Fore, Back, Style
 from torchsummary import summary
-from utils.losses import LabelSmoothingCrossEntropy
+from timm.loss import LabelSmoothingCrossEntropy
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import os
 import sys
@@ -260,8 +260,8 @@ def main(args):
     total_mins = (time() - time_begin) / 60
     print(Fore.RED+'*'*80)
     logger.debug(f'Script finished in {total_mins:.2f} minutes, '
-          f'best top-1: {best_acc1:.2f}, '
-          f'final top-1: {acc1:.2f}')
+                f'best top-1: {best_acc1:.2f}, '
+                f'final top-1: {acc1:.2f}')
     print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
@@ -298,8 +298,10 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn=N
             images, target = mixup_fn(images, target)
         
         output = model(images)
-
-        loss = criterion(output, target)
+        if mixup_fn:
+            loss = criterion(images, output, target)
+        else:
+            loss = criterion(output, target)
 
         acc1 = accuracy(output, target)
         n += images.size(0)
