@@ -494,7 +494,7 @@ def main(args, model_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DeiT training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
-    assert args.model in ['DeiT', 'G-DeiT'], 'Unexpected model!'
+    assert args.model in ['deit', 'g-deit'], 'Unexpected model!'
     model_name = args.model + "-{}-{}-{}-{}-{}-Seed{}".format(args.depth, args.heads, args.channel, args.data_set, args.tag, args.seed)
     if args.output_dir:
         Path(os.path.join(os.getcwd(), args.output_dir, model_name)).mkdir(parents=True, exist_ok=True)
