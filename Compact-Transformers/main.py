@@ -304,10 +304,7 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn=N
         
         output = model(images)
 
-        if mixup_fn:
-            loss = criterion(images, output, target)
-        else:
-            loss = criterion(output, target)
+        loss = criterion(output, target)
 
         acc1 = accuracy(output, target)
         n += images.size(0)
