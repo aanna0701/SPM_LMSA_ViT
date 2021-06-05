@@ -1,5 +1,7 @@
 # Copyright (c) 2015-present, Facebook, Inc.
 # All rights reserved.
+# reference code: https://github.com/facebookresearch/deit
+
 import argparse
 import datetime
 import numpy as np
@@ -9,7 +11,6 @@ import torch.backends.cudnn as cudnn
 import json
 
 from pathlib import Path
-
 from timm.data import Mixup
 from timm.models import create_model
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
@@ -17,31 +18,35 @@ from timm.scheduler import create_scheduler
 from timm.optim import create_optimizer
 from timm.utils import NativeScaler, get_state_dict, ModelEma
 
+from torchsummary import summary
 from datasets import build_dataset
 from engine import train_one_epoch, evaluate
 from losses import DistillationLoss
 from samplers import RASampler
-
 import utils
+from colorama import init, Fore, Back, Style
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-import models.create_model as m
+sys.path.insert(0, './models')
+from models import create_model as m
+from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
+
+init(autoreset=True)
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
-    parser.add_argument('--batch-size', default=64, type=int)
+    parser.add_argument('--batch-size', default=1024, type=int)
     parser.add_argument('--epochs', default=300, type=int)
+    parser.add_argument('--tag', type=str)
 
     # Model parameters
     parser.add_argument('--model', default='deit_base_patch16_224', type=str, metavar='MODEL',
                         help='Name of model to train')
-    parser.add_argument('--input-size', default=224, type=int, help='images input size')
-
-    parser.add_argument('--drop', type=float, default=0.0, metavar='PCT',
-                        help='Dropout rate (default: 0.)')
-    parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
-                        help='Drop path rate (default: 0.1)')
+    parser.add_argument('--depth', help='depth', type=int, required=True)
+    parser.add_argument('--channel', help='channel', type=int, required=True)
+    parser.add_argument('--heads', help='heads', type=int, required=True)
+    parser.add_argument('--input_size', help='input size', type=int, default=224)
 
     parser.add_argument('--model-ema', action='store_true')
     parser.add_argument('--no-model-ema', action='store_false', dest='model_ema')
@@ -60,7 +65,7 @@ def get_args_parser():
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
-    parser.add_argument('--weight-decay', type=float, default=0.05,
+    parser.add_argument('--weight_decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
@@ -80,7 +85,7 @@ def get_args_parser():
 
     parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
                         help='epoch interval to decay LR')
-    parser.add_argument('--warmup-epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--warmup_epochs', type=int, default=5, metavar='N',
                         help='epochs to warmup LR, if scheduler supports')
     parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
                         help='epochs to cooldown LR at min_lr, after cyclic schedule ends')
@@ -139,15 +144,15 @@ def get_args_parser():
     parser.add_argument('--finetune', default='', help='finetune from checkpoint')
 
     # Dataset parameters
-    parser.add_argument('--data-path', default='/datasets01/imagenet_full_size/061417/', type=str,
+    parser.add_argument('--data_path', default='/dataset/IMNET', type=str,
                         help='dataset path')
-    parser.add_argument('--data_set', default='IMNET', choices=['CIFAR10', 'IMNET', 'INAT', 'INAT19'],
+    parser.add_argument('--data_set', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET', 'INAT', 'INAT19'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--inat-category', default='name',
                         choices=['kingdom', 'phylum', 'class', 'order', 'supercategory', 'family', 'genus', 'name'],
                         type=str, help='semantic granularity')
 
-    parser.add_argument('--output_dir', default='',
+    parser.add_argument('--output_dir', default='save',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -157,7 +162,8 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--dist-eval', action='store_true', default=False, help='Enabling distributed evaluation')
-    parser.add_argument('--num_workers', default=10, type=int)
+    parser.add_argument('--num_workers', default=4, type=int)
+    parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--pin-mem', action='store_true',
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no-pin-mem', action='store_false', dest='pin_mem',
@@ -170,8 +176,19 @@ def get_args_parser():
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     return parser
 
+import math
 
-def main(args):
+# def adjust_learning_rate(optimizer, epoch, args):
+#     lr = args.lr
+#     if epoch < args.warmup_epochs:
+#         lr = lr / (args.warmup_epochs - epoch)
+#     lr *= 0.5 * (1. + math.cos(math.pi * (epoch - args.warmup_epochs) / (args.epochs - args.warmup_epochs)))
+
+#     for param_group in optimizer.param_groups:
+#         param_group['lr'] = lr
+
+
+def main(args, model_name):
     utils.init_distributed_mode(args)
 
     print(args)
@@ -179,7 +196,9 @@ def main(args):
     if args.distillation_type != 'none' and args.finetune and not args.eval:
         raise NotImplementedError("Finetuning with distillation not yet supported")
 
-    device = torch.device(args.device)
+    GPU_NUM = int(args.gpu) # 원하는 GPU 번호 입력
+    device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu')
+    torch.cuda.set_device(device) # change allocation of current GPU
 
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
@@ -189,6 +208,9 @@ def main(args):
 
     cudnn.benchmark = True
 
+    '''
+        Build dataset
+    '''
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
     dataset_val, _ = build_dataset(is_train=False, args=args)
 
@@ -231,22 +253,42 @@ def main(args):
         pin_memory=args.pin_mem,
         drop_last=False
     )
-
+    '''
+        mixup
+    '''
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
     if mixup_active:
+        print("MIXUP!!!!!!!!!!!!")
         mixup_fn = Mixup(
             mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
             prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
-    print(f"Creating model: {args.model}")
     '''
         Create model (custom model)
     '''
        
+    
+    print()
+    print(Back.GREEN + Fore.BLACK + "  Creating model: {}  ".format(model_name)+ Style.RESET_ALL)
+    
+    if args.data_set == 'CIFAR10':
+        n_classes = 10
+    elif args.data_set == 'CIFAR100':
+        n_classes = 100
+    elif args.data_set == 'IMNET':
+        n_classes = 1000
 
-    model = m.make_ViT(6, 96, heads = 6, num_classes=10)
+    if args.model == 'DeiT':
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
+
+    elif args.model == 'G-DeiT':
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+    
+    '''
+        Finetuning settings
+    '''
 
     if args.finetune:
         if args.finetune.startswith('https'):
@@ -261,31 +303,11 @@ def main(args):
             if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
                 print(f"Removing key {k} from pretrained checkpoint")
                 del checkpoint_model[k]
-
-        # interpolate position embedding
-        pos_embed_checkpoint = checkpoint_model['pos_embed']
-        embedding_size = pos_embed_checkpoint.shape[-1]
-        num_patches = model.patch_embed.num_patches
-        num_extra_tokens = model.pos_embed.shape[-2] - num_patches
-        # height (== width) for the checkpoint position embedding
-        orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
-        # height (== width) for the new position embedding
-        new_size = int(num_patches ** 0.5)
-        # class_token and dist_token are kept unchanged
-        extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
-        # only the position tokens are interpolated
-        pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
-        pos_tokens = pos_tokens.reshape(-1, orig_size, orig_size, embedding_size).permute(0, 3, 1, 2)
-        pos_tokens = torch.nn.functional.interpolate(
-            pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
-        pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
-        new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
-        checkpoint_model['pos_embed'] = new_pos_embed
-
+        
         model.load_state_dict(checkpoint_model, strict=False)
 
     model.to(device)
-
+    
     model_ema = None
     if args.model_ema:
         # Important to create EMA model after cuda(), DP wrapper, and AMP but before SyncBN and DDP wrapper
@@ -300,14 +322,19 @@ def main(args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print('number of params:', n_parameters)
+    print(Back.GREEN + Fore.BLACK + '  number of params: {}  '.format(n_parameters))
+
+    '''
+        Loss function
+    '''
 
     linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
     args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
 
-    lr_scheduler, _ = create_scheduler(args, optimizer)
+    # lr_scheduler, _ = create_scheduler(args, optimizer)
+    lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=5)
 
     criterion = LabelSmoothingCrossEntropy()
 
@@ -316,8 +343,14 @@ def main(args):
         criterion = SoftTargetCrossEntropy()
     elif args.smoothing:
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
+        
     else:
         criterion = torch.nn.CrossEntropyLoss()
+        
+
+    '''
+        Distillation
+    '''
 
     teacher_model = None
     if args.distillation_type != 'none':
@@ -343,8 +376,18 @@ def main(args):
     criterion = DistillationLoss(
         criterion, teacher_model, args.distillation_type, args.distillation_alpha, args.distillation_tau
     )
-
-    output_dir = Path(args.output_dir)
+    
+    '''
+        Output settings
+    '''
+    
+    output_dir = Path(os.path.join(os.getcwd(), args.output_dir, model_name))
+    
+    
+    '''
+        Resume settings
+    '''
+    
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
@@ -354,55 +397,90 @@ def main(args):
         model_without_ddp.load_state_dict(checkpoint['model'])
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
             if args.model_ema:
                 utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
 
+
+    '''
+        Evaluation mode
+    '''
+    
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        print(Back.RED + Fore.BLACK + f"  Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%  ")
         return
+    
+    '''
+        Training mode
+    '''
 
-    print(f"Start training for {args.epochs} epochs")
+    print(Back.GREEN + Fore.BLACK + f"  Start training for {args.epochs} epochs  ")
+    print()
+    
+    if args.data_set == 'IMNET':
+        summary(model, (3, 224, 224))
+    else:
+        summary(model, (3, 32, 32))
+    
     start_time = time.time()
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
 
+        # adjust_learning_rate(optimizer, epoch, args)
+        
         train_stats = train_one_epoch(
             model, criterion, data_loader_train,
             optimizer, device, epoch, loss_scaler,
             args.clip_grad, model_ema, mixup_fn,
             set_training_mode=args.finetune == ''  # keep in eval mode during finetuning
         )
-
         lr_scheduler.step(epoch)
-        if args.output_dir:
-            checkpoint_paths = [output_dir / 'checkpoint.pth']
+        
+            
+        test_stats = evaluate(data_loader_val, model, device)
+
+        print(Back.CYAN + Fore.BLACK + f"  Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.2f}%  ")
+        
+        if max_accuracy < test_stats["acc1"]:
+            print(Back.CYAN + "  Best model update  ")
+            max_accuracy = test_stats["acc1"]
+            checkpoint_paths = [output_dir / 'best_checkpoint.pth']
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'model_ema': get_state_dict(model_ema),
                     'scaler': loss_scaler.state_dict(),
                     'args': args,
                 }, checkpoint_path)
-
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
-        max_accuracy = max(max_accuracy, test_stats["acc1"])
-        print(f'Max accuracy: {max_accuracy:.2f}%')
+        else:
+            checkpoint_paths = [output_dir / 'checkpoint.pth']
+            for checkpoint_path in checkpoint_paths:
+                utils.save_on_master({
+                    'model': model_without_ddp.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'epoch': epoch,
+                    'model_ema': get_state_dict(model_ema),
+                    'scaler': loss_scaler.state_dict(),
+                    'args': args,
+                }, checkpoint_path)
+        
+    
+        
+        print(Back.CYAN + Fore.BLACK + f'  Max accuracy: {max_accuracy:.2f}%  ')
+        print()
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      **{f'test_{k}': v for k, v in test_stats.items()},
                      'epoch': epoch,
-                     'n_parameters': n_parameters}
+                     'n_parameters': n_parameters,
+                     'max test accuracy': max_accuracy}
 
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
@@ -416,6 +494,9 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DeiT training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
+    assert args.model in ['DeiT', 'G-DeiT'], 'Unexpected model!'
+    model_name = args.model + "-{}-{}-{}-{}-{}-Seed{}".format(args.depth, args.heads, args.channel, args.data_set, args.tag, args.seed)
     if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)
+        Path(os.path.join(os.getcwd(), args.output_dir, model_name)).mkdir(parents=True, exist_ok=True)
+    main(args, model_name)
+
