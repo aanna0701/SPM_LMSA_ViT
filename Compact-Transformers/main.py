@@ -15,7 +15,8 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from colorama import init, Fore, Back, Style
 from torchsummary import summary
-from timm.loss import LabelSmoothingCrossEntropy
+from timm.loss import SoftTargetCrossEntropy
+from utils.losses import LabelSmoothingCrossEntropy
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import os
 import sys
@@ -151,7 +152,11 @@ def main(args):
         print(Fore.YELLOW + '*'*80)
         print('label smoothing used')
         print('*'*80+Style.RESET_ALL)
-        criterion = LabelSmoothingCrossEntropy()
+        if args.enable_mix:
+            criterion = SoftTargetCrossEntropy()
+        else:
+            criterion = LabelSmoothingCrossEntropy()
+    
     else:
         criterion = nn.CrossEntropyLoss()
         
@@ -298,7 +303,7 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn=N
             images, target = mixup_fn(images, target)
         
         output = model(images)
-        print(output)
+
         if mixup_fn:
             loss = criterion(images, output, target)
         else:
