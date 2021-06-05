@@ -296,9 +296,9 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn=N
         
         if mixup_fn:
             images, target = mixup_fn(images, target)
-            print(len(mixup_fn(images, target)))
         
         output = model(images)
+        print(output)
         if mixup_fn:
             loss = criterion(images, output, target)
         else:
