@@ -15,6 +15,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from colorama import init, Fore, Back, Style
 from torchsummary import summary
+from timm.data import create_transform
 from timm.loss import SoftTargetCrossEntropy
 from utils.losses import LabelSmoothingCrossEntropy
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -25,6 +26,7 @@ from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 import models.create_model as m
 
 best_acc1 = 0
+input_size = 32
 
 def init_parser():
     parser = argparse.ArgumentParser(description='CIFAR10 quick training script')
@@ -71,26 +73,51 @@ def init_parser():
 
     parser.add_argument('--seed', type=int, help='seed')
     
-    # Mixup params
-    parser.add_argument('--mixup', type=float, default=0.8, help='mixup alpha, mixup enabled if > 0. (default: 0.8)')
-    
-    parser.add_argument('--cutmix', type=float, default=1.0, help='cutmix alpha, cutmix enabled if > 0. (default: 1.0)')
-    
-    parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None, help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
-    
-    parser.add_argument('--mixup-prob', type=float, default=1.0, help='Probability of performing mixup or cutmix when either/both is enabled')
-    
-    parser.add_argument('--mixup-switch-prob', type=float, default=0.5, help='Probability of switching to cutmix when both mixup and cutmix enabled')
-    
-    parser.add_argument('--mixup-mode', type=str, default='batch', help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+    # Augmentation parameters
+    parser.add_argument('--color-jitter', type=float, default=0.4, metavar='PCT',
+                        help='Color jitter factor (default: 0.4)')
+    parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
+                        help='Use AutoAugment policy. "v0" or "original". " + \
+                             "(default: rand-m9-mstd0.5-inc1)'),
+    parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
+    parser.add_argument('--train-interpolation', type=str, default='bicubic',
+                        help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
 
-    parser.add_argument('--enable_mix', action='store_true', help='Enabling mixup')
+    parser.add_argument('--repeated-aug', action='store_true')
+    parser.add_argument('--no-repeated-aug', action='store_false', dest='repeated_aug')
+    parser.set_defaults(repeated_aug=True)
+
+    # * Random Erase params
+    parser.add_argument('--reprob', type=float, default=0.25, metavar='PCT',
+                        help='Random erase prob (default: 0.25)')
+    parser.add_argument('--remode', type=str, default='pixel',
+                        help='Random erase mode (default: "pixel")')
+    parser.add_argument('--recount', type=int, default=1,
+                        help='Random erase count (default: 1)')
+    parser.add_argument('--resplit', action='store_true', default=False,
+                        help='Do not random erase first (clean) augmentation split')
+
+    # * Mixup params
+    parser.add_argument('--mixup', type=float, default=0.8,
+                        help='mixup alpha, mixup enabled if > 0. (default: 0.8)')
+    parser.add_argument('--cutmix', type=float, default=1.0,
+                        help='cutmix alpha, cutmix enabled if > 0. (default: 1.0)')
+    parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None,
+                        help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
+    parser.add_argument('--mixup-prob', type=float, default=1.0,
+                        help='Probability of performing mixup or cutmix when either/both is enabled')
+    parser.add_argument('--mixup-switch-prob', type=float, default=0.5,
+                        help='Probability of switching to cutmix when both mixup and cutmix enabled')
+    parser.add_argument('--mixup-mode', type=str, default='batch',
+                        help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
 
     # Autoaugmentation
     parser.add_argument('--rand_aug', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
                         help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)')
     
     parser.add_argument('--enable_rand_aug', action='store_true', help='Enabling randaugment')
+    
+    parser.add_argument('--enable_deit', action='store_true', help='Enabling randaugment')
 
     return parser
 
@@ -188,14 +215,23 @@ def main(args):
         Data Augmentation
     '''
     augmentations = []
-    if args.enable_rand_aug:
+    if args.enable_deit:
         print(Fore.YELLOW+'*'*80)
-        print('Randaugmentation used')
+        print('DeiT!!!')
         print('*'*80 + Style.RESET_ALL)
         augmentations += [
-            rand_augment_transform(config_str=args.rand_aug, hparams={'img_mean': img_mean})]
+            create_transform(
+                input_size=input_size,
+                is_training=True,
+                color_jitter=args.color_jitter,
+                auto_augment=args.aa,
+                interpolation=args.train_interpolation,
+                re_prob=args.reprob,
+                re_mode=args.remode,
+                re_count=args.recount,
+            )]
     
-    else:
+    elif enable_Autoaug:
         print(Fore.YELLOW+'*'*80)
         print('Autoaugmentation used')
         print('*'*80 + Style.RESET_ALL)
@@ -203,12 +239,12 @@ def main(args):
         augmentations += [
             CIFAR10Policy()
         ]
-    
-    augmentations += [                
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(32, padding=4),
-        transforms.ToTensor(),
-        *normalize]
+        
+        augmentations += [                
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(32, padding=4),
+            transforms.ToTensor(),
+            *normalize]
     
     
     augmentations = transforms.Compose(augmentations)
@@ -216,14 +252,14 @@ def main(args):
         Mixup
     '''
     mixup_fn = None
-    if args.enable_mix:
-        print(Fore.YELLOW+'*'*80)
-        print('Mixup used')
-        print('*'*80 + Style.RESET_ALL)
-        mixup_fn = Mixup(
-            mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
-            prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
-            label_smoothing=0.1, num_classes=n_classes)
+    # if args.enable_mix:
+    #     print(Fore.YELLOW+'*'*80)
+    #     print('Mixup used')
+    #     print('*'*80 + Style.RESET_ALL)
+    #     mixup_fn = Mixup(
+    #         mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
+    #         prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
+    #         label_smoothing=0.1, num_classes=n_classes)
         
         
         
