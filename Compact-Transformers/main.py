@@ -76,7 +76,7 @@ def init_parser():
     # Augmentation parameters
     parser.add_argument('--color-jitter', type=float, default=0.4, metavar='PCT',
                         help='Color jitter factor (default: 0.4)')
-    parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
+    parser.add_argument('--aa', type=str, default='rand-n1-m2', metavar='NAME',
                         help='Use AutoAugment policy. "v0" or "original". " + \
                              "(default: rand-m9-mstd0.5-inc1)'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
@@ -215,36 +215,34 @@ def main(args):
         Data Augmentation
     '''
     augmentations = []
-    if args.enable_deit:
-        print(Fore.YELLOW+'*'*80)
-        print('DeiT!!!')
-        print('*'*80 + Style.RESET_ALL)
-        augmentations += [
-            create_transform(
-                input_size=input_size,
-                is_training=True,
-                color_jitter=args.color_jitter,
-                auto_augment=args.aa,
-                interpolation=args.train_interpolation,
-                re_prob=args.reprob,
-                re_mode=args.remode,
-                re_count=args.recount,
-            )]
+    # if args.enable_deit:
+    #     print(Fore.YELLOW+'*'*80)
+    #     print('DeiT!!!')
+    #     print('*'*80 + Style.RESET_ALL)
+    #     augmentations += [
+    #         create_transform(
+    #             input_size=input_size,
+    #             is_training=True,
+    #             re_prob=args.reprob,
+    #             re_mode=args.remode,
+    #             re_count=args.recount,
+    #         )]
     
-    elif enable_Autoaug:
-        print(Fore.YELLOW+'*'*80)
-        print('Autoaugmentation used')
-        print('*'*80 + Style.RESET_ALL)
-        from utils.autoaug import CIFAR10Policy
-        augmentations += [
-            CIFAR10Policy()
-        ]
+
+    print(Fore.YELLOW+'*'*80)
+    print('Autoaugmentation used')
+    print('*'*80 + Style.RESET_ALL)
+    from utils.autoaug import CIFAR10Policy
+    augmentations += [
+        transforms.ColorJitter(),
+        CIFAR10Policy()
+    ]
         
-        augmentations += [                
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop(32, padding=4),
-            transforms.ToTensor(),
-            *normalize]
+    augmentations += [                
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomCrop(32, padding=4),
+        transforms.ToTensor(),
+        *normalize]
     
     
     augmentations = transforms.Compose(augmentations)
