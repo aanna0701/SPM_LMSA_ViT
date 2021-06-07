@@ -40,9 +40,9 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument('--model', type=str, metavar='MODEL', choices=['vit', 'g-vit', 'g-pit'], help='Name of model to train')
-    parser.add_argument('--depth', help='depth', type=int, required=True)
-    parser.add_argument('--channel', help='channel', type=int, required=True)
-    parser.add_argument('--heads', help='heads', type=int, required=True)
+    parser.add_argument('--depth', help='depth', type=int)
+    parser.add_argument('--channel', help='channel', type=int)
+    parser.add_argument('--heads', help='heads', type=int)
     parser.add_argument('--input_size', help='input size', type=int, default=224)
 
     parser.add_argument('--model-ema', action='store_true')

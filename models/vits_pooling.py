@@ -90,7 +90,7 @@ class Patch_Embedding(nn.Module):
     def __init__(self, patch_size, in_channels, inter_channels):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
-                                         kernel_size=patch_size, stride=patch_size, bias=False)
+                                         kernel_size=patch_size, stride=patch_size, padding=0, bias=False)
         self._init_weights(self.patch_embedding)
         self.inter_channels = inter_channels
 
@@ -186,139 +186,6 @@ class MLP_GA(nn.Module):
         #     x_out = self.dropout(x_out)
 
         return x_out
-
-
-class Pooling_block(nn.Module):
-    '''
-    Class-token Embedding
-    '''
-    def __init__(self, in_size, in_channels, pooling_patch_size=4):
-        super(Pooling_block, self).__init__()
-        # self.mlp = MLP_GA(in_channels, in_channels, 4)
-        self.avgpool = nn.AvgPool1d(in_size[0]-2)
-        # self.maxpool = nn.MaxPool1d(in_size[0]-2)
-        self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
-        # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
-        # self.softmax = nn.Softmax()
-        # self.sigmoid = nn.Sigmoid()
-        # self.tanh = nn.Tanh()
-        self.softmax_score = nn.Softmax(dim=2)
-        self.ebed_cls = nn.Linear(in_channels, in_channels, bias=False)       
-        self._init_weights(self.ebed_cls)
-        self.ebed_nodes = nn.Linear(in_channels, in_channels, bias=False)       
-        self._init_weights(self.ebed_nodes)
-        self.cls = nn.Linear(in_channels, in_channels * 2, bias=False)
-        self._init_weights(self.cls)
-        self.channel = nn.Linear(in_channels, in_channels * 2, bias=False)
-        self._init_weights(self.channel)
-        
-        self.layernorm = nn.LayerNorm([in_size[0]-1, in_size[1]])
-        self.score = nn.Softmax2d()
-        
-        self.in_channels = in_channels
-        self.HW = in_size[0]-2
-        self.pp = int(math.sqrt(pooling_patch_size))
-        
-        self.weights = nn.Parameter(torch.ones(1, self.in_channels, 9, (in_size[0]-2)//4))
-        
-        
-    def _init_weights(self,layer):
-        nn.init.kaiming_normal_(layer.weight)
-        if layer.bias:
-            nn.init.normal_(layer.bias, std=1e-6)
-        
-    def forward(self, x, edge):
-        '''
-            [shape]
-            x : (B, HW+1, C)
-            edge_aggregation : (B, 1, C)
-            node_aggregation : (B, 1, C)
-            channel_importance : (B, 1, C)
-            nodes : (B, HW, C)
-            channel_aggregation : (B, HW, 1)  
-            node_importance : (B, HW, 1)
-        '''
-        pp = self.pp
-        B, _, _ = x.shape
-        weights_fixed = self.weights
-        weights_fixed = weights_fixed.expand(B, self.in_channels, 9, self.HW//4)    # (B, C, hw, HW/4)
-        
-        
-        nodes = x[:, 1:]    # (B, HW, C)
-        cls = x[:, (0, )]   # (B, 1, C)
-        
-        cls_embed = self.ebed_cls(cls)  # (B, 1, C)
-        nodes_embed = self.ebed_nodes(nodes)
-        
-        score_nodes = torch.matmul(nodes_embed, cls_embed.permute(0, 2, 1))   # (B, HW, 1)
-        
-        scores_norm = score_nodes.expand(B, nodes.size(1), self.in_channels) # (B, HW, C)
-        
-        
-        concat_horizontal = torch.cat([nodes, scores_norm], dim=2)  # (B, HW, 2C)
-        concat_2d = concat_horizontal.permute(0, 2, 1).view(B, self.in_channels*2, int(math.sqrt(self.HW)), -1)     # (B, 2C, H, W)
-        concat_pad = F.pad(concat_2d, (0, 1, 0, 1)) # (B, 2C, H+1, W+1)
-        
-
-        # scores_2d = self.sigmoid(scores_2d)
-        
-        loop = int(math.sqrt(x.size(1))) // pp
-
-        sliced = []
-        h = pp+1
-        w = pp+1
-        for i in range(loop):
-            
-            for j in range(loop):
-                
-                
-                score_sliced = concat_pad[:, self.in_channels:][:, :, pp*i:pp*i+h, pp*j:pp*j+w]    # (B, C, h, w)
-                # score_softmax = self.softmax_score(score_sliced.flatten(start_dim=2)).view(B, self.in_channels, h, w)   # (B, C, h, w)
-                
-                nodes_sliced = concat_pad[:, :self.in_channels][:, :, pp*i:pp*i+h, pp*j:pp*j+w]    # (B, C, h, w)
-                nodes_flatten = nodes_sliced.flatten(start_dim=2).unsqueeze(-1)   # (B, C, hw, 1)
-                
-                
-                # weights_2d = torch.mul(weights_fixed, score_softmax) + weights_fixed    # (B, C, h, w)
-                score_flatten = score_sliced.flatten(start_dim=2).unsqueeze(-1)   # (B, C, hw, 1)
-
-                                
-                # weighted_2d = torch.mul(nodes_2d[:, :, pp*i:pp*i+h, pp*j:pp*j+w], weights_2d)
-                # # print(weighted_2d[0])
-                # weighted_2d = weighted_2d.view(B, self.in_channels, -1)
-                
-                # weighted_sum = torch.sum(weighted_2d, dim=-1, keepdim=True).permute(0, 2, 1)
-                # print(weighted_sum[0])
-    
-                sliced.append(torch.cat([nodes_flatten, score_flatten], dim=2))
-        
-        
-        sliced_concat = torch.cat(sliced, dim=-1)  # (B, C, 2*hw, HW / 4)
-        
-        score_sliced = sliced_concat[:, :, h*w:]    # (B, C, hw, HW/4)
-        nodes_sliced = sliced_concat[:, :, :h*w]    # (B, C, hw, HW/4)
-        
-        # norm_score = torch.sum(score_sliced, dim=2, keepdim=True)
-        # score_softmax = torch.div(score_sliced, norm_score)
-        
-        score_softmax = self.softmax_score(score_sliced) # (B, C, hw, HW/4)
-        weights = weights_fixed + torch.mul(weights_fixed, score_softmax)   # (B, C, hw, HW/4)
-        
-        # print(score_softmax[0][0][:, (0,)])
-        
-        sliced_mul = torch.mul(weights, nodes_sliced)  # (B, C, hw, HW/4)
-        nodes_pooled = torch.sum(sliced_mul, dim=2).permute(0, 2, 1)  # (B, HW/4, C)
-        
-        nodes_out = self.channel(nodes_pooled)
-
-
-
-        # out_nodes = self.out_nodes(nodes_pooled)
-        # out_cls = self.out_cls(cls_token)
-        
-        out = torch.cat([self.cls(x[:, (0,)]), nodes_out], dim=1)
-        
-        return out
 
 
 # class Pooling_block(nn.Module):
@@ -756,84 +623,36 @@ class Transformer_Block(nn.Module):
         else:
             return x_res2
 
-class Transformer_Block_pool(nn.Module):
-    def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False, pooling_patch_size=4):
-        super(Transformer_Block_pool, self).__init__()
-        self.normalization_1 = nn.LayerNorm(in_size)           
-        
-        
-        self.MHSA = MHSA(in_channels, heads)
-        self.MLP = MLP(in_channels, mlp_ratio)
-        self.MLP_MHSA = MLP(in_channels, mlp_ratio)
-        
-        if GA_flag:
-            self.normalization_GA = nn.LayerNorm([(in_size[0])+1, in_size[1]])
-            self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
-        else:
-            self.normalization_2 = nn.LayerNorm([in_size[0], in_size[1]])
-            self.pool_block = Pooling_block([in_size[0]+1, in_size[1]], in_channels, pooling_patch_size)
 
-        self.GA_flag = GA_flag
-        
-        self.linear = nn.Linear(heads, 1, bias=False)
-        self._init_weights(self.linear)
-        
-    def _init_weights(self,layer):
-        nn.init.kaiming_normal_(layer.weight)
-        if layer.bias:
-            nn.init.normal_(layer.bias, std=1e-6)
+class conv_head_pooling(nn.Module):
+    def __init__(self, in_feature, out_feature, stride,
+                 padding_mode='zeros'):
+        super(conv_head_pooling, self).__init__()
 
-    def forward(self, x, cls_token, dropout=True):
-        '''
-        [shape]
-            x : (B, HW, C)
-            x_inter1 : (B, HW, C)
-            x_MHSA : (B, HW, C)
-            x_res1 : (B, HW, C)
-            x_inter2 : (B, HW, C)
-            x_MLP : (B, HW, C)
-            x_res2 : (B, HW, C)
-        '''
-        if not cls_token == None:
-            x_in = torch.cat((cls_token, x), dim=1)
-        else:
-            x_in = x
-        x_inter1 = self.normalization_1(x_in)
-        '''
-            Node update
-        '''
-        x_MHSA = self.MHSA(x_inter1, dropout)
-        x_res1 = x_in + x_MHSA
-        
-        edge = x_MHSA
-        
-        if not self.GA_flag:
-            
-            
-            x_inter2 = self.normalization_2(x_res1)
+        self.conv = nn.Conv2d(in_feature, out_feature, kernel_size=stride + 1,
+                              padding=stride // 2, stride=stride,
+                              padding_mode=padding_mode, groups=in_feature)
+        self.fc = nn.Linear(in_feature, out_feature)
 
-        else:       
-            '''
-                Global attribute update
-            '''
-            
-            
-            x_inter2 = self.GA(x_res1, cls_token, edge, True)
-            x_inter2 = self.normalization_GA(x_inter2)
-            
-        
-        x_MLP = self.MLP(x_inter2, dropout)
-        x_res2 = x_inter2 + x_MLP
-        
-        
-        x_res2 = self.pool_block(x_res2, edge)
+    def forward(self, x, cls_token):
 
-        if not cls_token == None:
-            return x_res2[:, 1:], x_res2[:, (0, )]        
-        else:
-            return x_res2
+        x = self.conv(x)
+        cls_token = self.fc(cls_token)
+
+        return x, cls_token
 
 
+class conv_embedding(nn.Module):
+    def __init__(self, in_channels, out_channels, patch_size,
+                 stride, padding):
+        super(conv_embedding, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=patch_size,
+                              stride=patch_size, padding=0, bias=True)
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x
+    
 
 class Classifier_1d(nn.Module):
     def __init__(self, num_classes=10, in_channels=64):
@@ -892,38 +711,9 @@ class Pooling_layer(nn.Module):
         
         return pool_feature_token, pool_cls_token
 
-class Pooling_layer_max(nn.Module):
-    def __init__(self):
-        super(Pooling_layer_max, self).__init__()
-        
-        self.maxpool = nn.MaxPool2d(2)
-        
-    def forward(self, x, cls_token, dropout):
-        '''
-        [shape]
-            x : (B, HW+1, C)
-            cls_token : (B, 1, C)
-            feature_token : (B, HW, C)
-            feature_token_reshape : (B, C, H, W)
-            pool_feature_token : (B, (H/2)(W/2), 2*C)
-            out : (B, (HW/2)+1, 2*C)
-        '''
-        B, HW, C = x.shape
-        H = int(math.sqrt(HW))
-        feature_token_reshape = x.permute(0, 2, 1).contiguous()
-        feature_token_reshape = feature_token_reshape.view((B, C, H, H))
-                
-        pool_feature_token = self.maxpool(feature_token_reshape)
-        pool_feature_token = pool_feature_token.view((B, C, -1)).permute(0, 2, 1)
-        
-        
-        
-        
-        return pool_feature_token, cls_token
-
 
 class ViT_pooling(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling='max'):
+    def __init__(self, in_size, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling='max'):
         super(ViT_pooling, self).__init__()
 
         self.in_channels = inter_dimension
@@ -933,7 +723,7 @@ class ViT_pooling(nn.Module):
         self.in_size = (num_nodes + 1, inter_dimension)
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+            patch_size=int(math.sqrt((in_size * in_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension, stride=2)
         
         self.dropout = dropout
         
@@ -975,10 +765,8 @@ class ViT_pooling(nn.Module):
             self.transformers.append(
                 tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
         if pool_block:
-            if self.pooling == 'max':
-                self.transformers.append(
-                    Pooling_layer_max())
-            elif self.pooling == 'conv':
+
+            if self.pooling == 'conv':
                 self.transformers.append(
                     Pooling_layer(self.in_channels))
 
@@ -1003,193 +791,6 @@ class ViT_pooling(nn.Module):
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
                 
-        x_out = self.classifier(cls_token)
-
-        return x_out
-        
-
-class GiT_pooling_node(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
-        super(GiT_pooling_node, self).__init__()
-        
-
-        self.in_channels = inter_dimension
-        self.heads = heads
-        
-
-        self.in_size = (num_nodes + 1, inter_dimension)
-
-        self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
-        
-        self.dropout = dropout
-        
-        self.classifier = Classifier_1d(
-        num_classes=num_classes, in_channels=inter_dimension)
-        self.positional_embedding = Positional_Embedding(
-        spatial_dimension=num_nodes, inter_channels=inter_dimension)
-        
-        self.dropout_layer = nn.Dropout(0.1)
-        
-    
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.in_channels))
-        
-        self.transformers = nn.ModuleList()
-
-
-        j = 0
-        for i in range(len(num_blocks)):
-            if not j+1 == len(num_blocks):
-                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA, True)
-                j += 1
-                
-                
-            else:
-                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
-        
-        self.classifier = Classifier_1d(
-            num_classes=num_classes, in_channels=self.in_channels)        
-
-
-    def make_layer(self, num_blocks, tr_block, mlp_ratio, GA_flag, pool_block=False):
-        idx = num_blocks
-        if pool_block:
-            for _ in range(num_blocks):
-            
-                if idx == 1:
-                    self.transformers.append(Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-                    self.in_size = [((self.in_size[0]-1) // 4) + 1, self.in_size[1]]
-                else:
-                    idx -= 1
-                    self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-                    
-        else:
-            for _ in range(num_blocks):
-                self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-            
-            # if not idx != 1:
-            #     self.transformers.append(
-            #         tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-            #     idx -= 1
-            # else:
-            #     if pool_block:
-            #         self.transformers.append(
-            #             Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-            #     else:
-            #         self.transformers.append(
-            #             tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-
-
-    def forward(self, x):
-        '''
-        [shape]
-            x : (B, 3, H, W)
-            x_patch_embedded = (B, HW, C)
-            x_tmp = (B, HW, C)
-            x_out = (B, classes)
-        '''
-        x_patch_embedded = self.patch_embedding(x)
-        x_tmp = self.positional_embedding(x_patch_embedded)
-        cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))       
-       
-        if self.dropout:
-            x_tmp = self.dropout_layer(x_tmp)
-            cls_token = self.dropout_layer(cls_token)
-        
-        for i in range(len(self.transformers)):
-            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
-                
-        x_out = self.classifier(cls_token)
-
-        return x_out
-        
-
-class ViT_pooling_node(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling_patch_size=4):
-        super(ViT_pooling_node, self).__init__()
-        
-
-        self.in_channels = inter_dimension
-        self.heads = heads
-        
-
-        self.in_size = (num_nodes + 1, inter_dimension)
-
-        self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
-        
-        self.dropout = dropout
-        
-        self.classifier = Classifier_1d(
-        num_classes=num_classes, in_channels=inter_dimension)
-        self.positional_embedding = Positional_Embedding(
-        spatial_dimension=num_nodes, inter_channels=inter_dimension)
-        
-        self.dropout_layer = nn.Dropout(0.1)
-        
-    
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.in_channels))
-        
-        self.transformers = nn.ModuleList()
-        
-        self.pp = pooling_patch_size
-
-
-        j = 0
-        for i in range(len(num_blocks)):
-            if not j+1 == len(num_blocks):
-                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA, True)
-                j += 1
-                
-                
-            else:
-                self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
-        
-        self.classifier = Classifier_1d(
-            num_classes=num_classes, in_channels=self.in_channels)        
-
-
-    def make_layer(self, num_blocks, tr_block, mlp_ratio, GA_flag, pool_block=False):
-        idx = num_blocks
-        if pool_block:
-            for _ in range(num_blocks):
-            
-                if idx == 1:
-                    self.transformers.append(Transformer_Block_pool(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag, self.pp))
-                    self.in_size = [(((self.in_size[0]-1) // self.pp)) + 1, self.in_size[1]*2]
-                    self.heads = 2*self.heads
-                    self.in_channels = 2*self.in_channels
-                else:
-                    idx -= 1
-                    self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-                    
-        else:
-            for _ in range(num_blocks):
-                self.transformers.append(tr_block(self.in_size, self.in_channels, self.heads, mlp_ratio, GA_flag))
-            
-
-    def forward(self, x):
-        '''
-        [shape]
-            x : (B, 3, H, W)
-            x_patch_embedded = (B, HW, C)
-            x_tmp = (B, HW, C)
-            x_out = (B, classes)
-        '''
-        x_patch_embedded = self.patch_embedding(x)
-        x_tmp = self.positional_embedding(x_patch_embedded)
-        cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))       
-       
-        if self.dropout:
-            x_tmp = self.dropout_layer(x_tmp)
-            cls_token = self.dropout_layer(cls_token)
-            
-        start = time.time()
-        
-        for i in range(len(self.transformers)):
-            x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
-                
-        print("inference time: {}".format(time.time()-start))
         x_out = self.classifier(cls_token)
 
         return x_out
