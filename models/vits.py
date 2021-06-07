@@ -572,6 +572,7 @@ class ViT(nn.Module):
             x_tmp = (B, HW, C)
             x_out = (B, classes)
         '''
+        print(x.shape)
         x_patch_embedded = self.patch_embedding(x)
         x_tmp = self.positional_embedding(x_patch_embedded)
         cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))
