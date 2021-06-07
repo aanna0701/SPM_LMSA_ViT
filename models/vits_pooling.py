@@ -731,7 +731,7 @@ class ViT_pooling(nn.Module):
         self.classifier = Classifier_1d(
         num_classes=num_classes, in_channels=inter_dimension)
         self.positional_embedding = Positional_Embedding(
-        spatial_dimension=num_nodes, inter_channels=inter_dimension)
+        spatial_dimension=num_nodes*num_nodes, inter_channels=inter_dimension)
         
         self.dropout_layer = nn.Dropout(0.1)
         
