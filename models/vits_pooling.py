@@ -750,7 +750,7 @@ class ViT_pooling(nn.Module):
                 if pooling=='conv':
                     self.in_channels = 2 * self.in_channels
                     self.heads = 2 * self.heads
-                    self.in_size = [((math.sqrt((self.in_size[0]-1)) + 2 - 3)//2) + 1, self.in_size[1]*2]
+                    self.in_size = [(int((math.sqrt((self.in_size[0]-1))) + 2 - 3)//2) + 1, self.in_size[1]*2]
                 else:
                     self.in_size = [((self.in_size[0]-1) // 4) + 1, self.in_size[1]]
                 
