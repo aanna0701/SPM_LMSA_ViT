@@ -83,6 +83,8 @@ class Positional_Embedding(nn.Module):
         
 
     def forward(self, x):
+        print(x.shape)
+        print(self.PE.shape)
         return x.permute(0, 2, 1) + self.PE
 
 
