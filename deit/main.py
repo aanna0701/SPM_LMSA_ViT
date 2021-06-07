@@ -34,12 +34,12 @@ init(autoreset=True)
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
-    parser.add_argument('--batch-size', default=512, type=int)
+    parser.add_argument('--batch-size', default=1024, type=int)
     parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--tag', type=str)
 
     # Model parameters
-    parser.add_argument('--model', type=str, metavar='MODEL', choices=['vit', 'g-vit'], help='Name of model to train')
+    parser.add_argument('--model', type=str, metavar='MODEL', choices=['vit', 'g-vit', 'g-pit'], help='Name of model to train')
     parser.add_argument('--depth', help='depth', type=int, required=True)
     parser.add_argument('--channel', help='channel', type=int, required=True)
     parser.add_argument('--heads', help='heads', type=int, required=True)
@@ -277,6 +277,10 @@ def main(args, model_name):
 
     elif args.model == 'g-vit':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes, img_size=224*224, num_nodes=14*14)
+    
+
+    elif args.model == 'g-pit':
+        model = m.P_GiT_conv_imgnet(args.depth, GA=True, num_classes=n_classes)
     
     '''
         Finetuning settings
