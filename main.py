@@ -13,16 +13,14 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-from colorama import init, Fore, Back, Style
+from colorama import Fore, Style
 from torchsummary import summary
 from timm.data import create_transform
 from timm.loss import SoftTargetCrossEntropy
 from utils.losses import LabelSmoothingCrossEntropy
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import os
-import sys
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
+from utils.cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 import models.create_model as m
 
 best_acc1 = 0
@@ -74,11 +72,8 @@ def init_parser():
     parser.add_argument('--seed', type=int, help='seed')
     
     # Augmentation parameters
-    parser.add_argument('--color-jitter', type=float, default=0.4, metavar='PCT',
-                        help='Color jitter factor (default: 0.4)')
-    parser.add_argument('--aa', type=str, default='rand-n1-m2', metavar='NAME',
-                        help='Use AutoAugment policy. "v0" or "original". " + \
-                             "(default: rand-m9-mstd0.5-inc1)'),
+    parser.add_argument('--cj', action='store_true', help='Color jitter factor')
+    parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--train-interpolation', type=str, default='bicubic',
                         help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
@@ -125,7 +120,6 @@ def init_parser():
 def main(args):
     global best_acc1
     
-    enable_Autoaug = False
 
     '''
         Dataset
@@ -148,15 +142,8 @@ def main(args):
     '''
         Model 
     '''    
-    if args.model == 'deit':
-        model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
-        enable_Autoaug = True
 
-    elif args.model == 'g-deit':
-        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
-        enable_Autoaug = True
-
-    elif args.model == 'vit':
+    if args.model == 'vit':
         model = m.make_ViT(args.depth, args.channel,GA=False, heads = args.heads, num_classes=n_classes)
         
     
@@ -228,15 +215,24 @@ def main(args):
     #             re_count=args.recount,
     #         )]
     
-
-    print(Fore.YELLOW+'*'*80)
-    print('Autoaugmentation used')
-    print('*'*80 + Style.RESET_ALL)
-    from utils.autoaug import CIFAR10Policy
-    augmentations += [
-        transforms.ColorJitter(),
-        CIFAR10Policy()
-    ]
+    if args.cj == True:
+        
+        print(Fore.YELLOW+'*'*80)
+        print('Coror jittering used')
+        print('*'*80 + Style.RESET_ALL)
+        augmentations += [            
+            transforms.ColorJitter()
+        ]
+    
+    if args.aa == True:
+        print(Fore.YELLOW+'*'*80)
+        print('Autoaugmentation used')
+        print('*'*80 + Style.RESET_ALL)
+        from utils.autoaug import CIFAR10Policy
+        augmentations += [
+            
+            CIFAR10Policy()
+        ]
         
     augmentations += [                
         transforms.RandomHorizontalFlip(),

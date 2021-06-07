@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
-from models.deepsets import Equivariant_Block
 
 
 class MHSA(nn.Module):
@@ -351,9 +350,9 @@ class GA_block(nn.Module):
         nodes = x[:, 1:]    # (B, HW, C)
         
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
-        node_glboal = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
+        node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
-        cat_global = torch.cat([edge_global, node_glboal], dim=1)   # (B, 2, C)
+        cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
         norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
         norm = norm.expand(norm.size(0), 2, nodes.size(2))  # (B, 2, C)
         scale_edge = torch.div(cat_global, norm)
@@ -363,7 +362,7 @@ class GA_block(nn.Module):
         node_global = scale_edge[:, (1,)]
         
         
-        channel_attention = edge_global + node_glboal # (B, 1, C)
+        channel_attention = edge_global + node_global # (B, 1, C)
         
         
         
