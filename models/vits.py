@@ -109,10 +109,8 @@ class Patch_Embedding(nn.Module):
             out_flat : (B, C', HW)
             out_concat : (B, HW+1, C')
             out : (B, HW+1, C')
-        '''
-        print(x.shape)
+        ''' 
         out = self.patch_embedding(x)
-        print(out.shape)
         out_flat = out.flatten(start_dim=2)
         
         return out_flat
@@ -541,7 +539,7 @@ class ViT(nn.Module):
         self.in_size = (num_nodes + 1, inter_dimension)
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((img_size * img_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+            patch_size=int(math.sqrt((img_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
         
         self.dropout = dropout
         
