@@ -1,3 +1,4 @@
+from numpy import numarray
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -83,8 +84,6 @@ class Positional_Embedding(nn.Module):
         
 
     def forward(self, x):
-        print(x.shape)
-        print(self.PE.shape)
         return x.permute(0, 2, 1) + self.PE
 
 
@@ -92,7 +91,7 @@ class Patch_Embedding(nn.Module):
     def __init__(self, patch_size, in_channels, inter_channels):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
-                                         kernel_size=patch_size, stride=patch_size, padding=0, bias=False)
+                                         kernel_size=patch_size, stride= patch_size // 2, padding=0, bias=False)
         self._init_weights(self.patch_embedding)
         self.inter_channels = inter_channels
 
@@ -715,17 +714,17 @@ class Pooling_layer(nn.Module):
 
 
 class ViT_pooling(nn.Module):
-    def __init__(self, in_size, num_nodes, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling='max'):
+    def __init__(self, in_size, patch_size, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling='max'):
         super(ViT_pooling, self).__init__()
 
         self.in_channels = inter_dimension
         self.heads = heads
         
-
+        num_nodes = (in_size - patch_size) // patch_size * 2 + 1  
         self.in_size = (num_nodes + 1, inter_dimension)
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_size * in_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+            patch_size=patch_size, in_channels=3, inter_channels=inter_dimension)
         
         self.dropout = dropout
         
