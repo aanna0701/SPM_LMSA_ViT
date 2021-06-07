@@ -450,7 +450,6 @@ def main(args, model_name):
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'epoch': epoch,
-                    'model_ema': get_state_dict(model_ema),
                     'scaler': loss_scaler.state_dict(),
                     'args': args,
                 }, checkpoint_path)
@@ -461,7 +460,6 @@ def main(args, model_name):
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'epoch': epoch,
-                    'model_ema': get_state_dict(model_ema),
                     'scaler': loss_scaler.state_dict(),
                     'args': args,
                 }, checkpoint_path)
