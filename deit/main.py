@@ -28,9 +28,7 @@ from colorama import init, Fore, Back, Style
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-sys.path.insert(0, './models')
 from models import create_model as m
-from cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 
 init(autoreset=True)
 
