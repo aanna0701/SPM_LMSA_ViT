@@ -37,28 +37,28 @@ def make_ViT(depth, channel, GA=False, cls_token=True, heads=4, dropout=False, n
 
 def P_ViT_conv(num_blocks, GA=False, num_classes=10, dropout=True, pooling='conv', in_size=32, patch_size=16):
     if num_blocks == 1:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 2:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 3:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=30, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=30, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 4:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=36, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=36, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 5:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
 
 
 def P_GiT_conv(num_blocks, GA=True, num_classes=10, dropout=True, pooling='conv', in_size=32, patch_size=16):
     if num_blocks == 1:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 2:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 3:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=30, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=30, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 4:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=36, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=36, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
     elif num_blocks == 5:
-        return ViT_pooling(in_size=in_size, num_nodes=num_nodes, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
+        return ViT_pooling(in_size=in_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, pooling=pooling, num_classes=num_classes)
 
 
 
