@@ -744,13 +744,15 @@ class ViT_pooling(nn.Module):
 
         j = 0
         for i in range(len(num_blocks)):
+            in_size = 0
             if not j+1 == len(num_blocks):
                 self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA, True)
                 j += 1
                 if pooling=='conv':
                     self.in_channels = 2 * self.in_channels
                     self.heads = 2 * self.heads
-                    self.in_size = [(int((math.sqrt((self.in_size[0]-1))) + 2 - 3)//2) + 1, self.in_size[1]*2]
+                    in_size = (int((math.sqrt((self.in_size[0]-1))) + 2 - 3)//2) + 1
+                    self.in_size = [in_size*in_size, self.in_size[1]*2]
                 else:
                     self.in_size = [((self.in_size[0]-1) // 4) + 1, self.in_size[1]]
                 
