@@ -83,8 +83,6 @@ class Positional_Embedding(nn.Module):
         
 
     def forward(self, x):
-        print(x.shape)
-        print(self.PE.shape)
         return x.permute(0, 2, 1) + self.PE
 
 
@@ -539,7 +537,7 @@ class ViT(nn.Module):
         self.in_size = (num_nodes + 1, inter_dimension)
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((img_size * img_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+            patch_size=int(math.sqrt((img_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
         
         self.dropout = dropout
         
