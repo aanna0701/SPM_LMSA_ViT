@@ -34,7 +34,7 @@ init(autoreset=True)
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
-    parser.add_argument('--batch-size', default=1024, type=int)
+    parser.add_argument('--batch-size', default=512, type=int)
     parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--tag', type=str)
 
