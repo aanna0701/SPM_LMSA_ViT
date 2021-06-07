@@ -91,7 +91,7 @@ class Patch_Embedding(nn.Module):
     def __init__(self, patch_size, in_channels, inter_channels):
         super(Patch_Embedding, self).__init__()
         self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
-                                         kernel_size=patch_size, stride= patch_size // 2, padding=0, bias=False)
+                                         kernel_size=patch_size, stride= patch_size // 2, padding=1, bias=False)
         self._init_weights(self.patch_embedding)
         self.inter_channels = inter_channels
 
