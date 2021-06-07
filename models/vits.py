@@ -528,7 +528,7 @@ class Classifier_2d(nn.Module):
         return out
 
 class ViT(nn.Module):
-    def __init__(self, in_height, in_width, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
+    def __init__(self, img_size, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
@@ -537,7 +537,7 @@ class ViT(nn.Module):
         self.in_size = (num_nodes + 1, inter_dimension)
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((in_height * in_width) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+            patch_size=int(math.sqrt((img_size * img_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
         
         self.dropout = dropout
         

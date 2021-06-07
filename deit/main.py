@@ -273,7 +273,7 @@ def main(args, model_name):
     n_classes = 1000
 
     if args.model == 'vit':
-        model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes)
+        model = m.make_ViT(args.depth, args.channel, heads = args.heads, num_classes=n_classes, img_size=224)
 
     elif args.model == 'g-vit':
         model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
