@@ -624,7 +624,6 @@ class ViT_pooling(nn.Module):
         
         num_nodes = (in_size - patch_size + 2) // (patch_size // 2) + 1  
         self.in_size = (num_nodes * num_nodes + 1, inter_dimension)
-        print((in_size - patch_size + 2))
 
         self.patch_embedding = Patch_Embedding(
             patch_size=patch_size, in_channels=3, inter_channels=inter_dimension)
