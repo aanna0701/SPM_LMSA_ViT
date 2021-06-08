@@ -328,7 +328,7 @@ class GA_block(nn.Module):
         self._init_weights(self.mlp1)
         self.mlp2 = nn.Linear(in_channels//2, in_channels, bias=False)
         self._init_weights(self.mlp2)
-        self.relu = nn.RELU()
+        self.relu = nn.ReLU()
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
