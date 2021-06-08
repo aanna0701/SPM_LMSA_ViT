@@ -162,7 +162,7 @@ def main(args):
         
     
     elif args.model == 'g-pit':
-        model = m.P_ViT_conv(args.depth, GA=False, num_classes=n_classes)
+        model = m.P_GiT_conv(args.depth, GA=False, num_classes=n_classes)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"  Creating model: {model_name}  ")    
