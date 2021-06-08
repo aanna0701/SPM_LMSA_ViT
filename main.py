@@ -271,6 +271,9 @@ def main(args):
             *normalize]))
         
     elif args.dataset == 'CIFAR100':
+        print(Fore.YELLOW+'*'*80)
+        print('CIFAR100')
+        print('*'*80 + Style.RESET_ALL)
         train_dataset = datasets.CIFAR100(
             root=args.data_path, train=True, download=True, transform=augmentations)
         val_dataset = datasets.CIFAR100(
