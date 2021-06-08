@@ -324,6 +324,11 @@ class GA_block(nn.Module):
         # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
         self.linear = nn.Linear(in_channels, in_channels, bias=False)
         self._init_weights(self.linear)
+        self.mlp1 = nn.Linear(in_channels, in_channels//2, bias=False)
+        self._init_weights(self.mlp1)
+        self.mlp2 = nn.Linear(in_channels//2, in_channels, bias=False)
+        self._init_weights(self.mlp2)
+        self.relu = nn.RELU()
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -352,7 +357,9 @@ class GA_block(nn.Module):
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
-        # cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
+        cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
+        cat_hidden = self.relu(self.ml1(cat_global))
+        cat_out = self.mlp2(cat_hidden)
         # norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
         # norm = norm.expand(norm.size(0), 2, nodes.size(2))  # (B, 2, C)
         # scale_edge = torch.div(cat_global, norm) * self.in_dimension
@@ -362,7 +369,8 @@ class GA_block(nn.Module):
         # node_global = scale_edge[:, (1,)]
         
         
-        channel_attention = edge_global + node_global # (B, 1, C)
+        # channel_attention = edge_global + node_global # (B, 1, C)
+        channel_attention = torch.sum(cat_out, dim=1) # (B, 1, C)
         
         
         
