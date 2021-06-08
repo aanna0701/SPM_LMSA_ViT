@@ -355,10 +355,10 @@ class GA_block(nn.Module):
         cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
         norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
         norm = norm.expand(norm.size(0), 2, nodes.size(2))  # (B, 2, C)
-        scale_edge = torch.div(cat_global, norm)
+        scale_edge = torch.div(cat_global, norm) * self.in_dimension
         
         
-        edge_global = scale_edge[:, (0,)]
+        edge_global = scale_edge[:, (0,)] 
         node_global = scale_edge[:, (1,)]
         
         

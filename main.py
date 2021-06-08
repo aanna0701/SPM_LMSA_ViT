@@ -261,13 +261,23 @@ def main(args):
     '''
         Data Loader
     '''
-    train_dataset = datasets.CIFAR10(
-        root=args.data_path, train=True, download=True, transform=augmentations)
-    val_dataset = datasets.CIFAR10(
-        root=args.data_path, train=False, download=False, transform=transforms.Compose([
-        transforms.Resize(img_size),
-        transforms.ToTensor(),
-        *normalize]))
+    if args.dataset == 'CIFAR10':
+        train_dataset = datasets.CIFAR10(
+            root=args.data_path, train=True, download=True, transform=augmentations)
+        val_dataset = datasets.CIFAR10(
+            root=args.data_path, train=False, download=False, transform=transforms.Compose([
+            transforms.Resize(img_size),
+            transforms.ToTensor(),
+            *normalize]))
+        
+    elif args.dataset == 'CIFAR100':
+        train_dataset = datasets.CIFAR100(
+            root=args.data_path, train=True, download=True, transform=augmentations)
+        val_dataset = datasets.CIFAR100(
+            root=args.data_path, train=False, download=False, transform=transforms.Compose([
+            transforms.Resize(img_size),
+            transforms.ToTensor(),
+            *normalize]))
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
