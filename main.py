@@ -15,8 +15,6 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from colorama import Fore, Style
 from torchsummary import summary
-from timm.data import create_transform
-from timm.loss import SoftTargetCrossEntropy
 from utils.losses import LabelSmoothingCrossEntropy
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import os
@@ -164,7 +162,7 @@ def main(args):
         
     
     elif args.model == 'g-pit':
-        model = m.P_ViT_conv(args.depth, GA=True, num_classes=n_classes)
+        model = m.P_ViT_conv(args.depth, GA=False, num_classes=n_classes)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"  Creating model: {model_name}  ")    
