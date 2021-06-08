@@ -125,16 +125,25 @@ def main(args):
         Dataset
     '''
     if args.dataset == 'CIFAR10':
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('CIFAR10')
+        print('*'*80 + Style.RESET_ALL)
         n_classes = 10
         img_mean, img_std = (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
         img_size = 32
         
     elif args.dataset == 'CIFAR100':
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('CIFAR100')
+        print('*'*80 + Style.RESET_ALL)
         n_classes = 100
         img_mean, img_std = (0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
         img_size = 32
         
     elif args.dataset == 'IMNET':
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('ImageNet')
+        print('*'*80 + Style.RESET_ALL)
         n_classes = 1000
         img_mean, img_std = IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
         img_size = 224
@@ -271,9 +280,7 @@ def main(args):
             *normalize]))
         
     elif args.dataset == 'CIFAR100':
-        print(Fore.YELLOW+'*'*80)
-        print('CIFAR100')
-        print('*'*80 + Style.RESET_ALL)
+
         train_dataset = datasets.CIFAR100(
             root=args.data_path, train=True, download=True, transform=augmentations)
         val_dataset = datasets.CIFAR100(
