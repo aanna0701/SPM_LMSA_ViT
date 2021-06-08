@@ -2,8 +2,7 @@
 
 import argparse
 from time import time
-from timm.data.auto_augment import rand_augment_transform
-from timm.data.mixup import Mixup
+from utils.cutmix import rand_bbox
 import numpy as np
 import random
 import logging as log
@@ -70,7 +69,6 @@ def init_parser():
     parser.add_argument('--seed', type=int, help='seed')
     
     # Augmentation parameters
-    parser.add_argument('--cj', action='store_true', help='Color jitter factor')
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--train-interpolation', type=str, default='bicubic',
@@ -91,19 +89,24 @@ def init_parser():
                         help='Do not random erase first (clean) augmentation split')
 
     # * Mixup params
-    parser.add_argument('--mixup', type=float, default=0.8,
-                        help='mixup alpha, mixup enabled if > 0. (default: 0.8)')
-    parser.add_argument('--cutmix', type=float, default=1.0,
-                        help='cutmix alpha, cutmix enabled if > 0. (default: 1.0)')
-    parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None,
-                        help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
-    parser.add_argument('--mixup-prob', type=float, default=1.0,
-                        help='Probability of performing mixup or cutmix when either/both is enabled')
-    parser.add_argument('--mixup-switch-prob', type=float, default=0.5,
-                        help='Probability of switching to cutmix when both mixup and cutmix enabled')
-    parser.add_argument('--mixup-mode', type=str, default='batch',
-                        help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
-
+    # parser.add_argument('--mixup', type=float, default=0.8,
+    #                     help='mixup alpha, mixup enabled if > 0. (default: 0.8)')
+    # parser.add_argument('--cutmix', type=float, default=1.0,
+    #                     help='cutmix alpha, cutmix enabled if > 0. (default: 1.0)')
+    # parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None,
+    #                     help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
+    # parser.add_argument('--mixup-prob', type=float, default=1.0,
+    #                     help='Probability of performing mixup or cutmix when either/both is enabled')
+    # parser.add_argument('--mixup-switch-prob', type=float, default=0.5,
+    #                     help='Probability of switching to cutmix when both mixup and cutmix enabled')
+    # parser.add_argument('--mixup-mode', type=str, default='batch',
+    #                     help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+    # parser.add_argument('--mu',action='store_true' , help='Use Mixup')
+    parser.add_argument('--cm',action='store_true' , help='Use Cutmix')
+    parser.add_argument('--beta', default=1.0, type=float,
+                        help='hyperparameter beta')
+    parser.add_argument('--cutmix_prob', default=0.5, type=float,
+                        help='cutmix probability')
     # Autoaugmentation
     parser.add_argument('--rand_aug', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
                         help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)')
@@ -205,31 +208,16 @@ def main(args):
     scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=args.warmup)
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
+
+    if args.cm:
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('Cutmix used')
+        print('*'*80 + Style.RESET_ALL)
+
     '''
         Data Augmentation
     '''
     augmentations = []
-    # if args.enable_deit:
-    #     print(Fore.YELLOW+'*'*80)
-    #     print('DeiT!!!')
-    #     print('*'*80 + Style.RESET_ALL)
-    #     augmentations += [
-    #         create_transform(
-    #             input_size=input_size,
-    #             is_training=True,
-    #             re_prob=args.reprob,
-    #             re_mode=args.remode,
-    #             re_count=args.recount,
-    #         )]
-    
-    if args.cj == True:
-        
-        print(Fore.YELLOW+'*'*80)
-        logger.debug('Coror jittering used')
-        print('*'*80 + Style.RESET_ALL)
-        augmentations += [            
-            transforms.ColorJitter()
-        ]
     
     if args.aa == True:
         print(Fore.YELLOW+'*'*80)
@@ -252,16 +240,7 @@ def main(args):
     '''
         Mixup
     '''
-    mixup_fn = None
-    # if args.enable_mix:
-    #     print(Fore.YELLOW+'*'*80)
-    #     print('Mixup used')
-    #     print('*'*80 + Style.RESET_ALL)
-    #     mixup_fn = Mixup(
-    #         mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
-    #         prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
-    #         ls=0.1, num_classes=n_classes)
-        
+
         
         
         
@@ -306,7 +285,7 @@ def main(args):
     time_begin = time()
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
-        cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn)
+        cls_train(train_loader, model, criterion, optimizer, epoch, args)
         acc1 = cls_validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch, time_begin=time_begin)
         if acc1 > best_acc1:
             best_acc1 = acc1
@@ -345,7 +324,7 @@ def accuracy(output, target):
         return res
 
 
-def cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn=None):
+def cls_train(train_loader, model, criterion, optimizer, epoch, args):
     model.train()
     loss_val, acc1_val = 0, 0
     n = 0
@@ -354,12 +333,29 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args, mixup_fn=N
             images = images.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)
         
-        if mixup_fn:
-            images, target = mixup_fn(images, target)
         
-        output = model(images)
-
-        loss = criterion(output, target)
+        
+        if args.cm:
+            r = np.random.rand(1)
+            if args.beta > 0 and r < args.cutmix_prob:
+                # generate mixed sample
+                lam = np.random.beta(args.beta, args.beta)
+                rand_index = torch.randperm(images.size()[0]).cuda()
+                target_a = target
+                target_b = target[rand_index]
+                bbx1, bby1, bbx2, bby2 = rand_bbox(images.size(), lam)
+                images[:, :, bbx1:bbx2, bby1:bby2] = images[rand_index, :, bbx1:bbx2, bby1:bby2]
+                # adjust lambda to exactly match pixel ratio
+                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (images.size()[-1] * images.size()[-2]))
+                # compute output
+                output = model(images)
+                loss = criterion(output, target_a) * lam + criterion(output, target_b) * (1. - lam)
+            else:
+                output = model(images)
+                loss = criterion(output, target)
+        else:
+            output = model(images)
+            loss = criterion(output, target)
 
         acc1 = accuracy(output, target)
         n += images.size(0)
