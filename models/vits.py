@@ -358,7 +358,7 @@ class GA_block(nn.Module):
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
         cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
-        cat_hidden = self.relu(self.ml1(cat_global))
+        cat_hidden = self.relu(self.mlp1(cat_global))
         cat_out = self.mlp2(cat_hidden)
         # norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
         # norm = norm.expand(norm.size(0), 2, nodes.size(2))  # (B, 2, C)
