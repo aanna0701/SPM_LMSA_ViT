@@ -370,7 +370,7 @@ class GA_block(nn.Module):
         
         
         # channel_attention = edge_global + node_global # (B, 1, C)
-        channel_attention = torch.sum(cat_out, dim=1) # (B, 1, C)
+        channel_attention = torch.sum(cat_out, dim=1, keepdim=True) # (B, 1, C)
         
         
         
