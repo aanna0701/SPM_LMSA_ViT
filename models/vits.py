@@ -352,14 +352,14 @@ class GA_block(nn.Module):
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
-        cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
-        norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
-        norm = norm.expand(norm.size(0), 2, nodes.size(2))  # (B, 2, C)
-        scale_edge = torch.div(cat_global, norm) * self.in_dimension
+        # cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
+        # norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
+        # norm = norm.expand(norm.size(0), 2, nodes.size(2))  # (B, 2, C)
+        # scale_edge = torch.div(cat_global, norm) * self.in_dimension
         
         
-        edge_global = scale_edge[:, (0,)] 
-        node_global = scale_edge[:, (1,)]
+        # edge_global = scale_edge[:, (0,)] 
+        # node_global = scale_edge[:, (1,)]
         
         
         channel_attention = edge_global + node_global # (B, 1, C)

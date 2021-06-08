@@ -171,7 +171,7 @@ def main(args):
     
     if args.label_smoothing:
         print(Fore.YELLOW + '*'*80)
-        print('label smoothing used')
+        logger.debug('label smoothing used')
         print('*'*80+Style.RESET_ALL)
         criterion = LabelSmoothingCrossEntropy()
     
@@ -218,7 +218,7 @@ def main(args):
     if args.cj == True:
         
         print(Fore.YELLOW+'*'*80)
-        print('Coror jittering used')
+        logger.debug('Coror jittering used')
         print('*'*80 + Style.RESET_ALL)
         augmentations += [            
             transforms.ColorJitter()
@@ -226,7 +226,7 @@ def main(args):
     
     if args.aa == True:
         print(Fore.YELLOW+'*'*80)
-        print('Autoaugmentation used')
+        logger.debug('Autoaugmentation used')
         print('*'*80 + Style.RESET_ALL)
         from utils.autoaug import CIFAR10Policy
         augmentations += [
