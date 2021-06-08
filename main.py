@@ -57,7 +57,7 @@ def init_parser():
 
     parser.add_argument('--no-cuda', action='store_true', help='disable cuda')
 
-    parser.add_argument('--label_smoothing', action='store_true', help='label smoothing')
+    parser.add_argument('--ls', action='store_true', help='label smoothing')
 
     parser.add_argument('--channel', type=int, help='disable cuda')
 
@@ -176,7 +176,7 @@ def main(args):
         Criterion
     '''
     
-    if args.label_smoothing:
+    if args.ls:
         print(Fore.YELLOW + '*'*80)
         logger.debug('label smoothing used')
         print('*'*80+Style.RESET_ALL)
@@ -260,7 +260,7 @@ def main(args):
     #     mixup_fn = Mixup(
     #         mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
     #         prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
-    #         label_smoothing=0.1, num_classes=n_classes)
+    #         ls=0.1, num_classes=n_classes)
         
         
         
