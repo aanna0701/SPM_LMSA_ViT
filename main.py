@@ -105,12 +105,10 @@ def init_parser():
     parser.add_argument('--cm',action='store_true' , help='Use Cutmix')
     parser.add_argument('--beta', default=1.0, type=float,
                         help='hyperparameter beta (default: 1)')
-    parser.add_argument('--cutmix_prob', default=0.5, type=float,
-                        help='cutmix probability')
     parser.add_argument('--mu',action='store_true' , help='Use Mixup')
     parser.add_argument('--alpha', default=1.0, type=float,
                         help='mixup interpolation coefficient (default: 1)')
-    parser.add_argument('--mixup_prob', default=0.5, type=float,
+    parser.add_argument('--mix_prob', default=0.5, type=float,
                         help='mixup probability')
     # Autoaugmentation
     parser.add_argument('--rand_aug', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
@@ -124,8 +122,7 @@ def init_parser():
 
 
 def main(args):
-    global best_acc1
-    
+    global best_acc1    
 
     '''
         Dataset
@@ -336,39 +333,75 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
     model.train()
     loss_val, acc1_val = 0, 0
     n = 0
+    mix = ''
+    mix_paramter = 0
     for i, (images, target) in enumerate(train_loader):
         if (not args.no_cuda) and torch.cuda.is_available():
             images = images.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)
                 
+        # Cutmix only
         if args.cm and not args.mu:
             r = np.random.rand(1)
-            if args.beta > 0 and r < args.cutmix_prob:
-                
+            if r < args.mix_prob:
+                mix = 'cutmix'
+                mix_paramter = args.beta        
                 slicing_idx, y_a, y_b, lam = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]]
-                # adjust lambda to exactly match pixel ratio
-                # compute output
                 output = model(images)
-                loss = mixup_criterion(criterion, output, y_a, y_b, lam)
+                loss = mixup_criterion(criterion, output, y_a, y_b, lam)                
             else:
                 output = model(images)
                 loss = criterion(output, target)
+        
+        # Mixup only
         elif not args.cm and args.mu:
             r = np.random.rand(1)
-            if args.alpha > 0 and r < args.mixup_prob:
+            if r < args.mix_prob:
+                mix = 'mixup'
+                mix_paramter = args.alpha
                 images, y_a, y_b, lam = mixup_data(images, target, args)
                 output = model(images)
                 loss = mixup_criterion(criterion, output, y_a, y_b, lam)
             
             else:
+                mix = 'none'
+                mix_paramter = 0
                 output = model(images)
                 loss = criterion(output, target)
-                
+        # Both Cutmix and Mixup
         elif args.cm and args.mu:
-            pass
+            r = np.random.rand(1)
+            if r < 0.5:
+                switching_prob = np.random.rand(1)
+                
+                # Cutmix
+                if switching_prob < 0.5:
+                    mix = 'cutmix'
+                    mix_paramter = args.beta
+                    slicing_idx, y_a, y_b, lam = cutmix_data(images, target, args)
+                    images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]]
+                    output = model(images)
+                    loss = mixup_criterion(criterion, output, y_a, y_b, lam)         
+                
+                # Mixup
+                else:
+                    mix = 'mixup'
+                    mix_paramter = args.alpha
+                    images, y_a, y_b, lam = mixup_data(images, target, args)
+                    output = model(images)
+                    loss = mixup_criterion(criterion, output, y_a, y_b, lam)                               
+            
+            else:
+                mix = 'none'
+                mix_paramter = 0
+                output = model(images)
+                loss = criterion(output, target)     
         
+        # No Mix
         else:
+            mix = 'none'
+            mix_paramter = 0
             output = model(images)
             loss = criterion(output, target)
 
@@ -383,7 +416,7 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-            logger.debug(f'[Epoch {epoch+1}][Train][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f} \t LR {get_lr(optimizer):.6f}')
+            logger.debug(f'[Epoch {epoch+1}][Train][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f} \t LR {get_lr(optimizer):.6f} \t Mix {mix} ({mix_paramter})')
 
 
 def cls_validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=None):
