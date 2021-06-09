@@ -330,7 +330,7 @@ class GA_block(nn.Module):
         if layer.bias:
             nn.init.normal_(layer.bias, std=1e-6)
    
-    def forward(self, x, cls_token, edge_per_node):
+    def forward(self, x, cls_token, edge_per_node, pool=False):
         '''
             [shape]
             x : (B, HW+1, C)
