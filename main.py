@@ -2,7 +2,7 @@
 
 import argparse
 from time import time
-from utils.cutmix import rand_bbox
+from utils.mix import cutmix_data, mixup_data, mixup_criterion
 import numpy as np
 import random
 import logging as log
@@ -104,9 +104,14 @@ def init_parser():
     # parser.add_argument('--mu',action='store_true' , help='Use Mixup')
     parser.add_argument('--cm',action='store_true' , help='Use Cutmix')
     parser.add_argument('--beta', default=1.0, type=float,
-                        help='hyperparameter beta')
+                        help='hyperparameter beta (default: 1)')
     parser.add_argument('--cutmix_prob', default=0.5, type=float,
                         help='cutmix probability')
+    parser.add_argument('--mu',action='store_true' , help='Use Mixup')
+    parser.add_argument('--alpha', default=1.0, type=float,
+                        help='mixup interpolation coefficient (default: 1)')
+    parser.add_argument('--mixup_prob', default=0.5, type=float,
+                        help='mixup probability')
     # Autoaugmentation
     parser.add_argument('--rand_aug', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
                         help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)')
@@ -196,8 +201,7 @@ def main(args):
         torch.cuda.set_device(args.gpu)
         model.cuda(args.gpu)
         criterion = criterion.cuda(args.gpu)
-        
-    
+
     
     '''
         Trainer
@@ -212,6 +216,10 @@ def main(args):
     if args.cm:
         print(Fore.YELLOW+'*'*80)
         logger.debug('Cutmix used')
+        print('*'*80 + Style.RESET_ALL)
+    if args.mu:
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('Mixup used')
         print('*'*80 + Style.RESET_ALL)
 
     '''
@@ -332,27 +340,34 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
         if (not args.no_cuda) and torch.cuda.is_available():
             images = images.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)
-        
-        
-        
-        if args.cm:
+                
+        if args.cm and not args.mu:
             r = np.random.rand(1)
             if args.beta > 0 and r < args.cutmix_prob:
-                # generate mixed sample
-                lam = np.random.beta(args.beta, args.beta)
-                rand_index = torch.randperm(images.size()[0]).cuda()
-                target_a = target
-                target_b = target[rand_index]
-                bbx1, bby1, bbx2, bby2 = rand_bbox(images.size(), lam)
-                images[:, :, bbx1:bbx2, bby1:bby2] = images[rand_index, :, bbx1:bbx2, bby1:bby2]
+                
+                slicing_idx, y_a, y_b, lam = cutmix_data(images, target, args)
+                images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]]
                 # adjust lambda to exactly match pixel ratio
-                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (images.size()[-1] * images.size()[-2]))
                 # compute output
                 output = model(images)
-                loss = criterion(output, target_a) * lam + criterion(output, target_b) * (1. - lam)
+                loss = mixup_criterion(criterion, output, y_a, y_b, lam)
             else:
                 output = model(images)
                 loss = criterion(output, target)
+        elif not args.cm and args.mu:
+            r = np.random.rand(1)
+            if args.alpha > 0 and r < args.mixup_prob:
+                images, y_a, y_b, lam = mixup_data(images, target, args)
+                output = model(images)
+                loss = mixup_criterion(criterion, output, y_a, y_b, lam)
+            
+            else:
+                output = model(images)
+                loss = criterion(output, target)
+                
+        elif args.cm and args.mu:
+            pass
+        
         else:
             output = model(images)
             loss = criterion(output, target)
