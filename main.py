@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-from time import time
+from posixpath import split
 from utils.mix import cutmix_data, mixup_data, mixup_criterion
 import numpy as np
 import random
@@ -32,7 +32,7 @@ def init_parser():
     # Data args
     parser.add_argument('--data_path', default='/dataset', type=str, help='dataset path')
    
-    parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET'], type=str, help='Image Net dataset path')
+    parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','SVHN'], type=str, help='Image Net dataset path')
 
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
 
@@ -134,13 +134,13 @@ def main(args):
         img_mean, img_std = (0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
         img_size = 32
         
-    elif args.dataset == 'IMNET':
+    elif args.dataset == 'SVHN':
         print(Fore.YELLOW+'*'*80)
-        logger.debug('ImageNet')
+        logger.debug('SVHN')
         print('*'*80 + Style.RESET_ALL)
-        n_classes = 1000
-        img_mean, img_std = IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-        img_size = 224
+        n_classes = 10
+        img_mean, img_std = (0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970)
+        img_size = 32
     
     '''
         Model 
@@ -220,10 +220,17 @@ def main(args):
         logger.debug('Autoaugmentation used')
         print('*'*80 + Style.RESET_ALL)
         from utils.autoaug import CIFAR10Policy
-        augmentations += [
+        if args.dataset == 'SVHN':
+            augmentations += [
+                
+                SVHNPolicy()
+            ]
             
-            CIFAR10Policy()
-        ]
+        else:    
+            augmentations += [
+                
+                CIFAR10Policy()
+            ]
         
     augmentations += [                
         transforms.RandomHorizontalFlip(),
@@ -252,6 +259,16 @@ def main(args):
             root=args.data_path, train=True, download=True, transform=augmentations)
         val_dataset = datasets.CIFAR100(
             root=args.data_path, train=False, download=False, transform=transforms.Compose([
+            transforms.Resize(img_size),
+            transforms.ToTensor(),
+            *normalize]))
+        
+    elif args.dataset == 'SVHN':
+
+        train_dataset = datasets.SVHN(
+            root=args.data_path, split='train', download=True, transform=augmentations)
+        val_dataset = datasets.SVHN(
+            root=args.data_path, split='test', download=True, transform=transforms.Compose([
             transforms.Resize(img_size),
             transforms.ToTensor(),
             *normalize]))
