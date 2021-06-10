@@ -355,7 +355,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
             r = np.random.rand(1)
-            if r < 0.3:
+            if r < args.mix_prob:
                 switching_prob = np.random.rand(1)
                 
                 # Cutmix
