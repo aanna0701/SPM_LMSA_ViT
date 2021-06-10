@@ -19,9 +19,12 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import os
 from utils.cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 import models.create_model as m
+from utils.logger_dict import Logger_dict
+from utils.print_progress import progress_bar
 
 best_acc1 = 0
 input_size = 32
+
 
 def init_parser():
     parser = argparse.ArgumentParser(description='CIFAR10 quick training script')
@@ -158,11 +161,11 @@ def main(args):
         model = m.P_GiT_conv(args.depth, num_classes=n_classes)
         
     print(Fore.GREEN+'*'*80)
-    logger.debug(f"  Creating model: {model_name}  ")    
+    logger.debug(f"Creating model: {model_name}")    
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.debug(f'  Number of params: {n_parameters}  ')
-    logger.debug(f'  Initial learning rate: {args.lr:.6f}  ')
-    logger.debug(f"  Start training for {args.epochs} epochs  ")
+    logger.debug(f'Number of params: {n_parameters}')
+    logger.debug(f'Initial learning rate: {args.lr:.6f}')
+    logger.debug(f"Start training for {args.epochs} epochs")
     print('*'*80+Style.RESET_ALL)
     
     '''
@@ -230,13 +233,7 @@ def main(args):
     
     
     augmentations = transforms.Compose(augmentations)
-    '''
-        Mixup
-    '''
 
-        
-        
-        
     '''
         Data Loader
     '''
@@ -275,25 +272,23 @@ def main(args):
     print()
     print("Beginning training")
     print()
-    time_begin = time()
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
         train(train_loader, model, criterion, optimizer, epoch, args)
-        acc1 = validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch, time_begin=time_begin)
+        acc1 = validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch)
+        logger_dict.print()
         if acc1 > best_acc1:
+            print('* Best model upate *')
             best_acc1 = acc1
             torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
-            logger.debug('Best model update')
             
-        scheduler.step()
-        logger.debug(f'Best acc {best_acc1:.2f}')
-        print('*'*80+Style.RESET_ALL)
+        scheduler.step()        
+        print(f'Best acc {best_acc1:.2f}')
+        print('*'*80)
+        print(Style.RESET_ALL)
 
-    total_mins = (time() - time_begin) / 60
     print(Fore.RED+'*'*80)
-    logger.debug(f'Script finished in {total_mins:.2f} minutes, '
-                f'best top-1: {best_acc1:.2f}, '
-                f'final top-1: {acc1:.2f}')
+    logger.debug(f'best top-1: {best_acc1:.2f}, final top-1: {acc1:.2f}')
     print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
@@ -404,10 +399,13 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-            logger.debug(f'[Epoch {epoch+1}][Train][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f} \t LR {get_lr(optimizer):.6f} \t Mix {mix} ({mix_paramter})')
+            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}] \t Loss: {avg_loss:.4e} \t Top-1: {avg_acc1:6.2f} \t\t LR: {get_lr(optimizer):.6f} \t\t Mix: {mix} ({mix_paramter})'+' '*10)
+
+    logger_dict.update(keys[0], avg_loss)
+    logger_dict.update(keys[1], avg_acc1)
 
 
-def validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=None):
+def validate(val_loader, model, criterion, args, lr, epoch=None):
     model.eval()
     loss_val, acc1_val = 0, 0
     n = 0
@@ -428,20 +426,23 @@ def validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=None
 
             if args.print_freq >= 0 and i % args.print_freq == 0:
                 avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-                logger.debug(f'[Epoch {epoch+1}][Eval][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f}')
-
+                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}] \t Loss: {avg_loss:.4e} \t Top-1: {avg_acc1:6.2f} \t\t LR: {lr:.6f}')
+    print()        
     avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-    total_mins = -1 if time_begin is None else (time() - time_begin) / 60
-    print(Fore.BLUE+'*'*80)
-    logger.debug(f'[Epoch {epoch+1}] \t Top-1 {avg_acc1:6.2f} \t lr {lr:.6f} \t Time: {total_mins:.2f}')
+    # total_mins = -1 if time_begin is None else (time() - time_begin) / 60
+    print(Fore.BLUE)
+    print('*'*80)
+    # logger.debug(f'[Epoch {epoch+1}] \t Top-1 {avg_acc1:6.2f} \t lr {lr:.6f} \t Time: {total_mins:.2f}')
     
-
+    logger_dict.update(keys[2], avg_loss)
+    logger_dict.update(keys[3], avg_acc1)
     return avg_acc1
 
 
 if __name__ == '__main__':
     parser = init_parser()
     args = parser.parse_args()
+    global save_path
     
     # random seed
 
@@ -471,5 +472,12 @@ if __name__ == '__main__':
     logger.addHandler(streamHandler)
     logger.addHandler(fileHandler)
     logger.setLevel(level=log.DEBUG)
+
+    
+    global logger_dict
+    global keys
+    
+    logger_dict = Logger_dict(logger, save_path)
+    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1']
     
     main(args)

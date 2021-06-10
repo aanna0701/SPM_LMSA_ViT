@@ -18,7 +18,7 @@ def init_parser():
    
     parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','IMNET'], type=str, help='Image Net dataset path')
 
-    parser.add_argument('--weights', default='/workspace/save/g-vit-6-4-64-vit-low_dimension_embed-Seed3', type=str)
+    parser.add_argument('--weights', default='/workspace/save/vit-6-6-96-G-aa_ls-Seed3', type=str)
 
     parser.add_argument('--n_neighbors', default=5, type=int, help='10 to 15')
     parser.add_argument('--min_dist', default=0.3, type=float, help='0.001 to 0.5')
@@ -40,17 +40,17 @@ def init_parser():
 
     return parser
 
-global n_neighbors
-global min_dist
 
-n_neighbors = [5, 10, 15, 20]
-min_dist = [0.0001,0.001, 0.01, 1]
 
 def main(args):
     '''
         Dataset
     '''
+    global n_neighbors
+    global min_dist
 
+    n_neighbors = [3, 4]
+    min_dist = [0.2, 0.3]
     
     if args.dataset == 'CIFAR10':
         print(Fore.YELLOW+'*'*80)
@@ -166,7 +166,7 @@ def visualize(embeddings, cls, title, axs=False):
     
     vis_x = embeddings[:, 0]
     vis_y = embeddings[:, 1]
-    axs.scatter(vis_x, vis_y, c=cls, cmap=plt.cm.get_cmap('Paired', 10), marker='.', s=20)
+    axs.scatter(vis_x, vis_y, c=cls, cmap=plt.cm.get_cmap('Paired', 10), marker='.', s=0.1, )
     axs.set_title(title, fontsize=5)
     axs.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
     # plt.savefig(os.path.join(save_path, f'result_{args.n_neighbors}_{args.min_dist}.eps'), format='eps', dpi=1200)

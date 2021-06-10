@@ -166,13 +166,13 @@ class GA_block(nn.Module):
         self.sigmoid = nn.Sigmoid()
         # self.softmax = nn.Softmax()
         # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
-        self.linear1 = nn.Linear(in_channels, (in_channels // 4 * 3), bias=False)
+        self.linear1 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear1)
-        self.linear2 = nn.Linear(in_channels, (in_channels // 4 * 3), bias=False)
+        self.linear2 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear2)
-        self.linear3 = nn.Linear(in_channels, (in_channels // 4 * 3), bias=False)
+        self.linear3 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear3)
-        self.linear4 = nn.Linear((in_channels // 4 * 3), in_channels, bias=False)
+        self.linear4 = nn.Linear(in_channels // 2, in_channels, bias=False)
         self._init_weights(self.linear4)
         
     def _init_weights(self,layer):
@@ -221,10 +221,10 @@ class GA_block(nn.Module):
         
         
         
-        channel_attention = self.sigmoid(channel_attention) # (B, 1, C)
+        channel_attention = self.sigmoid(self.linear4(channel_attention)) # (B, 1, C)
        
         
-        cls_token_out = self.linear4(cls_embed + torch.mul(cls_embed, channel_attention))    #(B, 1, C)
+        cls_token_out = cls_token + torch.mul(cls_token, channel_attention)    #(B, 1, C)
         # print(channel_attention[0])
         # print(cls_token_out[0])
         # print('\n\n====')
