@@ -97,7 +97,7 @@ def init_parser():
     parser.add_argument('--beta', default=1.0, type=float,
                         help='hyperparameter beta (default: 1)')
     parser.add_argument('--mu',action='store_true' , help='Use Mixup')
-    parser.add_argument('--alpha', default=0.8, type=float,
+    parser.add_argument('--alpha', default=1.0, type=float,
                         help='mixup interpolation coefficient (default: 1)')
     parser.add_argument('--mix_prob', default=0.5, type=float,
                         help='mixup probability')
