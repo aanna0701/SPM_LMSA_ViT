@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-class logger_dict():
+class Logger_dict():
     def __init__(self):
         self.dict = OrderedDict()
     
