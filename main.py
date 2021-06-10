@@ -290,8 +290,8 @@ def main(args):
     time_begin = time()
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
-        cls_train(train_loader, model, criterion, optimizer, epoch, args)
-        acc1 = cls_validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch, time_begin=time_begin)
+        train(train_loader, model, criterion, optimizer, epoch, args)
+        acc1 = validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch, time_begin=time_begin)
         if acc1 > best_acc1:
             best_acc1 = acc1
             torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
@@ -329,7 +329,7 @@ def accuracy(output, target):
         return res
 
 
-def cls_train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer, epoch, args):
     model.train()
     loss_val, acc1_val = 0, 0
     n = 0
@@ -419,7 +419,7 @@ def cls_train(train_loader, model, criterion, optimizer, epoch, args):
             logger.debug(f'[Epoch {epoch+1}][Train][{i}] \t Loss: {avg_loss:.4e} \t Top-1 {avg_acc1:6.2f} \t LR {get_lr(optimizer):.6f} \t Mix {mix} ({mix_paramter})')
 
 
-def cls_validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=None):
+def validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=None):
     model.eval()
     loss_val, acc1_val = 0, 0
     n = 0
@@ -429,6 +429,7 @@ def cls_validate(val_loader, model, criterion, args, lr, epoch=None, time_begin=
                 images = images.cuda(args.gpu, non_blocking=True)
                 target = target.cuda(args.gpu, non_blocking=True)
 
+            
             output = model(images)
             loss = criterion(output, target)
 
