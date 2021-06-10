@@ -334,6 +334,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
                 output = model(images)
                 loss = mixup_criterion(criterion, output, y_a, y_b, lam)                
             else:
+                mix = 'none'
+                mix_paramter = 0
                 output = model(images)
                 loss = criterion(output, target)
         
