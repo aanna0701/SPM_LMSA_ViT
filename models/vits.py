@@ -170,8 +170,6 @@ class GA_block(nn.Module):
         self._init_weights(self.linear1)
         self.linear2 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear2)
-        self.linear3 = nn.Linear(in_channels, in_channels // 2, bias=False)
-        self._init_weights(self.linear3)
         self.linear4 = nn.Linear(in_channels // 2, in_channels, bias=False)
         self._init_weights(self.linear4)
         
@@ -204,7 +202,6 @@ class GA_block(nn.Module):
         
         edge_embed = self.linear1(edge_global)
         node_embed = self.linear2(node_global)
-        cls_embed = self.linear3(cls_token)
         
         # cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
         # norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
