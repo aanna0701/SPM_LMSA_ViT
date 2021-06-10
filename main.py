@@ -89,24 +89,12 @@ def init_parser():
                         help='Do not random erase first (clean) augmentation split')
 
     # * Mixup params
-    # parser.add_argument('--mixup', type=float, default=0.8,
-    #                     help='mixup alpha, mixup enabled if > 0. (default: 0.8)')
-    # parser.add_argument('--cutmix', type=float, default=1.0,
-    #                     help='cutmix alpha, cutmix enabled if > 0. (default: 1.0)')
-    # parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None,
-    #                     help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
-    # parser.add_argument('--mixup-prob', type=float, default=1.0,
-    #                     help='Probability of performing mixup or cutmix when either/both is enabled')
-    # parser.add_argument('--mixup-switch-prob', type=float, default=0.5,
-    #                     help='Probability of switching to cutmix when both mixup and cutmix enabled')
-    # parser.add_argument('--mixup-mode', type=str, default='batch',
-    #                     help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
-    # parser.add_argument('--mu',action='store_true' , help='Use Mixup')
+  
     parser.add_argument('--cm',action='store_true' , help='Use Cutmix')
     parser.add_argument('--beta', default=1.0, type=float,
                         help='hyperparameter beta (default: 1)')
     parser.add_argument('--mu',action='store_true' , help='Use Mixup')
-    parser.add_argument('--alpha', default=1.0, type=float,
+    parser.add_argument('--alpha', default=0.8, type=float,
                         help='mixup interpolation coefficient (default: 1)')
     parser.add_argument('--mix_prob', default=0.5, type=float,
                         help='mixup probability')
@@ -372,7 +360,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
             r = np.random.rand(1)
-            if r < 0.5:
+            if r < 0.3:
                 switching_prob = np.random.rand(1)
                 
                 # Cutmix
