@@ -616,7 +616,7 @@ class Pooling_layer(nn.Module):
 
 
 class ViT_pooling(nn.Module):
-    def __init__(self, in_size, patch_size, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling='max'):
+    def __init__(self, in_size, patch_size, inter_dimension, num_blocks, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, pooling='max', in_channels=3):
         super(ViT_pooling, self).__init__()
 
         self.in_channels = inter_dimension
@@ -626,7 +626,7 @@ class ViT_pooling(nn.Module):
         self.in_size = (num_nodes * num_nodes + 1, inter_dimension)
 
         self.patch_embedding = Patch_Embedding(
-            patch_size=patch_size, in_channels=3, inter_channels=inter_dimension)
+            patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension)
         
         self.dropout = dropout
         

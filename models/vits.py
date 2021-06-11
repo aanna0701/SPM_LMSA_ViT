@@ -89,8 +89,7 @@ class Positional_Embedding(nn.Module):
 class Patch_Embedding(nn.Module):
     def __init__(self, patch_size, in_channels, inter_channels):
         super(Patch_Embedding, self).__init__()
-        self.patch_embedding = nn.Conv2d(in_channels, inter_channels,
-                                         kernel_size=patch_size, stride=patch_size, bias=False)
+        self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
         self._init_weights(self.patch_embedding)
         self.inter_channels = inter_channels
 
@@ -108,6 +107,7 @@ class Patch_Embedding(nn.Module):
             out_concat : (B, HW+1, C')
             out : (B, HW+1, C')
         ''' 
+        
         out = self.patch_embedding(x)
         out_flat = out.flatten(start_dim=2)
         
@@ -164,7 +164,7 @@ class GA_block(nn.Module):
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
-        # self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=-1)
         # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
         self.linear1 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear1)
@@ -197,7 +197,7 @@ class GA_block(nn.Module):
         '''
         nodes = x[:, 1:]    # (B, HW, C)
         
-        edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
+        edge_global = self.avgpool(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
         edge_embed = self.linear1(edge_global)
@@ -212,13 +212,14 @@ class GA_block(nn.Module):
         # edge_global = scale_edge[:, (0,)] 
         # node_global = scale_edge[:, (1,)]
         
-        
-        channel_attention = edge_embed + node_embed # (B, 1, C)
+        channel_attention = edge_embed + node_embed
+        # channel_attention = torch.mul(edge_embed,node_embed) # (B, 1, C)
         # channel_attention = torch.sum(cat_out, dim=1, keepdim=True) # (B, 1, C)
         
         
         
         channel_attention = self.sigmoid(self.linear4(channel_attention)) # (B, 1, C)
+        # channel_attention = self.softmax(self.linear4(channel_attention)) # (B, 1, C)
        
         
         cls_token_out = cls_token + torch.mul(cls_token, channel_attention)    #(B, 1, C)
@@ -314,7 +315,7 @@ class Transformer_Block(nn.Module):
             '''
                 Global attribute update
             '''
-            edge_per_node = x_MHSA
+            edge_per_node = x_MHSA[:, 1:, 1:]
             
             x_inter2 = self.GA(x_res1, x_inter1[:, (0,)], edge_per_node, dropout)
             x_inter2 = self.normalization_GA(x_inter2)
@@ -380,23 +381,34 @@ class Classifier_2d(nn.Module):
         return out
 
 class ViT(nn.Module):
-    def __init__(self, img_size, num_nodes, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True):
+    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
         self.heads = heads
 
-        self.in_size = (num_nodes + 1, inter_dimension)
+        self.down_conv = None
+        if img_size > 32:
+            p_in = round(img_size * 2 / 33)
+            self.down_conv = nn.Conv2d(in_channels, inter_dimension  // 2, kernel_size=p_in, stride=round(p_in/2), bias=False)
+            in_channels = inter_dimension  // 2
+            
+        img_size = (img_size - p_in) * 2 / p_in + 1
+        img_size = round(img_size)
+        
+        self.in_size = ((img_size // patch_size)**2 + 1, inter_dimension)
+        
 
+        
         self.patch_embedding = Patch_Embedding(
-            patch_size=int(math.sqrt((img_size) // num_nodes)), in_channels=3, inter_channels=inter_dimension)
+            patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension)
         
         self.dropout = dropout
         
         self.classifier = Classifier_1d(
         num_classes=num_classes, in_channels=inter_dimension)
         self.positional_embedding = Positional_Embedding(
-        spatial_dimension=num_nodes, inter_channels=inter_dimension)
+        spatial_dimension=(img_size // patch_size)**2, inter_channels=inter_dimension)
         
         self.dropout_layer = nn.Dropout(0.1)
         
@@ -424,6 +436,7 @@ class ViT(nn.Module):
             x_tmp = (B, HW, C)
             x_out = (B, classes)
         '''
+        x = self.down_conv(x)
         x_patch_embedded = self.patch_embedding(x)
         x_tmp = self.positional_embedding(x_patch_embedded)
         cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))

@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import argparse
-from posixpath import split
 from utils.mix import cutmix_data, mixup_data, mixup_criterion
 import numpy as np
 import random
@@ -15,12 +13,12 @@ import torchvision.datasets as datasets
 from colorama import Fore, Style
 from torchsummary import summary
 from utils.losses import LabelSmoothingCrossEntropy
-from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import os
 from utils.cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 import models.create_model as m
 from utils.logger_dict import Logger_dict
 from utils.print_progress import progress_bar
+import argparse
 
 best_acc1 = 0
 input_size = 32
@@ -30,9 +28,9 @@ def init_parser():
     parser = argparse.ArgumentParser(description='CIFAR10 quick training script')
 
     # Data args
-    parser.add_argument('--data_path', default='/dataset', type=str, help='dataset path')
+    parser.add_argument('--data_path', default='./dataset', type=str, help='dataset path')
    
-    parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100','SVHN'], type=str, help='Image Net dataset path')
+    parser.add_argument('--dataset', default='CIFAR10', choices=['CIFAR10', 'CIFAR100', 'T-IMNET', 'M-IMNET'], type=str, help='Image Net dataset path')
 
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
 
@@ -125,40 +123,52 @@ def main(args):
         n_classes = 10
         img_mean, img_std = (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
         img_size = 32
+        in_channels = 3
         
     elif args.dataset == 'CIFAR100':
         print(Fore.YELLOW+'*'*80)
         logger.debug('CIFAR100')
         print('*'*80 + Style.RESET_ALL)
         n_classes = 100
-        img_mean, img_std = (0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
+        img_mean, img_std = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
         img_size = 32
+        in_channels = 3
         
-    elif args.dataset == 'SVHN':
+    elif args.dataset == 'T-IMNET':
         print(Fore.YELLOW+'*'*80)
-        logger.debug('SVHN')
+        logger.debug('T-IMNET')
         print('*'*80 + Style.RESET_ALL)
-        n_classes = 10
-        img_mean, img_std = (0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970)
-        img_size = 32
+        n_classes = 200
+        img_mean, img_std = (0.4802, 0.4481, 0.3975), (0.2770, 0.2691, 0.2821)
+        img_size = 64
+        in_channels = 3
+        
+    elif args.dataset == 'M-IMNET':
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('M-IMNET')
+        print('*'*80 + Style.RESET_ALL)
+        n_classes = 64
+        img_mean, img_std = (0.4711, 0.4499, 0.4031), (0.2747, 0.2660, 0.2815)
+        img_size = 84
+        in_channels = 3
     
     '''
         Model 
     '''    
 
     if args.model == 'vit':
-        model = m.make_ViT(args.depth, args.channel,GA=False, heads = args.heads, num_classes=n_classes)
+        model = m.make_ViT(args.depth, args.channel,GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
-        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes)
+        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
 
     elif args.model == 'pit':
-        model = m.P_ViT_conv(args.depth, num_classes=n_classes)
+        model = m.P_ViT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-pit':
-        model = m.P_GiT_conv(args.depth, num_classes=n_classes)
+        model = m.P_GiT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
@@ -217,24 +227,29 @@ def main(args):
     
     if args.aa == True:
         print(Fore.YELLOW+'*'*80)
-        logger.debug('Autoaugmentation used')
-        print('*'*80 + Style.RESET_ALL)
-        from utils.autoaug import CIFAR10Policy
-        if args.dataset == 'SVHN':
-            augmentations += [
-                
-                SVHNPolicy()
-            ]
-            
-        else:    
+        logger.debug('Autoaugmentation used')      
+        
+        if 'CIFAR' in args.dataset:
+            print("CIFAR Policy")
+            from utils.autoaug import CIFAR10Policy
             augmentations += [
                 
                 CIFAR10Policy()
             ]
+           
+        else:
+            print("ImageNet Policy")    
+            from utils.autoaug import ImageNetPolicy
+            augmentations += [
+                
+                ImageNetPolicy()
+            ]
+        print('*'*80 + Style.RESET_ALL)
         
+
     augmentations += [                
         transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(32, padding=4),
+        transforms.RandomCrop(img_size, padding=4),
         transforms.ToTensor(),
         *normalize]
     
@@ -263,15 +278,22 @@ def main(args):
             transforms.ToTensor(),
             *normalize]))
         
-    elif args.dataset == 'SVHN':
-
-        train_dataset = datasets.SVHN(
-            root=args.data_path, split='train', download=True, transform=augmentations)
-        val_dataset = datasets.SVHN(
-            root=args.data_path, split='test', download=True, transform=transforms.Compose([
-            transforms.Resize(img_size),
-            transforms.ToTensor(),
-            *normalize]))
+    elif args.dataset == 'T-IMNET':
+        train_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'tiny_imagenet', 'train'), transform=augmentations)
+        val_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'tiny_imagenet', 'val'), 
+            transform=transforms.Compose([
+            transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
+        
+    elif args.dataset == 'M-IMNET':
+    
+        train_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'mini_imagenet_84', 'train'), transform=augmentations)
+        val_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'mini_imagenet_84', 'val'), 
+            transform=transforms.Compose([
+            transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -284,7 +306,7 @@ def main(args):
         Training
     '''
     
-    summary(model, (3, 32, 32))
+    summary(model, (3, img_size, img_size))
     
     print()
     print("Beginning training")
