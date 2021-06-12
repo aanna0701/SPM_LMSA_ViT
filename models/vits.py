@@ -1,3 +1,4 @@
+from sys import path
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -122,9 +123,30 @@ class Positional_Embedding(nn.Module):
 class Patch_Embedding(nn.Module):
     def __init__(self, patch_size, in_channels, inter_channels, down_conv=False):
         super(Patch_Embedding, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
-        self._init_weights(self.patch_embedding)
+        
+        self.in_channels = in_channels
         self.inter_channels = inter_channels
+        if not down_conv:
+            self.conv = False
+            self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
+        
+        else:
+            self.conv = True
+            num_block = round(patch_size / 2)
+            self.patch_embedding = self.make_layer(num_block)
+        
+        for patch_embedding in self.patch_embedding:
+            self._init_weights(patch_embedding)
+        
+    def make_layer(self, num_blocks):
+        layer_list = nn.ModuleList()
+        
+        for i in range(num_blocks):
+            layer_list.append(
+                nn.Conv2d(self.in_channels, self.inter_channels, kernel_size=3, stride=2, bias=False))
+            self.in_channels = self.inter_channels
+            
+        return layer_list
 
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -140,8 +162,14 @@ class Patch_Embedding(nn.Module):
             out_concat : (B, HW+1, C')
             out : (B, HW+1, C')
         ''' 
+        if not self.conv:
+            out = self.patch_embedding(x)
         
-        out = self.patch_embedding(x)
+        else:
+            out = x
+            for patch_embedding in self.patch_embedding:
+                out = patch_embedding(out)
+        
         out_flat = out.flatten(start_dim=2)
         
         return out_flat
@@ -414,7 +442,7 @@ class Classifier_2d(nn.Module):
         return out
 
 class ViT(nn.Module):
-    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3):
+    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3, down_conv=True):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
@@ -431,7 +459,7 @@ class ViT(nn.Module):
         #     self.in_size = ((self.num_nodes)**2 + 1, self.in_size[1])
             
         # else:   
-        self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension)
+        self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=down_conv)
       
         self.dropout = dropout
         
