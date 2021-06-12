@@ -643,6 +643,8 @@ class ViT_pooling(nn.Module):
         self.transformers = nn.ModuleList()
         
         self.pooling = pooling
+        
+        self.layer_norm = nn.LayerNorm((1, self.inter_dimension))
 
         j = 0
         for i in range(len(num_blocks)):
@@ -696,7 +698,7 @@ class ViT_pooling(nn.Module):
         for i in range(len(self.transformers)):
             x_tmp, cls_token = self.transformers[i](x_tmp, cls_token, self.dropout)
                 
-        x_out = self.classifier(cls_token)
+        x_out = self.classifier(self.layer_norm(cls_token))
 
         return x_out
         

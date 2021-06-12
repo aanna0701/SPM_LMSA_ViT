@@ -76,7 +76,7 @@ class Positional_Embedding(nn.Module):
         super(Positional_Embedding, self).__init__()
         '''
         [shape]
-            self.PE : (1, HW+1, C)
+            self.PE : (1, HW, C)
         '''
         self.PE = nn.Parameter(torch.zeros(
             1, spatial_dimension, inter_channels))
@@ -86,10 +86,43 @@ class Positional_Embedding(nn.Module):
         return x.permute(0, 2, 1) + self.PE
 
 
+# class Patch_Embedding(nn.Module):
+#     def __init__(self, patch_size, in_channels, inter_channels, down_conv=False):
+#         super(Patch_Embedding, self).__init__()
+#         self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
+#         self._init_weights(self.patch_embedding)
+#         self.inter_channels = inter_channels
+#         self.down_conv = None
+#         if down_conv:
+#             self.down_conv = nn.Conv2d(inter_channels, inter_channels, kernel_size=3, stride=2, bias=False)
+#             self._init_weights(self.down_conv)
+
+#     def _init_weights(self,layer):
+#         nn.init.kaiming_normal_(layer.weight)
+#         if layer.bias:
+#             nn.init.normal_(layer.bias, std=1e-6)
+
+#     def forward(self, x):
+#         '''
+#         [shapes]
+#             x : (B, C, H, W)
+#             out : (B, C', H, W)
+#             out_flat : (B, C', HW)
+#             out_concat : (B, HW+1, C')
+#             out : (B, HW+1, C')
+#         ''' 
+        
+#         out = self.patch_embedding(x)
+#         if self.down_conv:
+#             out = self.down_conv(out)
+#         out_flat = out.flatten(start_dim=2)
+        
+#         return out_flat
+
 class Patch_Embedding(nn.Module):
-    def __init__(self, patch_size, in_channels, inter_channels):
+    def __init__(self, patch_size, in_channels, inter_channels, down_conv=False):
         super(Patch_Embedding, self).__init__()
-        self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
+        self.conv1 = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
         self._init_weights(self.patch_embedding)
         self.inter_channels = inter_channels
 
@@ -387,28 +420,24 @@ class ViT(nn.Module):
         self.inter_dimension = inter_dimension
         self.heads = heads
 
-        self.down_conv = None
-        if img_size > 32:
-            p_in = round(img_size * 2 / 33)
-            self.down_conv = nn.Conv2d(in_channels, inter_dimension  // 2, kernel_size=p_in, stride=round(p_in/2), bias=False)
-            in_channels = inter_dimension  // 2
-            
-        img_size = (img_size - p_in) * 2 / p_in + 1
-        img_size = round(img_size)
+        self.num_nodes = img_size // patch_size
+        self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
-        self.in_size = ((img_size // patch_size)**2 + 1, inter_dimension)
         
 
-        
-        self.patch_embedding = Patch_Embedding(
-            patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension)
-        
+        # if img_size > 32:
+        #     self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=True)
+        #     self.num_nodes = (self.num_nodes - 3) // 2 + 1
+        #     self.in_size = ((self.num_nodes)**2 + 1, self.in_size[1])
+            
+        # else:   
+        self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension)
+      
         self.dropout = dropout
         
         self.classifier = Classifier_1d(
         num_classes=num_classes, in_channels=inter_dimension)
-        self.positional_embedding = Positional_Embedding(
-        spatial_dimension=(img_size // patch_size)**2, inter_channels=inter_dimension)
+        self.positional_embedding = Positional_Embedding(spatial_dimension=self.in_size[0]-1, inter_channels=inter_dimension)
         
         self.dropout_layer = nn.Dropout(0.1)
         
@@ -418,6 +447,8 @@ class ViT(nn.Module):
         self.transformers = self.make_layer(depth, Transformer_Block, mlp_ratio, GA_flag=GA)
         
         self.final_cls_token = None
+        
+        self.layer_norm = nn.LayerNorm((1, self.inter_dimension))
 
 
     def make_layer(self, num_blocks, block, mlp_ratio, GA_flag):
@@ -436,8 +467,9 @@ class ViT(nn.Module):
             x_tmp = (B, HW, C)
             x_out = (B, classes)
         '''
-        x = self.down_conv(x)
         x_patch_embedded = self.patch_embedding(x)
+        
+        
         x_tmp = self.positional_embedding(x_patch_embedded)
         cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))
 
@@ -452,7 +484,7 @@ class ViT(nn.Module):
         
         self.final_cls_token = cls_token.squeeze(1)
                 
-        x_out = self.classifier(cls_token)
+        x_out = self.classifier(self.layer_norm(cls_token))
 
         return x_out
         
