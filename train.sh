@@ -8,12 +8,17 @@
 #	python main.py --depth 4 --gpu 1 --lr 0.003 --model g-pit --tag g-vit_LS_AA_pooling --seed ${s} --label_smoothing
 #done
 
+# for s in 3 4 5
+# do
+# #	python main.py --depth 6 --channel 48 --heads 3 --gpu 1 --lr 0.003 --model vit --tag vit-t_imnet --seed ${s} --dataset T-IMNET
+# 	python main.py --depth 6 --channel 64 --heads 4 --gpu 0 --lr 0.003 --model vit --tag vit-t_imnet --seed ${s} --dataset T-IMNET
+# 	python main.py --depth 6 --channel 80 --heads 5 --gpu 0 --lr 0.003 --model vit --tag vit-t_imnet --seed ${s} --dataset T-IMNET 
+# #	python main.py --depth 6 --channel 96 --heads 6 --gpu 1 --lr 0.003 --model vit --tag vit-t_imnet --seed ${s} --dataset T-IMNET 
+# done
+
 for s in 3 4 5
 do
-	python main.py --depth 6 --channel 48 --heads 3 --gpu 1 --lr 0.003 --model vit --tag vit-mu-cm-0.3prob-0.8alpha --seed ${s} --mu  --cm
-	# python main.py --depth 6 --channel 64 --heads 4 --gpu 0 --lr 0.003 --model vit --tag vit-mu-cm-0.3prob-0.8alpha --seed ${s} --mu  --cm 
-	# python main.py --depth 6 --channel 80 --heads 5 --gpu 0 --lr 0.003 --model vit --tag vit-mu-cm-0.3prob-0.8alpha --seed ${s} --mu  --cm 
-	python main.py --depth 6 --channel 96 --heads 6 --gpu 1 --lr 0.003 --model vit --tag vit-mu-cm-0.3prob-0.8alpha --seed ${s} --mu  --cm 
+#	python main.py --depth 6 --channel 96 --heads 6 --gpu 0 --lr 0.003 --model vit --tag vit-ti_cifar100 --seed ${s} --dataset CIFAR100
+	python main.py --depth 6 --channel 96 --heads 6 --gpu 1 --lr 0.003 --model vit --tag vit-ti_t-imnet --seed ${s} --dataset T-IMNET
+
 done
-#python main.py --depth 6 --channel 80 --heads 5 --gpu 0 --lr 0.003 --model g-vit --tag g-vit_base_scale --seed 1
-# python main.py --depth 6 --channel 96 --heads 6 --gpu 1 --lr 0.003 --model g-vit --tag g-vit_base_scale --seed 1

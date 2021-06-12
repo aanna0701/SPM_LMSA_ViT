@@ -129,14 +129,16 @@ class Patch_Embedding(nn.Module):
         if not down_conv:
             self.conv = False
             self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
+            self._init_weights(self.patch_embedding)
         
         else:
             self.conv = True
-            num_block = round(patch_size / 2)
-            self.patch_embedding = self.make_layer(num_block)
+            # num_block = round(patch_size / 2)
+            self.patch_embedding = self.make_layer(3)
+            self.gelu = nn.GELU()
         
-        for patch_embedding in self.patch_embedding:
-            self._init_weights(patch_embedding)
+            for patch_embedding in self.patch_embedding:
+                self._init_weights(patch_embedding)
         
     def make_layer(self, num_blocks):
         layer_list = nn.ModuleList()
@@ -167,8 +169,11 @@ class Patch_Embedding(nn.Module):
         
         else:
             out = x
+            out = self.gelu(out)
             for patch_embedding in self.patch_embedding:
                 out = patch_embedding(out)
+                out = self.gelu(out)
+                
         
         out_flat = out.flatten(start_dim=2)
         
@@ -442,14 +447,12 @@ class Classifier_2d(nn.Module):
         return out
 
 class ViT(nn.Module):
-    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3, down_conv=True):
+    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
         self.heads = heads
 
-        self.num_nodes = img_size // patch_size
-        self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
         
 
@@ -459,9 +462,19 @@ class ViT(nn.Module):
         #     self.in_size = ((self.num_nodes)**2 + 1, self.in_size[1])
             
         # else:   
-        self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=down_conv)
+        self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=img_size>32)
       
         self.dropout = dropout
+        
+        if not img_size > 32:
+            self.num_nodes = img_size // patch_size
+            self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
+            
+        else:
+            self.num_nodes = (img_size - 3) / 2 + 1
+            self.num_nodes = (self.num_nodes - 3) / 2 + 1
+            self.num_nodes = int((self.num_nodes - 3) / 2 + 1)            
+            self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
         self.classifier = Classifier_1d(
         num_classes=num_classes, in_channels=inter_dimension)
