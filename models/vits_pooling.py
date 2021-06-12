@@ -644,7 +644,7 @@ class ViT_pooling(nn.Module):
         
         self.pooling = pooling
         
-        self.layer_norm = nn.LayerNorm((1, self.inter_dimension))
+        
 
         j = 0
         for i in range(len(num_blocks)):
@@ -665,6 +665,8 @@ class ViT_pooling(nn.Module):
         
         self.classifier = Classifier_1d(
             num_classes=num_classes, in_channels=self.in_channels)        
+        
+        self.layer_norm = nn.LayerNorm((1, self.in_channels))
 
 
     def make_layer(self, num_blocks, tr_block, mlp_ratio, GA_flag, pool_block=False):
