@@ -344,9 +344,9 @@ class GA_block(nn.Module):
 class Transformer_Block(nn.Module):
     def __init__(self, in_size, in_channels, heads=8, mlp_ratio=4, GA_flag=False):
         super(Transformer_Block, self).__init__()
-        self.normalization_1 = nn.LayerNorm(in_size)
+        self.normalization_1 = nn.LayerNorm(in_channels)
         if not GA_flag:
-            self.normalization_2 = nn.LayerNorm(in_size)
+            self.normalization_2 = nn.LayerNorm(in_channels)
         
         
         self.MHSA = MHSA(in_channels, heads)
@@ -357,7 +357,7 @@ class Transformer_Block(nn.Module):
         self.avgpool = nn.AvgPool1d(heads)
         
         if GA_flag:
-            self.normalization_GA = nn.LayerNorm(in_size)
+            self.normalization_GA = nn.LayerNorm(in_channels)
             self.GA = GA_block([in_size[0]+1, in_size[1]], in_channels)
 
         self.GA_flag = GA_flag
