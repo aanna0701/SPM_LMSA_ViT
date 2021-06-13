@@ -132,18 +132,23 @@ class Patch_Embedding(nn.Module):
         #     self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
         #     self._init_weights(self.patch_embedding)
 
+        self.gelu = nn.GELU()
+        
         if not down_conv:
             self.conv = True
-            self.patch_embedding = self.make_layer(2)
+            self.patch_embedding = self.make_conv(2)
+            self.norm = self.make_norm(2)
         
         else:
             self.conv = True
             # num_block = round(patch_size / 2)
-            self.patch_embedding = self.make_layer(3)
+            self.patch_embedding = self.make_conv(3)
+            
+            self.norm = self.make_norm(3)
         
                 
         
-    def make_layer(self, num_blocks):
+    def make_conv(self, num_blocks):
         layer_list = nn.ModuleList()
         
         for i in range(num_blocks):
@@ -154,16 +159,22 @@ class Patch_Embedding(nn.Module):
             layer_list.append(
                 conv_tmp
                 )
-            layer_list.append(
-                nn.LayerNorm([self.inter_channels])
-                )
-                
-            layer_list.append(
-                nn.GELU()
-                )
-                
+                                
             self.in_channels = self.inter_channels
             
+        return layer_list
+                
+        
+    def make_norm(self, num_blocks):
+        layer_list = nn.ModuleList()
+        
+        for i in range(num_blocks):
+         
+            layer_list.append(
+                layer_list.append(
+                nn.LayerNorm([self.inter_channels])
+                )
+                )
         return layer_list
 
     def _init_weights(self,layer):
@@ -185,10 +196,10 @@ class Patch_Embedding(nn.Module):
         
         else:
             out = x
-            for patch_embedding in self.patch_embedding:
-                out = patch_embedding[0](out)
-                out = patch_embedding[1](out)
-                out = patch_embedding[2](out)
+            for i, patch_embedding in enumerate(self.patch_embedding):
+                out = patch_embedding(out)
+                out = self.norm[i](out)
+                out = self.gelu(out)
                 
         
         out_flat = out.flatten(start_dim=2)
