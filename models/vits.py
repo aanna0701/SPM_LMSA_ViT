@@ -151,8 +151,8 @@ class Patch_Embedding(nn.Module):
         
         for _ in range(num_blocks):
             
-            conv_tmp = nn.Conv2d(self.in_channels, self.inter_channels, kernel_size=3, stride=2, bias=False)
-            self.img_size = round((self.img_size - 3) / 2) + 1
+            conv_tmp = nn.Conv2d(self.in_channels, self.inter_channels, kernel_size=3, stride=2, padding=1, bias=False)
+            self.img_size = self.img_size // 2
             self._init_weights(conv_tmp)
             layer_list.append(
                 conv_tmp
@@ -259,7 +259,6 @@ class GA_block(nn.Module):
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
         # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax(dim=-1)
         # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
         self.linear1 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear1)
@@ -273,7 +272,7 @@ class GA_block(nn.Module):
         if layer.bias:
             nn.init.normal_(layer.bias, std=1e-6)
    
-    def forward(self, x, cls_token, edge_per_node, pool=False):
+    def forward(self, x, edge_per_node, pool=False):
         '''
             [shape]
             x : (B, HW+1, C)
@@ -291,6 +290,7 @@ class GA_block(nn.Module):
             node_importance : (B, HW, 1)
         '''
         nodes = x[:, 1:]    # (B, HW, C)
+        cls_token = x[:, (0,)]
         
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
@@ -411,8 +411,7 @@ class Transformer_Block(nn.Module):
                 Global attribute update
             '''
             edge_per_node = x_MHSA
-            
-            x_inter2 = self.GA(x_res1, x_inter1[:, (0,)], edge_per_node, dropout)
+            x_inter2 = self.GA(x_res1, edge_per_node, dropout)
             x_inter2 = self.normalization_GA(x_inter2)
             
         
@@ -476,21 +475,12 @@ class Classifier_2d(nn.Module):
         return out
 
 class ViT(nn.Module):
-    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3, down_conv=False):
+    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=False, in_channels=3, down_conv=False):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
         self.heads = heads
 
-        
-        
-
-        # if img_size > 32:
-        #     self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=True)
-        #     self.num_nodes = (self.num_nodes - 3) // 2 + 1
-        #     self.in_size = ((self.num_nodes)**2 + 1, self.in_size[1])
-            
-        # else:   
         self.patch_embedding = Patch_Embedding(img_size=img_size, patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=down_conv)
       
         self.dropout = dropout
@@ -500,14 +490,14 @@ class ViT(nn.Module):
             self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
         elif not img_size > 32:
-            self.num_nodes = (img_size - 3) / 2 + 1
-            self.num_nodes = int((self.num_nodes - 3) / 2 + 1)            
+            self.num_nodes = img_size // 2
+            self.num_nodes = self.num_nodes // 2            
             self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
             
         else:
-            self.num_nodes = (img_size - 3) / 2 + 1
-            self.num_nodes = (self.num_nodes - 3) / 2 + 1
-            self.num_nodes = int((self.num_nodes - 3) / 2 + 1)            
+            self.num_nodes = img_size // 2
+            self.num_nodes = self.num_nodes // 2
+            self.num_nodes = self.num_nodes // 2            
             self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
         self.classifier = Classifier_1d(
@@ -523,7 +513,7 @@ class ViT(nn.Module):
         
         self.final_cls_token = None
         
-        self.layer_norm = nn.LayerNorm((1, self.inter_dimension))
+        self.layer_norm = nn.LayerNorm(self.inter_dimension)
 
 
     def make_layer(self, num_blocks, block, mlp_ratio, GA_flag):
@@ -547,7 +537,6 @@ class ViT(nn.Module):
         
         x_tmp = self.positional_embedding(x_patch_embedded)
         cls_token = self.cls_token.expand(x_patch_embedded.size(0), self.cls_token.size(1), self.cls_token.size(2))
-
         
         
         if self.dropout:

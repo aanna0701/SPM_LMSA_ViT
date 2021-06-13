@@ -18,9 +18,11 @@ from utils.cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
 import models.create_model as m
 from utils.logger_dict import Logger_dict
 from utils.print_progress import progress_bar
+from utils.training_functions import accuracy
 import argparse
 
 best_acc1 = 0
+best_acc5 = 0
 input_size = 32
 
 
@@ -68,6 +70,8 @@ def init_parser():
     parser.add_argument('--tag', type=str, help='tag')
 
     parser.add_argument('--seed', type=int, help='seed')
+
+    parser.add_argument('--down_conv', action='store_true', help='down conv embedding')
     
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
@@ -112,6 +116,7 @@ def init_parser():
 
 def main(args):
     global best_acc1    
+    global best_acc5    
 
     '''
         Dataset
@@ -157,18 +162,18 @@ def main(args):
     '''    
 
     if args.model == 'vit':
-        model = m.make_ViT(args.depth, args.channel, down_conv=False, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
-        model = m.make_ViT(args.depth, args.channel, down_conv=True,GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv,GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
 
     elif args.model == 'pit':
-        model = m.P_ViT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        model = m.P_ViT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     
     elif args.model == 'g-pit':
-        model = m.P_GiT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        model = m.P_GiT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
@@ -205,8 +210,7 @@ def main(args):
         Trainer
     '''
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
-                                  weight_decay=args.weight_decay)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=args.warmup)
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
@@ -236,7 +240,7 @@ def main(args):
                 
                 CIFAR10Policy()
             ]
-           
+            
         else:
             print("ImageNet Policy")    
             from utils.autoaug import ImageNetPolicy
@@ -314,20 +318,23 @@ def main(args):
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
         train(train_loader, model, criterion, optimizer, epoch, args)
-        acc1 = validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch)
+        acc1, acc5 = validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch)
         logger_dict.print()
         if acc1 > best_acc1:
             print('* Best model upate *')
             best_acc1 = acc1
             torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
+        
+        if acc5 > best_acc5:
+            best_acc5 = acc5
             
         scheduler.step()        
-        print(f'Best acc {best_acc1:.2f}')
+        print(f'Best acc1 {best_acc1:.2f}, Best acc5 {best_acc5:.2f}')
         print('*'*80)
         print(Style.RESET_ALL)
 
     print(Fore.RED+'*'*80)
-    logger.debug(f'best top-1: {best_acc1:.2f}, final top-1: {acc1:.2f}')
+    logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')
     print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
@@ -337,23 +344,10 @@ def get_lr(optimizer):
         return param_group['lr']
 
 
-def accuracy(output, target):
-    with torch.no_grad():
-        batch_size = target.size(0)
-
-        _, pred = output.topk(1, 1, True, True)
-        pred = pred.t()
-        correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-        res = []
-        correct_k = correct[:1].flatten().float().sum(0, keepdim=True)
-        res.append(correct_k.mul_(100.0 / batch_size))
-        return res
-
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
     model.train()
-    loss_val, acc1_val = 0, 0
+    loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
     mix = ''
     mix_paramter = 0
@@ -429,7 +423,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             output = model(images)
             loss = criterion(output, target)
 
-        acc1 = accuracy(output, target)
+        acc = accuracy(output, target, (1,))
+        acc1 = acc[0]
         n += images.size(0)
         loss_val += float(loss.item() * images.size(0))
         acc1_val += float(acc1[0] * images.size(0))
@@ -439,8 +434,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         optimizer.step()
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
-            avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}] \t Loss: {avg_loss:.4e} \t Top-1: {avg_acc1:6.2f} \t\t LR: {get_lr(optimizer):.6f} \t\t Mix: {mix} ({mix_paramter})'+' '*10)
+            avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
+            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {get_lr(optimizer):.6f}   Mix: {mix} ({mix_paramter})'+' '*10)
 
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
@@ -448,7 +443,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
 def validate(val_loader, model, criterion, args, lr, epoch=None):
     model.eval()
-    loss_val, acc1_val = 0, 0
+    loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
     with torch.no_grad():
         for i, (images, target) in enumerate(val_loader):
@@ -459,17 +454,20 @@ def validate(val_loader, model, criterion, args, lr, epoch=None):
             
             output = model(images)
             loss = criterion(output, target)
-
-            acc1 = accuracy(output, target)
+            
+            acc = accuracy(output, target, (1, 5))
+            acc1 = acc[0]
+            acc5 = acc[1]
             n += images.size(0)
             loss_val += float(loss.item() * images.size(0))
             acc1_val += float(acc1[0] * images.size(0))
+            acc5_val += float(acc5[0] * images.size(0))
 
             if args.print_freq >= 0 and i % args.print_freq == 0:
-                avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}] \t Loss: {avg_loss:.4e} \t Top-1: {avg_acc1:6.2f} \t\t LR: {lr:.6f}')
+                avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
+                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
     print()        
-    avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
+
     # total_mins = -1 if time_begin is None else (time() - time_begin) / 60
     print(Fore.BLUE)
     print('*'*80)
@@ -477,7 +475,8 @@ def validate(val_loader, model, criterion, args, lr, epoch=None):
     
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
-    return avg_acc1
+    logger_dict.update(keys[4], avg_acc5)
+    return avg_acc1, avg_acc5
 
 
 if __name__ == '__main__':
@@ -519,6 +518,6 @@ if __name__ == '__main__':
     global keys
     
     logger_dict = Logger_dict(logger, save_path)
-    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1']
+    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'V Top-5']
     
     main(args)

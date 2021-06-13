@@ -1,3 +1,5 @@
+import torch
+
 class EarlyStopping:
     def __init__(self, patience=0, verbose=0, mode='max'):
         self._step = 0
@@ -25,3 +27,18 @@ class EarlyStopping:
         self._loss = value
 
         return 0
+    
+def accuracy(output, target, topk=(1,)):
+    with torch.no_grad():
+        maxk = max(topk)
+        batch_size = target.size(0)
+
+        _, pred = output.topk(maxk, 1, True, True)
+        pred = pred.t()
+        correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+        res = []
+        for k in topk:
+            correct_k = correct[:k].flatten().float().sum(0, keepdim=True)
+            res.append(correct_k.mul_(100.0 / batch_size))
+        return res

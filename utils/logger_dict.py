@@ -5,7 +5,7 @@ import os
 
 from utils.print_progress import progress_bar
 
-keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1']
+keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'V Top-5']
 
 class Logger_dict():
     def __init__(self, logger, save_path):
@@ -34,7 +34,7 @@ class Logger_dict():
         i = 0
         values = []
         for key, value in self.dict.items():
-            print(str(key) +'\t'+ str(value))
+            print(f'{key}' +'\t'+ f'{value:.2f}')
             i += 1
             values.append(value)
         self.write_csv(values)
