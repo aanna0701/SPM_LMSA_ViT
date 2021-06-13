@@ -155,7 +155,7 @@ class Patch_Embedding(nn.Module):
                 conv_tmp
                 )
             layer_list.append(
-                nn.LayerNorm([self.inter_channels, self.img_size, self.img_size])
+                nn.LayerNorm([self.inter_channels])
                 )
                 
             layer_list.append(
@@ -186,7 +186,9 @@ class Patch_Embedding(nn.Module):
         else:
             out = x
             for patch_embedding in self.patch_embedding:
-                out = patch_embedding(out)
+                out = patch_embedding[0](out)
+                out = patch_embedding[1](out)
+                out = patch_embedding[2](out)
                 
         
         out_flat = out.flatten(start_dim=2)
