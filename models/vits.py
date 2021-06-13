@@ -121,31 +121,47 @@ class Positional_Embedding(nn.Module):
 #         return out_flat
 
 class Patch_Embedding(nn.Module):
-    def __init__(self, patch_size, in_channels, inter_channels, down_conv=False):
+    def __init__(self, img_size, patch_size, in_channels, inter_channels, down_conv=False):
         super(Patch_Embedding, self).__init__()
         
         self.in_channels = in_channels
         self.inter_channels = inter_channels
+        self.img_size = img_size
+        # if not down_conv:
+        #     self.conv = False
+        #     self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
+        #     self._init_weights(self.patch_embedding)
+
         if not down_conv:
-            self.conv = False
-            self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
-            self._init_weights(self.patch_embedding)
+            self.conv = True
+            self.patch_embedding = self.make_layer(2)
         
         else:
             self.conv = True
             # num_block = round(patch_size / 2)
             self.patch_embedding = self.make_layer(3)
-            self.gelu = nn.GELU()
         
-            for patch_embedding in self.patch_embedding:
-                self._init_weights(patch_embedding)
+                
         
     def make_layer(self, num_blocks):
         layer_list = nn.ModuleList()
         
         for i in range(num_blocks):
+            
+            conv_tmp = nn.Conv2d(self.in_channels, self.inter_channels, kernel_size=3, stride=2, bias=False)
+            self.img_size = round((self.img_size - 3) / 2) + 1
+            self._init_weights(conv_tmp)
             layer_list.append(
-                nn.Conv2d(self.in_channels, self.inter_channels, kernel_size=3, stride=2, bias=False))
+                conv_tmp
+                )
+            layer_list.append(
+                nn.LayerNorm([self.inter_channels, self.img_size, self.img_size])
+                )
+                
+            layer_list.append(
+                nn.GELU()
+                )
+                
             self.in_channels = self.inter_channels
             
         return layer_list
@@ -169,10 +185,8 @@ class Patch_Embedding(nn.Module):
         
         else:
             out = x
-            out = self.gelu(out)
             for patch_embedding in self.patch_embedding:
                 out = patch_embedding(out)
-                out = self.gelu(out)
                 
         
         out_flat = out.flatten(start_dim=2)
@@ -462,12 +476,17 @@ class ViT(nn.Module):
         #     self.in_size = ((self.num_nodes)**2 + 1, self.in_size[1])
             
         # else:   
-        self.patch_embedding = Patch_Embedding(patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=img_size>32)
+        self.patch_embedding = Patch_Embedding(img_size=img_size, patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=img_size>32)
       
         self.dropout = dropout
         
+        # if not img_size > 32:
+        #     self.num_nodes = img_size // patch_size
+            # self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
+        
         if not img_size > 32:
-            self.num_nodes = img_size // patch_size
+            self.num_nodes = (img_size - 3) / 2 + 1
+            self.num_nodes = int((self.num_nodes - 3) / 2 + 1)            
             self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
             
         else:
