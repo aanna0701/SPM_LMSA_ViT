@@ -127,31 +127,29 @@ class Patch_Embedding(nn.Module):
         self.in_channels = in_channels
         self.inter_channels = inter_channels
         self.img_size = img_size
-        # if not down_conv:
-        #     self.conv = False
-        #     self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
-        #     self._init_weights(self.patch_embedding)
-
-        self.gelu = nn.GELU()
-        
         if not down_conv:
-            self.conv = True
-            self.patch_embedding = self.make_conv(2)
-            self.norm = self.make_norm(2)
+            self.conv = False
+            self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
+            self._init_weights(self.patch_embedding)
+
         
-        else:
+        elif img_size > 32:
             self.conv = True
             # num_block = round(patch_size / 2)
             self.patch_embedding = self.make_conv(3)
+            self.norm = self.make_norm(3)       
             
-            self.norm = self.make_norm(3)
-        
+            
+        else:
+            self.conv = True
+            self.patch_embedding = self.make_conv(2)
+            self.norm = self.make_norm(2) 
                 
         
     def make_conv(self, num_blocks):
         layer_list = nn.ModuleList()
         
-        for i in range(num_blocks):
+        for _ in range(num_blocks):
             
             conv_tmp = nn.Conv2d(self.in_channels, self.inter_channels, kernel_size=3, stride=2, bias=False)
             self.img_size = round((self.img_size - 3) / 2) + 1
@@ -159,22 +157,27 @@ class Patch_Embedding(nn.Module):
             layer_list.append(
                 conv_tmp
                 )
-                                
+                
             self.in_channels = self.inter_channels
-            
+        
         return layer_list
                 
         
     def make_norm(self, num_blocks):
         layer_list = nn.ModuleList()
         
-        for i in range(num_blocks):
-         
+        for _ in range(num_blocks):
+            
+
             layer_list.append(
-                layer_list.append(
                 nn.LayerNorm([self.inter_channels])
                 )
+                
+            layer_list.append(
+                nn.GELU()
                 )
+                
+            
         return layer_list
 
     def _init_weights(self,layer):
@@ -198,10 +201,9 @@ class Patch_Embedding(nn.Module):
             out = x
             for i, patch_embedding in enumerate(self.patch_embedding):
                 out = patch_embedding(out)
-                out = self.norm[i](out)
-                out = self.gelu(out)
+                out = self.norm[i*2 + 0](out.permute(0, 3, 2, 1))
+                out = self.norm[i*2 + 1](out.permute(0, 3, 2, 1))
                 
-        
         out_flat = out.flatten(start_dim=2)
         
         return out_flat
@@ -474,7 +476,7 @@ class Classifier_2d(nn.Module):
         return out
 
 class ViT(nn.Module):
-    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3):
+    def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=True, in_channels=3, down_conv=False):
         super(ViT, self).__init__()
 
         self.inter_dimension = inter_dimension
@@ -489,15 +491,15 @@ class ViT(nn.Module):
         #     self.in_size = ((self.num_nodes)**2 + 1, self.in_size[1])
             
         # else:   
-        self.patch_embedding = Patch_Embedding(img_size=img_size, patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=img_size>32)
+        self.patch_embedding = Patch_Embedding(img_size=img_size, patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=down_conv)
       
         self.dropout = dropout
         
-        # if not img_size > 32:
-        #     self.num_nodes = img_size // patch_size
-            # self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
+        if not down_conv:
+            self.num_nodes = img_size // patch_size
+            self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
-        if not img_size > 32:
+        elif not img_size > 32:
             self.num_nodes = (img_size - 3) / 2 + 1
             self.num_nodes = int((self.num_nodes - 3) / 2 + 1)            
             self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)

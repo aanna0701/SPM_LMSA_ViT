@@ -157,11 +157,11 @@ def main(args):
     '''    
 
     if args.model == 'vit':
-        model = m.make_ViT(args.depth, args.channel,GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        model = m.make_ViT(args.depth, args.channel, down_conv=False, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
-        model = m.make_ViT(args.depth, args.channel,GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        model = m.make_ViT(args.depth, args.channel, down_conv=True,GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
 
     elif args.model == 'pit':
         model = m.P_ViT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
