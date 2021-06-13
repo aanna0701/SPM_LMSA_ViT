@@ -292,7 +292,7 @@ class GA_block(nn.Module):
         '''
         nodes = x[:, 1:]    # (B, HW, C)
         
-        edge_global = self.avgpool(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
+        edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
         edge_embed = self.linear1(edge_global)
@@ -410,7 +410,7 @@ class Transformer_Block(nn.Module):
             '''
                 Global attribute update
             '''
-            edge_per_node = x_MHSA[:, 1:, 1:]
+            edge_per_node = x_MHSA
             
             x_inter2 = self.GA(x_res1, x_inter1[:, (0,)], edge_per_node, dropout)
             x_inter2 = self.normalization_GA(x_inter2)
