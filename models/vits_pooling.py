@@ -1,4 +1,3 @@
-from numpy import numarray
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -51,18 +50,13 @@ class ViT_pooling(nn.Module):
         
         self.dropout = dropout
         
-        if not img_size > 32:
-            self.num_nodes = img_size // 2
-            self.num_nodes = self.num_nodes // 2            
-            self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
-            
-        else:
-            self.num_nodes = img_size // 2
-            self.num_nodes = self.num_nodes // 2
-            self.num_nodes = self.num_nodes // 2            
-            self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
+        iteration = int(math.log2(patch_size))
+        self.num_nodes = img_size // 2
+        for _ in range(iteration-1):
+            self.num_nodes = self.num_nodes = self.num_nodes // 2        
+        self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
-        self.classifier = Classifier_1d(num_classes=num_classes, in_channels=inter_dimension)
+        self.classifier = Classifier(num_classes=num_classes, in_channels=inter_dimension)
         self.positional_embedding = Positional_Embedding(spatial_dimension=self.in_size[0]-1, inter_channels=inter_dimension)
         
         self.dropout_layer = nn.Dropout(0.1)
@@ -70,8 +64,7 @@ class ViT_pooling(nn.Module):
     
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.in_channels))
         
-        self.transformers = nn.ModuleList()
-                
+        self.transformers = nn.ModuleList()             
         
 
         j = 0
@@ -86,8 +79,7 @@ class ViT_pooling(nn.Module):
                 
             else:
                 self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
-        
-        self.classifier = Classifier_1d(num_classes=num_classes, in_channels=self.in_channels)
+                
         self.layer_norm = nn.LayerNorm((self.in_channels))
 
 
