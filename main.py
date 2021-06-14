@@ -47,7 +47,7 @@ def init_parser():
     
     parser.add_argument('--lr', default=0.0005, type=float, help='initial learning rate')
     
-    parser.add_argument('--weight-decay', default=3e-2, type=float, help='weight decay (default: 1e-4)')
+    parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
     parser.add_argument('--model', type=str, default='deit', choices=['deit', 'g-deit', 'vit', 'g-vit', 'pit', 'g-pit'])
 
@@ -110,6 +110,7 @@ def init_parser():
     parser.add_argument('--enable_rand_aug', action='store_true', help='Enabling randaugment')
     
     parser.add_argument('--enable_deit', action='store_true', help='Enabling randaugment')
+    parser.add_argument('--dropout', type=float, help='dropout rate')
 
     return parser
 
@@ -160,20 +161,23 @@ def main(args):
     '''
         Model 
     '''    
-
+    dropout = False
+    if args.dropout:
+        dropout = args.dropout
     if args.model == 'vit':
-        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        
+        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
-        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv,GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
 
     elif args.model == 'pit':
-        model = m.P_ViT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+        model = m.P_ViT_conv(args.depth, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     
     elif args.model == 'g-pit':
-        model = m.P_GiT_conv(args.depth, num_classes=n_classes, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+        model = m.P_GiT_conv(args.depth, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
@@ -209,9 +213,13 @@ def main(args):
     '''
         Trainer
     '''
+    min_lr = 5e-5
+    
+    if args.lr==5e-4:
+        min_lr = 1e-6
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=5e-5, warmup_steps=args.warmup)
+    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
 

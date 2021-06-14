@@ -1,4 +1,3 @@
-from sys import path
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -48,12 +47,9 @@ class MHSA(nn.Module):
 
         inter_dimension = C // self.heads
 
-        q = self.query(x).view(B, n_tokens, self.heads,
-                               inter_dimension).permute(0, 2, 1, 3)
-        k = self.key(x).view(B, n_tokens, self.heads,
-                             inter_dimension).permute(0, 2, 1, 3)
-        v = self.value(x).view(B, n_tokens, self.heads,
-                               inter_dimension).permute(0, 2, 1, 3)
+        q = self.query(x).view(B, n_tokens, self.heads, inter_dimension).permute(0, 2, 1, 3)
+        k = self.key(x).view(B, n_tokens, self.heads, inter_dimension).permute(0, 2, 1, 3)
+        v = self.value(x).view(B, n_tokens, self.heads, inter_dimension).permute(0, 2, 1, 3)
 
         similarity = torch.matmul(q, k.transpose(3, 2))        
         similarity = similarity / math.sqrt(inter_dimension)
@@ -86,40 +82,6 @@ class Positional_Embedding(nn.Module):
     def forward(self, x):
         return x.permute(0, 2, 1) + self.PE
 
-
-# class Patch_Embedding(nn.Module):
-#     def __init__(self, patch_size, in_channels, inter_channels, down_conv=False):
-#         super(Patch_Embedding, self).__init__()
-#         self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
-#         self._init_weights(self.patch_embedding)
-#         self.inter_channels = inter_channels
-#         self.down_conv = None
-#         if down_conv:
-#             self.down_conv = nn.Conv2d(inter_channels, inter_channels, kernel_size=3, stride=2, bias=False)
-#             self._init_weights(self.down_conv)
-
-#     def _init_weights(self,layer):
-#         nn.init.kaiming_normal_(layer.weight)
-#         if layer.bias:
-#             nn.init.normal_(layer.bias, std=1e-6)
-
-#     def forward(self, x):
-#         '''
-#         [shapes]
-#             x : (B, C, H, W)
-#             out : (B, C', H, W)
-#             out_flat : (B, C', HW)
-#             out_concat : (B, HW+1, C')
-#             out : (B, HW+1, C')
-#         ''' 
-        
-#         out = self.patch_embedding(x)
-#         if self.down_conv:
-#             out = self.down_conv(out)
-#         out_flat = out.flatten(start_dim=2)
-        
-#         return out_flat
-
 class Patch_Embedding(nn.Module):
     def __init__(self, img_size, patch_size, in_channels, inter_channels, down_conv=False):
         super(Patch_Embedding, self).__init__()
@@ -127,23 +89,18 @@ class Patch_Embedding(nn.Module):
         self.in_channels = in_channels
         self.inter_channels = inter_channels
         self.img_size = img_size
+        self.down_ratio = int(math.log2(patch_size))
         if not down_conv:
             self.conv = False
             self.patch_embedding = nn.Conv2d(in_channels, inter_channels, kernel_size=patch_size, stride=patch_size, bias=False)
             self._init_weights(self.patch_embedding)
 
         
-        elif img_size > 32:
-            self.conv = True
-            # num_block = round(patch_size / 2)
-            self.patch_embedding = self.make_conv(3)
-            self.norm = self.make_norm(3)       
-            
-            
         else:
             self.conv = True
-            self.patch_embedding = self.make_conv(2)
-            self.norm = self.make_norm(2) 
+            self.patch_embedding = self.make_conv(self.down_ratio)
+            self.norm = self.make_norm(self.down_ratio)       
+            
                 
         
     def make_conv(self, num_blocks):
@@ -166,7 +123,7 @@ class Patch_Embedding(nn.Module):
     def make_norm(self, num_blocks):
         layer_list = nn.ModuleList()
         
-        for _ in range(num_blocks):
+        for _ in range(num_blocks-1):
             
 
             layer_list.append(
@@ -201,8 +158,9 @@ class Patch_Embedding(nn.Module):
             out = x
             for i, patch_embedding in enumerate(self.patch_embedding):
                 out = patch_embedding(out)
-                out = self.norm[i*2 + 0](out.permute(0, 3, 2, 1))
-                out = self.norm[i*2 + 1](out.permute(0, 3, 2, 1))
+                if not i == len(self.patch_embedding)-1:
+                    out = self.norm[i*2 + 0](out.permute(0, 3, 2, 1))
+                    out = self.norm[i*2 + 1](out.permute(0, 3, 2, 1))
                 
         out_flat = out.flatten(start_dim=2)
         
@@ -255,17 +213,14 @@ class GA_block(nn.Module):
         super(GA_block, self).__init__()
         self.in_dimension = in_channels
         self.avgpool = nn.AvgPool1d(in_size[0]-2)
-        # self.maxpool = nn.MaxPool1d(in_size[0]-2)
         self.avgpool_2 = nn.AvgPool1d(in_size[0]-1)
-        # self.maxpool_2 = nn.MaxPool1d(in_size[0]-1)
         self.sigmoid = nn.Sigmoid()
-        # self.mlp_nodes = nn.Linear(in_channels, in_channels, bias=False)
         self.linear1 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear1)
         self.linear2 = nn.Linear(in_channels, in_channels // 2, bias=False)
         self._init_weights(self.linear2)
-        self.linear4 = nn.Linear(in_channels // 2, in_channels, bias=False)
-        self._init_weights(self.linear4)
+        self.linear3 = nn.Linear(in_channels // 2, in_channels, bias=False)
+        self._init_weights(self.linear3)
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -298,60 +253,13 @@ class GA_block(nn.Module):
         edge_embed = self.linear1(edge_global)
         node_embed = self.linear2(node_global)
         
-        # cat_global = torch.cat([edge_global, node_global], dim=1)   # (B, 2, C)
-        # norm = torch.norm(cat_global, dim=2, keepdim=True, p=1)   # (B, 2, 1)
-        # norm = norm.expand(norm.size(0), 2, nodes.size(2))  # (B, 2, C)
-        # scale_edge = torch.div(cat_global, norm) * self.in_dimension
-        
-        
-        # edge_global = scale_edge[:, (0,)] 
-        # node_global = scale_edge[:, (1,)]
-        
         channel_attention = edge_embed + node_embed
-        # channel_attention = torch.mul(edge_embed,node_embed) # (B, 1, C)
-        # channel_attention = torch.sum(cat_out, dim=1, keepdim=True) # (B, 1, C)
-        
-        
-        
-        channel_attention = self.sigmoid(self.linear4(channel_attention)) # (B, 1, C)
-        # channel_attention = self.softmax(self.linear4(channel_attention)) # (B, 1, C)
-       
+        channel_attention = self.sigmoid(self.linear3(channel_attention)) # (B, 1, C)
         
         cls_token_out = cls_token + torch.mul(cls_token, channel_attention)    #(B, 1, C)
-        # print(channel_attention[0])
-        # print(cls_token_out[0])
-        # print('\n\n====')
-
-        # edge_aggregation = self.avgpool_2(edge_aggregation.permute(0, 2, 1)).permute(0, 2, 1)
-        # channel_importance = self.softmax(edge_aggregation)
-                
-        # nodes = x[:, 1:]
         
-        # channel_aggregation = torch.matmul(nodes, channel_importance.permute(0, 2, 1))
-        # node_importance = self.softmax(channel_aggregation)
-        
-
-        # node_aggregation = torch.matmul(node_importance.permute(0, 2, 1), nodes)
-        
-        # # cls_token_out = cls_token + torch.mul(self.Linear(cls_token), weights)
-        
-        # cls_token_out = cls_token + self.sigmoid(node_aggregation)
-        
-                
-        # print('edge_global: {}'.format(edge_global[0].norm(2)))
-        # print('node_glboal: {}'.format(node_glboal[0].norm(2)))
-        # print('scale_edge: {}'.format(scale_edge[0].norm(2)))
-        # print('scale_node: {}'.format(scale_node[0].norm(2)))
-        # print('edge_global_scaled: {}'.format(edge_global_scaled[0].norm(2)))
-        # print('node_global_scaled: {}'.format(node_global_scaled[0].norm(2)))
-        # print('nod_aggrechannel_attentiongation: {}'.format(channel_attention[0].norm(2)))
-        # print('cls_token: {}\n\n'.format(cls_token[0].norm(2)))
-        # print('cls_token_out: {}\n\n'.format(cls_token_out[0].norm(2)))
-        # print('='*20)
-
         out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
-        
-        
+                
         return out
 
 
@@ -362,14 +270,10 @@ class Transformer_Block(nn.Module):
         self.normalization_1 = nn.LayerNorm(in_channels)
         if not GA_flag:
             self.normalization_2 = nn.LayerNorm(in_channels)
-        
-        
+                
         self.MHSA = MHSA(in_channels, heads)
         self.MLP = MLP(in_channels, mlp_ratio)
         self.MLP_MHSA = MLP(in_channels, mlp_ratio)
-        # self.linear = nn.Linear(heads, 1, bias=False)
-        # self._init_weights(self.linear)
-        self.avgpool = nn.AvgPool1d(heads)
         
         if GA_flag:
             self.normalization_GA = nn.LayerNorm(in_channels)
@@ -403,6 +307,8 @@ class Transformer_Block(nn.Module):
         '''
         x_MHSA = self.MHSA(x_inter1, dropout)
         x_res1 = x_in + x_MHSA
+        
+        
         if not self.GA_flag:
             x_inter2 = self.normalization_2(x_res1)
 
@@ -418,15 +324,16 @@ class Transformer_Block(nn.Module):
         x_MLP = self.MLP(x_inter2, dropout)
         x_res2 = x_inter2 + x_MLP
 
+
         if not cls_token == None:
             return x_res2[:, 1:], x_res2[:, (0, )]        
         else:
             return x_res2
 
 
-class Classifier_1d(nn.Module):
+class Classifier(nn.Module):
     def __init__(self, num_classes=10, in_channels=64):
-        super(Classifier_1d, self).__init__()
+        super(Classifier, self).__init__()
 
         self.linear = nn.Linear(in_channels, num_classes, bias=False)
         self._init_weights(self.linear)
@@ -447,32 +354,7 @@ class Classifier_1d(nn.Module):
         x = self.linear(x).squeeze()
 
         return x
-    
-class Classifier_2d(nn.Module):
-    def __init__(self, num_classes=10, in_channels=64):
-        super(Classifier_2d, self).__init__()
 
-        self.linear = nn.Linear(in_channels, num_classes, bias=False)
-        self._init_weights(self.linear)
-        self.name = 'Classifier'
-
-    def _init_weights(self,layer):
-        nn.init.kaiming_normal_(layer.weight)
-        if layer.bias:
-            nn.init.normal_(layer.bias, std=1e-6)
-
-    def forward(self, x):
-        '''
-        [shape]
-            x : (B, HW, C)
-            x_pool : (B, C, 1)
-            out : (B, num_classes)
-        '''
-        x_pool = F.adaptive_avg_pool1d(x.permute(0, 2, 1), 1)
-
-        out = self.linear(x_pool.permute(0, 2, 1)).squeeze()
-
-        return out
 
 class ViT(nn.Module):
     def __init__(self, img_size, patch_size, inter_dimension, depth, mlp_ratio=4, heads=8, num_classes=10, GA=False, dropout=False, in_channels=3, down_conv=False):
@@ -480,28 +362,22 @@ class ViT(nn.Module):
 
         self.inter_dimension = inter_dimension
         self.heads = heads
-
         self.patch_embedding = Patch_Embedding(img_size=img_size, patch_size=patch_size, in_channels=in_channels, inter_channels=inter_dimension, down_conv=down_conv)
-      
+
         self.dropout = dropout
         
         if not down_conv:
             self.num_nodes = img_size // patch_size
             self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
-        elif not img_size > 32:
-            self.num_nodes = img_size // 2
-            self.num_nodes = self.num_nodes // 2            
-            self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
-            
         else:
+            iteration = int(math.log2(patch_size))
             self.num_nodes = img_size // 2
-            self.num_nodes = self.num_nodes // 2
-            self.num_nodes = self.num_nodes // 2            
+            for _ in range(iteration-1):
+                self.num_nodes = self.num_nodes = self.num_nodes // 2        
             self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
-        self.classifier = Classifier_1d(
-        num_classes=num_classes, in_channels=inter_dimension)
+        self.classifier = Classifier(num_classes=num_classes, in_channels=inter_dimension)
         self.positional_embedding = Positional_Embedding(spatial_dimension=self.in_size[0]-1, inter_channels=inter_dimension)
         
         self.dropout_layer = nn.Dropout(0.1)
@@ -518,9 +394,8 @@ class ViT(nn.Module):
 
     def make_layer(self, num_blocks, block, mlp_ratio, GA_flag):
         layer_list = nn.ModuleList()
-        for i in range(num_blocks):
-            layer_list.append(
-                block(self.in_size, self.inter_dimension, self.heads, mlp_ratio, GA_flag))
+        for _ in range(num_blocks):
+            layer_list.append(block(self.in_size, self.inter_dimension, self.heads, mlp_ratio, GA_flag))
 
         return layer_list
 
