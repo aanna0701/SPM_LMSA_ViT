@@ -35,7 +35,7 @@ def make_ViT(depth, channel, down_conv=False, GA=False, cls_token=True, heads=4,
         return ViT(img_size=img_size, inter_dimension=channel, depth=depth, heads=heads, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, patch_size=patch_size, in_channels=in_channels, down_conv=down_conv)
 
 
-def P_ViT_conv(version, img_size=32, patch_size=4, GA=False, num_classes=10, dropout=False, in_channels=3, down_conv=False):
+def P_ViT_conv(version, img_size=32, patch_size=2, GA=False, num_classes=10, dropout=False, in_channels=3, down_conv=False):
     assert version in [96, 144]
     if version == 96:
         return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
@@ -43,7 +43,7 @@ def P_ViT_conv(version, img_size=32, patch_size=4, GA=False, num_classes=10, dro
         return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=48, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
 
 
-def P_GiT_conv(version, img_size=32, patch_size=4, GA=True, num_classes=10, dropout=False, in_channels=3, down_conv=False):
+def P_GiT_conv(version, img_size=32, patch_size=2, GA=True, num_classes=10, dropout=False, in_channels=3, down_conv=False):
     assert version in [96, 144]
     if version == 96:
         return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
