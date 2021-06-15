@@ -36,28 +36,17 @@ def make_ViT(depth, channel, down_conv=False, GA=False, cls_token=True, heads=4,
 
 
 def P_ViT_conv(version, img_size=32, patch_size=4, GA=False, num_classes=10, dropout=False, in_channels=3, down_conv=False):
-    if version == 1:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 2:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 3:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=30, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 4:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 5:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
+    assert version in [96, 144]
+    if version == 96:
+        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
+    elif version == 144:
+        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=48, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
 
 
 def P_GiT_conv(version, img_size=32, patch_size=4, GA=True, num_classes=10, dropout=False, in_channels=3, down_conv=False):
-    if version == 1:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=18, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 2:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=24, num_blocks=[1, 3, 2], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 3:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=30, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 4:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[1, 3, 2], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-    elif version == 5:
-        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=3, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
-
-
+    assert version in [96, 144]
+    if version == 96:
+        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=36, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
+    elif version == 144:
+        return ViT_pooling(img_size=img_size, patch_size=patch_size, inter_dimension=48, num_blocks=[2, 6, 4], heads=2, mlp_ratio=2, GA=GA, dropout=dropout, num_classes=num_classes, in_channels=in_channels, down_conv=down_conv)
+   

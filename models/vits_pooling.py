@@ -56,7 +56,6 @@ class ViT_pooling(nn.Module):
             self.num_nodes = self.num_nodes = self.num_nodes // 2        
         self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
-        self.classifier = Classifier(num_classes=num_classes, in_channels=inter_dimension)
         self.positional_embedding = Positional_Embedding(spatial_dimension=self.in_size[0]-1, inter_channels=inter_dimension)
         
         self.dropout_layer = nn.Dropout(0.1)
@@ -81,6 +80,8 @@ class ViT_pooling(nn.Module):
                 self.make_layer(num_blocks[i], Transformer_Block, mlp_ratio, GA)
                 
         self.layer_norm = nn.LayerNorm((self.in_channels))
+        
+        self.classifier = Classifier(num_classes=num_classes, in_channels=self.in_channels)
 
 
     def make_layer(self, num_blocks, tr_block, mlp_ratio, GA_flag, pool_block=False):

@@ -173,11 +173,11 @@ def main(args):
         model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
 
     elif args.model == 'pit':
-        model = m.P_ViT_conv(args.depth, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+        model = m.P_ViT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     
     elif args.model == 'g-pit':
-        model = m.P_GiT_conv(args.depth, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+        model = m.P_GiT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
