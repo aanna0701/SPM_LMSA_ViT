@@ -221,6 +221,8 @@ class GA_block(nn.Module):
         self._init_weights(self.linear2)
         self.linear3 = nn.Linear(in_channels // 2, in_channels, bias=False)
         self._init_weights(self.linear3)
+        self.linear4 = nn.Linear(in_channels , in_channels, bias=False)
+        self._init_weights(self.linear4)
         
     def _init_weights(self,layer):
         nn.init.kaiming_normal_(layer.weight)
@@ -245,7 +247,7 @@ class GA_block(nn.Module):
             node_importance : (B, HW, 1)
         '''
         nodes = x[:, 1:]    # (B, HW, C)
-        # cls_token = x[:, (0,)]
+        cls_token = x[:, (0,)]
         
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
@@ -253,8 +255,7 @@ class GA_block(nn.Module):
         # edge_embed = self.linear1(edge_global)
         # node_embed = self.linear2(node_global)
         
-        # channel_attention = edge_embed + node_embed
-        channel_attention = edge_global + node_global
+        channel_attention = edge_embed + node_embed
         # channel_attention = self.sigmoid(self.linear3(channel_attention)) # (B, 1, C)
         channel_attention = self.sigmoid(channel_attention) # (B, 1, C)
         
