@@ -36,16 +36,16 @@ def init_parser():
 
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
 
-    parser.add_argument('--print-freq', default=10, type=int, metavar='N', help='log frequency (by iteration)')
+    parser.add_argument('--print-freq', default=1, type=int, metavar='N', help='log frequency (by iteration)')
 
     # Optimization hyperparams
     parser.add_argument('--epochs', default=300, type=int, metavar='N', help='number of total epochs to run')
     
     parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
     
-    parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
+    parser.add_argument('-b', '--batch-size', default=512, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
-    parser.add_argument('--lr', default=0.0005, type=float, help='initial learning rate')
+    parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
