@@ -227,7 +227,7 @@ class GA_block(nn.Module):
         if layer.bias:
             nn.init.normal_(layer.bias, std=1e-6)
    
-    def forward(self, x, edge_per_node, pool=False):
+    def forward(self, x, cls_token, edge_per_node, pool=False):
         '''
             [shape]
             x : (B, HW+1, C)
@@ -245,7 +245,7 @@ class GA_block(nn.Module):
             node_importance : (B, HW, 1)
         '''
         nodes = x[:, 1:]    # (B, HW, C)
-        cls_token = x[:, (0,)]
+        # cls_token = x[:, (0,)]
         
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
@@ -317,7 +317,7 @@ class Transformer_Block(nn.Module):
                 Global attribute update
             '''
             edge_per_node = x_MHSA
-            x_inter2 = self.GA(x_res1, edge_per_node, dropout)
+            x_inter2 = self.GA(x_res1, cls_token, edge_per_node, dropout)
             x_inter2 = self.normalization_GA(x_inter2)
             
         
