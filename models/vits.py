@@ -250,11 +250,13 @@ class GA_block(nn.Module):
         edge_global = self.avgpool_2(edge_per_node.permute(0, 2, 1)).permute(0, 2, 1)   # (B, 1, C)
         node_global = self.avgpool(nodes.permute(0, 2, 1)).permute(0, 2, 1)     # (B, 1, C)
         
-        edge_embed = self.linear1(edge_global)
-        node_embed = self.linear2(node_global)
+        # edge_embed = self.linear1(edge_global)
+        # node_embed = self.linear2(node_global)
         
-        channel_attention = edge_embed + node_embed
-        channel_attention = self.sigmoid(self.linear3(channel_attention)) # (B, 1, C)
+        # channel_attention = edge_embed + node_embed
+        channel_attention = edge_global + node_global
+        # channel_attention = self.sigmoid(self.linear3(channel_attention)) # (B, 1, C)
+        channel_attention = self.sigmoid(channel_attention) # (B, 1, C)
         
         cls_token_out = cls_token + torch.mul(cls_token, channel_attention)    #(B, 1, C)
         
