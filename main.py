@@ -78,7 +78,7 @@ def init_parser():
 
     parser.add_argument('--down_conv', action='store_true', help='down conv embedding')
     
-    parser.add_argument('--stochastic_depth', default=0, type=float, help='rate of stochastic depth')
+    parser.add_argument('--sd', default=0, type=float, help='rate of stochastic depth')
     
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
@@ -167,7 +167,7 @@ def main(args):
         dropout = args.dropout
     if args.model == 'vit':
         dim_head = args.channel // args.heads
-        model = ViT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout)
+        model = ViT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
@@ -207,9 +207,9 @@ def main(args):
     else:
         criterion = nn.CrossEntropyLoss()
         
-    if args.stochastic_depth > 0.:
+    if args.sd > 0.:
         print(Fore.YELLOW + '*'*80)
-        logger.debug('Stochastic depth used')
+        logger.debug(f'Stochastic depth used {args.sd}')
         print('*'*80+Style.RESET_ALL)        
         
     '''
