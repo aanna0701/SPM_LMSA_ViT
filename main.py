@@ -24,6 +24,7 @@ from models.vit_pytorch.vit import *
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
 import models.create_model as m
+from utils.sampler import RASampler
 
 best_acc1 = 0
 best_acc5 = 0
@@ -101,6 +102,7 @@ def init_parser():
     
     parser.add_argument('--enable_deit', action='store_true', help='Enabling randaugment')
     parser.add_argument('--dropout', type=float, help='dropout rate')
+    parser.add_argument('--ra', type=int, default=1, help='repeated augmentation')
 
     return parser
 
@@ -171,10 +173,14 @@ def main(args):
     
     elif args.model == 'g-vit':
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout)
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout)
 
     elif args.model == 'pit':
-        model = m.P_ViT_conv(version=args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+        if img_size == 32:
+            patch_size = 2
+        elif img_size > 32:
+            patch_size = 4
+        model = m.P_ViT_conv(version=args.channel, patch_size=patch_size, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     
     # elif args.model == 'g-pit':
@@ -219,10 +225,6 @@ def main(args):
     '''
         Trainer
     '''
-    min_lr = 1e-5
-    
-    if args.lr==5e-4:
-        min_lr = 1e-6
 
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
@@ -234,6 +236,10 @@ def main(args):
     if args.mu:
         print(Fore.YELLOW+'*'*80)
         logger.debug('Mixup used')
+        print('*'*80 + Style.RESET_ALL)
+    if args.ra > 1:
+        print(Fore.YELLOW+'*'*80)
+        logger.debug(f'Repeated Aug!!! {args.ra}')
         print('*'*80 + Style.RESET_ALL)
 
     '''
@@ -332,12 +338,10 @@ def main(args):
             transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
 
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.workers)
+        train_dataset,  num_workers=args.workers, pin_memory=True,
+        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, 2, shuffle=True, drop_last=False))
     val_loader = torch.utils.data.DataLoader(
-        val_dataset,
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers)
+        val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
     '''
         Training
     '''
