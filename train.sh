@@ -8,9 +8,12 @@
 # done
 
 
-for s in 3 4 5
+for s in 3
 do
-	python main.py --depth 12 --heads 3 --channel 96 --gpu 0 --model vit --tag cifar10-12-96-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu
+	python main.py --depth 12 --heads 3 --channel 96 --gpu 1 --model pit --tag T-imgnet-12-96-aa-mu --seed ${s} --dataset T-IMNET --ls --aa --mu --down_conv
+	python main.py --depth 12 --heads 3 --channel 144 --gpu 1 --model pit --tag T-imgnet-12-144-aa-mu --seed ${s} --dataset T-IMNET --ls --aa --mu --down_conv
+#	python main.py --depth 12 --heads 3 --channel 96 --gpu 0 --model pit --tag cifar10-12-96-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu --down_conv
+#	python main.py --depth 12 --heads 3 --channel 96 --gpu 0 --model pit --tag cifar10-12-144-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu --down_conv
 	# python main.py --depth 12 --heads 3 --channel 96 --gpu 1 --model g-vit --tag cifar10-12-96-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu
 	# python main.py  --depth 12 --heads 3 --channel 96 --channel 144 --gpu 1 --model g-vit --tag cifar10-12-144-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu 
 done

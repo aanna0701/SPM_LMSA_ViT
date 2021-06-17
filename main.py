@@ -15,12 +15,15 @@ from colorama import Fore, Style
 from torchsummary import summary
 from utils.losses import LabelSmoothingCrossEntropy
 import os
-from utils.cosine_annealing_with_warmup import CosineAnnealingWarmupRestarts
-import models.create_model as m
+# import models.create_model as m
 from utils.logger_dict import Logger_dict
 from utils.print_progress import progress_bar
 from utils.training_functions import accuracy
 import argparse
+from models.vit_pytorch.vit import *
+from models.vit_pytorch.git import *
+from utils.scheduler import build_scheduler
+import models.create_model as m
 
 best_acc1 = 0
 best_acc5 = 0
@@ -44,7 +47,7 @@ def init_parser():
     
     parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
     
-    parser.add_argument('-b', '--batch-size', default=512, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
+    parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
     parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
     
@@ -74,25 +77,11 @@ def init_parser():
 
     parser.add_argument('--down_conv', action='store_true', help='down conv embedding')
     
+    parser.add_argument('--stochastic_depth', default=0, type=float, help='rate of stochastic depth')
+    
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
-    parser.add_argument('--train-interpolation', type=str, default='bicubic',
-                        help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
-
-    parser.add_argument('--repeated-aug', action='store_true')
-    parser.add_argument('--no-repeated-aug', action='store_false', dest='repeated_aug')
-    parser.set_defaults(repeated_aug=True)
-
-    # * Random Erase params
-    parser.add_argument('--reprob', type=float, default=0.25, metavar='PCT',
-                        help='Random erase prob (default: 0.25)')
-    parser.add_argument('--remode', type=str, default='pixel',
-                        help='Random erase mode (default: "pixel")')
-    parser.add_argument('--recount', type=int, default=1,
-                        help='Random erase count (default: 1)')
-    parser.add_argument('--resplit', action='store_true', default=False,
-                        help='Do not random erase first (clean) augmentation split')
 
     # * Mixup params
   
@@ -175,19 +164,21 @@ def main(args):
     if args.dropout:
         dropout = args.dropout
     if args.model == 'vit':
-        
-        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        dim_head = args.channel // args.heads
+        model = ViT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout)
+    #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
-        model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=True, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+        dim_head = args.channel // args.heads
+        model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout)
 
     elif args.model == 'pit':
-        model = m.P_ViT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+        model = m.P_ViT_conv(version=args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     
-    elif args.model == 'g-pit':
-        model = m.P_GiT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+    # elif args.model == 'g-pit':
+    #     model = m.P_GiT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
@@ -210,6 +201,11 @@ def main(args):
     else:
         criterion = nn.CrossEntropyLoss()
         
+    if args.stochastic_depth > 0.:
+        print(Fore.YELLOW + '*'*80)
+        logger.debug('Stochastic depth used')
+        print('*'*80+Style.RESET_ALL)        
+        
     '''
         GPU
     '''
@@ -223,13 +219,11 @@ def main(args):
     '''
         Trainer
     '''
-    min_lr = 2e-6
+    min_lr = 1e-5
     
     if args.lr==5e-4:
         min_lr = 1e-6
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
 
@@ -348,6 +342,11 @@ def main(args):
         Training
     '''
     
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    # scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
+    scheduler = build_scheduler(args, optimizer, len(train_loader))
+    
+    
     summary(model, (3, img_size, img_size))
     
     print()
@@ -355,7 +354,7 @@ def main(args):
     print()
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
-        train(train_loader, model, criterion, optimizer, epoch, args)
+        train(train_loader, model, criterion, optimizer, epoch, args, scheduler)
         acc1, acc5 = validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch)
         logger_dict.print()
         if acc1 > best_acc1:
@@ -366,7 +365,7 @@ def main(args):
         if acc5 > best_acc5:
             best_acc5 = acc5
             
-        scheduler.step()        
+        
         print(f'Best acc1 {best_acc1:.2f}, Best acc5 {best_acc5:.2f}')
         print('*'*80)
         print(Style.RESET_ALL)
@@ -383,12 +382,13 @@ def get_lr(optimizer):
 
 
 
-def train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer, epoch, args, scheduler):
     model.train()
     loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
     mix = ''
     mix_paramter = 0
+    num_steps = len(train_loader)
     for i, (images, target) in enumerate(train_loader):
         if (not args.no_cuda) and torch.cuda.is_available():
             images = images.cuda(args.gpu, non_blocking=True)
@@ -470,10 +470,11 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step_update(epoch * num_steps + i)        
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
-            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {get_lr(optimizer):.6f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {get_lr(optimizer):.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
 
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)

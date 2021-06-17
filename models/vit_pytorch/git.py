@@ -1,6 +1,7 @@
 import torch
 from torch import nn, einsum
-from utils.drop_path import DropPath
+import torch.nn.functional as F
+
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
@@ -63,23 +64,26 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0.):
         super().__init__()
         self.layers = nn.ModuleList([])
+        self.norm = nn.LayerNorm(dim)
+        self.gub = GA_block(dim)
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
-        self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for attn, ff in self.layers:
-            x = self.drop_path(attn(x)) + x
-            x = self.drop_path(ff(x)) + x
+            x = attn(x) + x
+            x = self.norm(x)
+            x = self.gub(x, attn(x))
+            x = ff(x) + x
         return x
 
-class ViT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+class GiT(nn.Module):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -96,9 +100,11 @@ class ViT(nn.Module):
         )
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
+
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
 
         self.pool = pool
         self.to_latent = nn.Identity()
@@ -109,7 +115,7 @@ class ViT(nn.Module):
         )
 
     def forward(self, img):
-        # pathc embedding
+        # patch embedding
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
@@ -124,3 +130,59 @@ class ViT(nn.Module):
 
         x = self.to_latent(x)
         return self.mlp_head(x)
+
+
+class GA_block(nn.Module):
+    '''
+    Class-token Embedding
+    '''
+    def __init__(self, in_channels):
+        super(GA_block, self).__init__()
+        self.in_dimension = in_channels
+        self.sigmoid = nn.Sigmoid()
+        self.linear4 = nn.Linear(in_channels , in_channels, bias=False)
+        self._init_weights(self.linear4)
+        
+    def _init_weights(self,layer):
+        nn.init.kaiming_normal_(layer.weight)
+        if layer.bias:
+            nn.init.normal_(layer.bias, std=1e-6)
+   
+    def forward(self, x, edge_per_node):
+        '''
+            [shape]
+            x : (B, HW+1, C)
+            visual_token : (B, HW, C)
+            cls_token_in : (B, 1, C)
+            weight : (B, 1, HW)
+            weight_softmax : (B, 1, HW)
+            cls_token_out : (B, 1, C)
+            out : (B, HW+1, C)
+            
+            edge_aggregation : (B, 1, C)
+            channel_importance : (B, 1, C)
+            nodes : (B, HW, C)
+            channel_aggregation : (B, HW, 1)  
+            node_importance : (B, HW, 1)
+        '''
+        nodes = x[:, 1:]    # (B, HW, C)
+        cls_token = x[:, (0,)]
+        
+        edge_global = edge_per_node.mean(dim=1)   # (B, 1, C)
+        node_global = nodes.mean(dim=1)     # (B, 1, C)
+        
+        # edge_embed = self.linear1(edge_global)
+        # node_embed = self.linear2(node_global)
+                
+        channel_attention = edge_global + node_global
+        channel_attention = channel_attention.unsqueeze(dim=1)
+        # channel_attention = self.sigmoid(self.linear3(channel_attention)) # (B, 1, C)
+        channel_attention = self.sigmoid(channel_attention) # (B, 1, C)
+        
+        
+        # cls_token_out = cls_token + torch.mul(cls_token, channel_attention)    #(B, 1, C)
+        cls_token_out = cls_token + torch.mul(self.linear4(cls_token), channel_attention)    #(B, 1, C)
+        
+        out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
+                
+        return out

@@ -53,7 +53,7 @@ class ViT_pooling(nn.Module):
         iteration = int(math.log2(patch_size))
         self.num_nodes = img_size // 2
         for _ in range(iteration-1):
-            self.num_nodes = self.num_nodes = self.num_nodes // 2        
+            self.num_nodes = self.num_nodes // 2        
         self.in_size = ((self.num_nodes)**2 + 1, inter_dimension)
         
         self.positional_embedding = Positional_Embedding(spatial_dimension=self.in_size[0]-1, inter_channels=inter_dimension)
