@@ -23,10 +23,12 @@ import argparse
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
 import models.create_model as m
+from torch.utils.tensorboard import SummaryWriter
 
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
+
 
 
 def init_parser():
@@ -165,6 +167,9 @@ def main(args):
     '''
         Model 
     '''    
+    
+    # ViTs
+    
     dropout = False
     if args.dropout:
         dropout = args.dropout
@@ -179,24 +184,31 @@ def main(args):
         dim_head = args.channel // args.heads
         model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout)
 
+    # Convnets
+
     elif args.model == 'pit':
         if img_size == 32:
             patch_size = 2
         elif img_size > 32:
             patch_size = 4
             model = m.P_ViT_conv(version=args.channel, patch_size=patch_size, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+
     elif args.model == 'vgg16':
         from models.conv_cifar_pytoch.vgg import VGG
         model = VGG('VGG16')
+
     elif args.model == 'res56':
         from models.conv_cifar_pytoch.resnet import resnet56
         model = resnet56()
-    elif args.model == 'resXt':
+
+    elif args.model == 'resxt29':
         from models.conv_cifar_pytoch.resnext import ResNeXt29_32x4d
         model = ResNeXt29_32x4d()
+
     elif args.model == 'mobile2':            
         from models.conv_cifar_pytoch.mobilenetv2 import MobileNetV2
         model = MobileNetV2()
+
     elif args.model == 'dense121':
         from models.conv_cifar_pytoch.densenet import DenseNet121
         model = DenseNet121()
@@ -390,6 +402,8 @@ def main(args):
     print()
     print("Beginning training")
     print()
+    
+    lr_epoch = get_lr(optimizer)
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
         train(train_loader, model, criterion, optimizer, epoch, args, scheduler)
@@ -407,6 +421,9 @@ def main(args):
         print(f'Best acc1 {best_acc1:.2f}, Best acc5 {best_acc5:.2f}')
         print('*'*80)
         print(Style.RESET_ALL)
+        
+        writer.add_scalar("Learning Rate", lr_epoch, epoch)
+        lr_epoch = get_lr(optimizer)
 
     print(Fore.RED+'*'*80)
     logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')
@@ -516,6 +533,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args, scheduler):
 
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
+    writer.add_scalar("Loss/train", avg_loss, epoch)
+    writer.add_scalar("Acc/train", avg_acc1, epoch)
 
 
 def validate(val_loader, model, criterion, args, lr, epoch=None):
@@ -553,6 +572,10 @@ def validate(val_loader, model, criterion, args, lr, epoch=None):
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
     logger_dict.update(keys[4], avg_acc5)
+    
+    writer.add_scalar("Loss/val", avg_loss, epoch)
+    writer.add_scalar("Acc/val", avg_acc1, epoch)
+    
     return avg_acc1, avg_acc5
 
 
@@ -560,6 +583,7 @@ if __name__ == '__main__':
     parser = init_parser()
     args = parser.parse_args()
     global save_path
+    global writer
     
     # random seed
 
@@ -576,7 +600,9 @@ if __name__ == '__main__':
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)
-
+        
+    writer = SummaryWriter(os.path.join(os.getcwd(), 'tensorboard', model_name))
+    
     # logger
 
     log_dir = os.path.join(save_path, 'logs.txt')
