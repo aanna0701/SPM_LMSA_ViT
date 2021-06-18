@@ -20,11 +20,9 @@ from utils.logger_dict import Logger_dict
 from utils.print_progress import progress_bar
 from utils.training_functions import accuracy
 import argparse
-from models.vit_pytorch.vit import *
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
 import models.create_model as m
-from utils.sampler import RASampler
 
 best_acc1 = 0
 best_acc5 = 0
@@ -44,7 +42,7 @@ def init_parser():
     parser.add_argument('--print-freq', default=1, type=int, metavar='N', help='log frequency (by iteration)')
 
     # Optimization hyperparams
-    parser.add_argument('--epochs', default=300, type=int, metavar='N', help='number of total epochs to run')
+    parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
     
     parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
     
@@ -54,7 +52,7 @@ def init_parser():
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['deit', 'g-deit', 'vit', 'g-vit', 'pit', 'g-pit'])
+    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 'g-pit', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
@@ -102,7 +100,12 @@ def init_parser():
     
     parser.add_argument('--enable_deit', action='store_true', help='Enabling randaugment')
     parser.add_argument('--dropout', type=float, help='dropout rate')
-    parser.add_argument('--ra', type=int, default=1, help='repeated augmentation')
+    parser.add_argument('--ra', type=int, default=0, help='repeated augmentation')
+    
+    # Random Erasing
+    parser.add_argument('--re', default=0, type=float, help='Random Erasing probability')
+    parser.add_argument('--re_sh', default=0.4, type=float, help='max erasing area')
+    parser.add_argument('--re_r1', default=0.3, type=float, help='aspect of erasing area')
 
     return parser
 
@@ -166,6 +169,7 @@ def main(args):
     if args.dropout:
         dropout = args.dropout
     if args.model == 'vit':
+        from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
         model = ViT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
@@ -180,8 +184,22 @@ def main(args):
             patch_size = 2
         elif img_size > 32:
             patch_size = 4
-        model = m.P_ViT_conv(version=args.channel, patch_size=patch_size, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
-        
+            model = m.P_ViT_conv(version=args.channel, patch_size=patch_size, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+    elif args.model == 'vgg16':
+        from models.conv_cifar_pytoch.vgg import VGG
+        model = VGG('VGG16')
+    elif args.model == 'res56':
+        from models.conv_cifar_pytoch.resnet import resnet56
+        model = resnet56()
+    elif args.model == 'resXt':
+        from models.conv_cifar_pytoch.resnext import ResNeXt29_32x4d
+        model = ResNeXt29_32x4d()
+    elif args.model == 'mobile2':            
+        from models.conv_cifar_pytoch.mobilenetv2 import MobileNetV2
+        model = MobileNetV2()
+    elif args.model == 'dense121':
+        from models.conv_cifar_pytoch.densenet import DenseNet121
+        model = DenseNet121()
     
     # elif args.model == 'g-pit':
     #     model = m.P_GiT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
@@ -209,8 +227,8 @@ def main(args):
         
     if args.sd > 0.:
         print(Fore.YELLOW + '*'*80)
-        logger.debug(f'Stochastic depth used {args.sd}')
-        print('*'*80+Style.RESET_ALL)        
+        logger.debug(f'Stochastic depth({args.sd}) used ')
+        print('*'*80+Style.RESET_ALL)         
         
     '''
         GPU
@@ -237,9 +255,10 @@ def main(args):
         print(Fore.YELLOW+'*'*80)
         logger.debug('Mixup used')
         print('*'*80 + Style.RESET_ALL)
-    if args.ra > 1:
+    if args.ra > 1:        
+        from utils.sampler import RASampler
         print(Fore.YELLOW+'*'*80)
-        logger.debug(f'Repeated Aug!!! {args.ra}')
+        logger.debug(f'Repeated Aug({args.ra}) used')
         print('*'*80 + Style.RESET_ALL)
 
     '''
@@ -278,11 +297,26 @@ def main(args):
         print('*'*80 + Style.RESET_ALL)
         
 
-    augmentations += [                
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(img_size, padding=4),
-        transforms.ToTensor(),
-        *normalize]
+    if args.re > 0:
+        from utils.random_erasing import RandomErasing
+        print(Fore.YELLOW + '*'*80)
+        logger.debug(f'Random erasing({args.re}) used ')
+        print('*'*80+Style.RESET_ALL)    
+        
+        
+        augmentations += [                
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(img_size, padding=4),
+            transforms.ToTensor(),
+            *normalize,
+            RandomErasing(probability = args.re, sh = args.re_sh, r1 = args.re_r1, mean=img_mean)]
+    
+    else:
+        augmentations += [                
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(img_size, padding=4),
+            transforms.ToTensor(),
+            *normalize]
     
     
     augmentations = transforms.Compose(augmentations)
@@ -339,7 +373,7 @@ def main(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,  num_workers=args.workers, pin_memory=True,
-        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, 2, shuffle=True, drop_last=False))
+        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, 3, shuffle=True, drop_last=False))
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
     '''

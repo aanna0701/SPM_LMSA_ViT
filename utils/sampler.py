@@ -20,7 +20,7 @@ class RASampler(torch.utils.data.Sampler):
     - len_factor: multiplicative factor for epoch size
     """
 
-    def __init__(self, dataset_len, batch_size, repetitions=1, len_factor=1.0, shuffle=False, drop_last=False):
+    def __init__(self, dataset_len, batch_size, repetitions=1, len_factor=3.0, shuffle=False, drop_last=False):
         self.dataset_len = dataset_len
         self.batch_size = batch_size
         self.repetitions = repetitions

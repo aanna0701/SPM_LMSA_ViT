@@ -96,3 +96,5 @@ class Equalize(object):
 class Invert(object):
     def __call__(self, x, magnitude):
         return ImageOps.invert(x)
+    
+

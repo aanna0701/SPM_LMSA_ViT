@@ -10,10 +10,17 @@
 
 for s in 3
 do
-	python main.py --depth 12 --heads 3 --channel 96 --gpu 1 --model pit --tag T-imgnet-12-96-aa-mu --seed ${s} --dataset T-IMNET --ls --aa --mu --down_conv
-	python main.py --depth 12 --heads 3 --channel 144 --gpu 1 --model pit --tag T-imgnet-12-144-aa-mu --seed ${s} --dataset T-IMNET --ls --aa --mu --down_conv
-#	python main.py --depth 12 --heads 3 --channel 96 --gpu 0 --model pit --tag cifar10-12-96-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu --down_conv
-#	python main.py --depth 12 --heads 3 --channel 96 --gpu 0 --model pit --tag cifar10-12-144-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu --down_conv
-	# python main.py --depth 12 --heads 3 --channel 96 --gpu 1 --model g-vit --tag cifar10-12-96-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu
-	# python main.py  --depth 12 --heads 3 --channel 96 --channel 144 --gpu 1 --model g-vit --tag cifar10-12-144-aa-mu --seed ${s} --dataset CIFAR10 --ls --aa --mu 
+#	python main.py --depth 12 --heads 3 --channel 72 --gpu 1 --model vit --tag 12-72-aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+	python main.py --depth 12 --heads 3 --channel 96 --gpu 0 --model vit --tag 12-96-aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+	python main.py --depth 12 --heads 3 --channel 144 --gpu 0 --model vit --tag 12-144-aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+#	python main.py --depth 12 --heads 3 --channel 192 --gpu 1 --model vit --tag 12-192-aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+done
+
+for s in 3
+do
+#	python main.py --gpu 1 --model vgg16 --tag aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+#	python main.py --gpu 1 --model res56 --tag aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+#	python main.py --gpu 1 --model resXt --tag aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+#	python main.py --gpu 1 --model mobile2 --tag aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+#	python main.py --gpu 1 --model dense121 --tag aa-mu-cm-sd-ra-re --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
 done
