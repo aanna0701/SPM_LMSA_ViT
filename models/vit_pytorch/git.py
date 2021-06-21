@@ -38,7 +38,7 @@ class FeedForward(nn.Module):
         )
         
     def _init_weights(self,layer):
-        nn.init._normal_(layer.weight)
+        nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)      
     
@@ -70,7 +70,7 @@ class Attention(nn.Module):
         self.gam = nn.Parameter(torch.zeros(1))
         
     def _init_weights(self,layer):
-        nn.init._normal_(layer.weight)
+        nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
 
@@ -151,7 +151,7 @@ class GiT(nn.Module):
         )
 
     def _init_weights(self,layer):
-        nn.init._normal_(layer.weight)
+        nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
 

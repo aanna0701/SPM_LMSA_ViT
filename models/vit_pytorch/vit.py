@@ -37,7 +37,7 @@ class FeedForward(nn.Module):
         )
         
     def _init_weights(self,layer):
-        nn.init._normal_(layer.weight)
+        nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)      
     
@@ -66,7 +66,7 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()      
         
     def _init_weights(self,layer):
-        nn.init._normal_(layer.weight)
+        nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
 
@@ -135,7 +135,7 @@ class ViT(nn.Module):
         )
 
     def _init_weights(self,layer):
-        nn.init._normal_(layer.weight)
+        nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
 
