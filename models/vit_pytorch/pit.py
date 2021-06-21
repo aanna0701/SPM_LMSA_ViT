@@ -28,13 +28,24 @@ class PreNorm(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
+        self.linear1 = nn.Linear(dim, hidden_dim)
+        self._init_weights(self.linear1)
+        self.linear2 = nn.Linear(hidden_dim, dim)
+        self._init_weights(self.linear2)
+        
         self.net = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
+            self.linear1,
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, dim),
+            self.linear2,
             nn.Dropout(dropout)
         )
+        
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)   
+        
     def forward(self, x):
         return self.net(x)
 
@@ -49,11 +60,20 @@ class Attention(nn.Module):
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
-
+        self._init_weights(self.to_qkv) 
+        
+        self.to_out = nn.Linear(inner_dim, dim)
+        self._init_weights(self.to_out)
+        
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
+            self.to_out,
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
+        
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
 
     def forward(self, x):
         b, n, _, h = *x.shape, self.heads
@@ -89,10 +109,22 @@ class Transformer(nn.Module):
 class DepthWiseConv2d(nn.Module):
     def __init__(self, dim_in, dim_out, kernel_size, padding, stride, bias = True):
         super().__init__()
+        
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size = 1, bias = bias)
+        self._init_weights(self.conv1)
+        self._init_weights(self.conv2)
+        
         self.net = nn.Sequential(
             nn.Conv2d(dim_in, dim_out, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias),
             nn.Conv2d(dim_out, dim_out, kernel_size = 1, bias = bias)
-        )
+        ) 
+    
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
+        
     def forward(self, x):
         return self.net(x)
 
@@ -103,6 +135,12 @@ class Pool(nn.Module):
         super().__init__()
         self.downsample = DepthWiseConv2d(dim, dim * 2, kernel_size = 3, stride = 2, padding = 1)
         self.cls_ff = nn.Linear(dim, dim * 2)
+        self._init_weights(self.cls_ff)
+        
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
 
     def forward(self, x):
         cls_token, tokens = x[:, :1], x[:, 1:]
@@ -126,10 +164,12 @@ class PiT(nn.Module):
 
         patch_dim = 3 * patch_size ** 2
 
+        self.linear_to_path = nn.Linear(patch_dim, dim)
+        self._init_weights(self.linear_to_path)
         self.to_patch_embedding = nn.Sequential(
             nn.Unfold(kernel_size = patch_size, stride = patch_size // 2),
             Rearrange('b c n -> b n c'),
-            nn.Linear(patch_dim, dim)
+            self.linear_to_path
         )
 
         output_size = conv_output_size(img_size, patch_size, patch_size // 2)
@@ -152,10 +192,19 @@ class PiT(nn.Module):
 
         self.layers = nn.Sequential(*layers)
 
+        nn.linear_mlp_head = nn.Linear(dim, num_classes)
+        self._init_weights(nn.linear_mlp_head)
+
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, num_classes)
+            nn.linear_mlp_head
         )
+
+
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
 
     def forward(self, img):
         x = self.to_patch_embedding(img)
