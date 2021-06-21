@@ -404,11 +404,12 @@ def main(args):
     print("Beginning training")
     print()
     
-    lr_epoch = get_lr(optimizer)
+    global lr
+    lr = optimizer.param_groups[0]["lr"]
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
-        train(train_loader, model, criterion, optimizer, epoch, args, scheduler)
-        acc1, acc5 = validate(val_loader, model, criterion, args, get_lr(optimizer), epoch=epoch)
+        train(train_loader, model, criterion, optimizer, epoch, scheduler, lr, args)
+        acc1, acc5 = validate(val_loader, model, criterion, lr, args, epoch=epoch)
         logger_dict.print()
         if acc1 > best_acc1:
             print('* Best model upate *')
@@ -422,9 +423,7 @@ def main(args):
         print(f'Best acc1 {best_acc1:.2f}, Best acc5 {best_acc5:.2f}')
         print('*'*80)
         print(Style.RESET_ALL)
-        
-        writer.add_scalar("Learning Rate", lr_epoch, epoch)
-        lr_epoch = get_lr(optimizer)
+        writer.add_scalar("Learning Rate", lr, epoch)
 
     print(Fore.RED+'*'*80)
     logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')
@@ -438,7 +437,7 @@ def get_lr(optimizer):
 
 
 
-def train(train_loader, model, criterion, optimizer, epoch, args, scheduler):
+def train(train_loader, model, criterion, optimizer, epoch, scheduler, lr,  args):
     model.train()
     loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
@@ -526,11 +525,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args, scheduler):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        scheduler.step_update(epoch * num_steps + i)        
+        scheduler.step()
+        lr = optimizer.param_groups[0]["lr"]
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
-            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {get_lr(optimizer):.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
 
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
@@ -538,7 +538,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, scheduler):
     writer.add_scalar("Acc/train", avg_acc1, epoch)
 
 
-def validate(val_loader, model, criterion, args, lr, epoch=None):
+def validate(val_loader, model, criterion, lr, args, epoch=None):
     model.eval()
     loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
