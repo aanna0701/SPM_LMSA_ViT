@@ -194,7 +194,7 @@ def main(args):
         elif img_size > 32:
             patch_size = 8
         dim_head = args.channel // args.heads
-        if args.chaneel == 144:
+        if args.channel == 144:
             args.channel = 64
         else:
             args.channel = 96
