@@ -1,5 +1,5 @@
 from math import sqrt
-
+from utils.drop_path import DropPath
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
@@ -69,7 +69,7 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         for _ in range(depth):
@@ -77,10 +77,11 @@ class Transformer(nn.Module):
                 PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
+            self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x) + x
-            x = ff(x) + x
+            x = self.drop_path(attn(x)) + x
+            x = self.drop_path(ff(x)) + x
         return x
 
 # depthwise convolution, for pooling
@@ -117,22 +118,9 @@ class Pool(nn.Module):
 # main class
 
 class PiT(nn.Module):
-    def __init__(
-        self,
-        *,
-        image_size,
-        patch_size,
-        num_classes,
-        dim,
-        depth,
-        heads,
-        mlp_dim,
-        dim_head = 64,
-        dropout = 0.,
-        emb_dropout = 0.
-    ):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
-        assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
+        assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
         assert isinstance(depth, tuple), 'depth must be a tuple of integers, specifying the number of blocks before each downsizing'
         heads = cast_tuple(heads, len(depth))
 
@@ -144,7 +132,7 @@ class PiT(nn.Module):
             nn.Linear(patch_dim, dim)
         )
 
-        output_size = conv_output_size(image_size, patch_size, patch_size // 2)
+        output_size = conv_output_size(img_size, patch_size, patch_size // 2)
         num_patches = output_size ** 2
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -156,7 +144,7 @@ class PiT(nn.Module):
         for ind, (layer_depth, layer_heads) in enumerate(zip(depth, heads)):
             not_last = ind < (len(depth) - 1)
             
-            layers.append(Transformer(dim, layer_depth, layer_heads, dim_head, mlp_dim, dropout))
+            layers.append(Transformer(dim, layer_depth, layer_heads, dim_head, mlp_dim, dropout, stochastic_depth))
 
             if not_last:
                 layers.append(Pool(dim))

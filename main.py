@@ -188,11 +188,19 @@ def main(args):
     # Convnets
 
     elif args.model == 'pit':
+        from models.vit_pytorch.pit import PiT
         if img_size == 32:
-            patch_size = 2
-        elif img_size > 32:
             patch_size = 4
-            model = m.P_ViT_conv(version=args.channel, patch_size=patch_size, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+        elif img_size > 32:
+            patch_size = 8
+        dim_head = args.channel // args.heads
+        if args.chaneel == 144:
+            args.channel = 64
+        else:
+            args.channel = 96
+        args.heads = 2
+        args.depth = (2, 6, 4)
+        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model == 'vgg16':
         from models.conv_cifar_pytoch.vgg import VGG
@@ -404,11 +412,10 @@ def main(args):
     print("Beginning training")
     print()
     
-    global lr
     lr = optimizer.param_groups[0]["lr"]
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
-        train(train_loader, model, criterion, optimizer, epoch, scheduler, lr, args)
+        lr = train(train_loader, model, criterion, optimizer, epoch, scheduler, args)
         acc1, acc5 = validate(val_loader, model, criterion, lr, args, epoch=epoch)
         logger_dict.print()
         if acc1 > best_acc1:
@@ -422,28 +429,22 @@ def main(args):
         
         print(f'Best acc1 {best_acc1:.2f}, Best acc5 {best_acc5:.2f}')
         print('*'*80)
-        print(Style.RESET_ALL)
+        print(Style.RESET_ALL)        
+        
         writer.add_scalar("Learning Rate", lr, epoch)
-
+        
     print(Fore.RED+'*'*80)
     logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')
     print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
 
-def get_lr(optimizer):
-    for param_group in optimizer.param_groups:
-        return param_group['lr']
-
-
-
-def train(train_loader, model, criterion, optimizer, epoch, scheduler, lr,  args):
+def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
     model.train()
     loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
     mix = ''
     mix_paramter = 0
-    num_steps = len(train_loader)
     for i, (images, target) in enumerate(train_loader):
         if (not args.no_cuda) and torch.cuda.is_available():
             images = images.cuda(args.gpu, non_blocking=True)
@@ -536,6 +537,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler, lr,  args
     logger_dict.update(keys[1], avg_acc1)
     writer.add_scalar("Loss/train", avg_loss, epoch)
     writer.add_scalar("Acc/train", avg_acc1, epoch)
+
+    return lr
 
 
 def validate(val_loader, model, criterion, lr, args, epoch=None):

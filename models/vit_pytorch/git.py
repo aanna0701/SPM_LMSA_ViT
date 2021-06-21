@@ -2,7 +2,7 @@ import torch
 from torch import nn, einsum
 import torch.nn.functional as F
 
-from einops import rearrange, repeat
+from einops import rearrange
 from einops.layers.torch import Rearrange
 
 # helpers
@@ -116,7 +116,7 @@ class Transformer(nn.Module):
 
 
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'mean', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -125,14 +125,22 @@ class GiT(nn.Module):
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
         patch_dim = channels * patch_height * patch_width
-        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
-
+        
+        
         self.linear_to_path = nn.Linear(patch_dim, dim)
         self._init_weights(self.linear_to_path)
         self.to_patch_embedding = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             self.linear_to_path,
         )
+        
+        # self.linear_cls_tokens = nn.Linear(num_patches, 1)
+        # self._init_weights(self.linear_cls_tokens)
+        # self.to_cls_tokens = nn.Sequential(
+        #     Rearrange('b n c -> b c n'),
+        #     self.linear_cls_tokens,
+        #     Rearrange('b c n -> b n c')
+        # )
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
@@ -141,12 +149,13 @@ class GiT(nn.Module):
         self.pool = pool
         self.to_latent = nn.Identity()
 
+        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
         
-        nn.linear_mlp_head = nn.Linear(dim, num_classes)
+        nn.linear_mlp_head = nn.Linear(dim, num_classes) if pool == 'cls' else nn.Linear(dim+1, num_classes)
         self._init_weights(nn.linear_mlp_head)
         
         self.mlp_head = nn.Sequential(
-            nn.LayerNorm(dim),
+            nn.LayerNorm(dim) if pool == 'cls' else nn.LayerNorm(dim+1),
             nn.linear_mlp_head
         )
 
@@ -161,16 +170,24 @@ class GiT(nn.Module):
         b, n, _ = x.shape
 
         # cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
-        cls_tokens = x.max(dim=1, keepdim=True)[0]
+
+        # cls_tokens = self.to_cls_tokens(x)
         
-        x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
+        # x = torch.cat((cls_tokens, x), dim=1)
+        # x += self.pos_embedding[:, :(n + 1)]
+        x += self.pos_embedding[:, :n]
         x = self.dropout(x)
 
         x = self.transformer(x)
 
-        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+        # x = x.mean(dim = 1) if self.pool == 'mean' else read_out(x)
+        x = read_out(x).mean(dim = 1) if self.pool == 'mean' else x[:, 0]
 
         x = self.to_latent(x)
         return self.mlp_head(x)
 
+
+def read_out(x):
+    x_max = x.max(dim=-1, keepdim=True)[0]
+    out = torch.cat([x, x_max], dim=-1)
+    return out
