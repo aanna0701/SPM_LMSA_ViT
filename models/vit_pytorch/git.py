@@ -23,13 +23,25 @@ class PreNorm(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
+        
+        self.linear1 = nn.Linear(dim, hidden_dim)
+        self._init_weights(self.linear1)
+        self.linear2 = nn.Linear(hidden_dim, dim)
+        self._init_weights(self.linear2)
+        
         self.net = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
+            self.linear1,
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, dim),
+            self.linear2,
             nn.Dropout(dropout)
         )
+        
+    def _init_weights(self,layer):
+        nn.init._normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)      
+    
     def forward(self, x):
         return self.net(x)
 
@@ -44,31 +56,53 @@ class Attention(nn.Module):
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+        self._init_weights(self.to_qkv)
+        
+        self.to_out = nn.Linear(inner_dim, dim)
+        self._init_weights(self.to_out)
 
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
+            self.to_out,
             nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
+        ) if project_out else nn.Identity()        
+        
+        self.lam = nn.Parameter(torch.zeros(1))
+        self.gam = nn.Parameter(torch.zeros(1))
+        
+    def _init_weights(self,layer):
+        nn.init._normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
 
     def forward(self, x):
         b, n, _, h = *x.shape, self.heads
+        
+        # nodes = x[:, 1:]
+        # global_attribute = x[:, (0, )]
+        
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         attn = self.attend(dots)
-
+        
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
+        
+        out_nodes = self.to_out(out)
+
+        # print(node_aggregation[0].norm(2))
+        
+        # print(f'gam:{self.gam}')
+        
+        return out_nodes
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.norm = nn.LayerNorm(dim)
-        self.gub = GA_block(dim)
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
@@ -77,13 +111,12 @@ class Transformer(nn.Module):
     def forward(self, x):
         for attn, ff in self.layers:
             x = attn(x) + x
-            x = self.norm(x)
-            x = self.gub(x, attn(x))
             x = ff(x) + x
         return x
 
+
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -94,32 +127,42 @@ class GiT(nn.Module):
         patch_dim = channels * patch_height * patch_width
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
+        self.linear_to_path = nn.Linear(patch_dim, dim)
+        self._init_weights(self.linear_to_path)
         self.to_patch_embedding = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            nn.Linear(patch_dim, dim),
+            self.linear_to_path,
         )
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
-        
-        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-
-        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
 
         self.pool = pool
         self.to_latent = nn.Identity()
 
+        
+        nn.linear_mlp_head = nn.Linear(dim, num_classes)
+        self._init_weights(nn.linear_mlp_head)
+        
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, num_classes)
+            nn.linear_mlp_head
         )
 
+    def _init_weights(self,layer):
+        nn.init._normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
+
     def forward(self, img):
-        # patch embedding
+        # pathc embedding
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+        # cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+        cls_tokens = x.max(dim=1, keepdim=True)[0]
+        
         x = torch.cat((cls_tokens, x), dim=1)
         x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
@@ -131,58 +174,3 @@ class GiT(nn.Module):
         x = self.to_latent(x)
         return self.mlp_head(x)
 
-
-class GA_block(nn.Module):
-    '''
-    Class-token Embedding
-    '''
-    def __init__(self, in_channels):
-        super(GA_block, self).__init__()
-        self.in_dimension = in_channels
-        self.sigmoid = nn.Sigmoid()
-        self.linear4 = nn.Linear(in_channels , in_channels, bias=False)
-        self._init_weights(self.linear4)
-        
-    def _init_weights(self,layer):
-        nn.init.kaiming_normal_(layer.weight)
-        if layer.bias:
-            nn.init.normal_(layer.bias, std=1e-6)
-   
-    def forward(self, x, edge_per_node):
-        '''
-            [shape]
-            x : (B, HW+1, C)
-            visual_token : (B, HW, C)
-            cls_token_in : (B, 1, C)
-            weight : (B, 1, HW)
-            weight_softmax : (B, 1, HW)
-            cls_token_out : (B, 1, C)
-            out : (B, HW+1, C)
-            
-            edge_aggregation : (B, 1, C)
-            channel_importance : (B, 1, C)
-            nodes : (B, HW, C)
-            channel_aggregation : (B, HW, 1)  
-            node_importance : (B, HW, 1)
-        '''
-        nodes = x[:, 1:]    # (B, HW, C)
-        cls_token = x[:, (0,)]
-        
-        edge_global = edge_per_node.mean(dim=1)   # (B, 1, C)
-        node_global = nodes.mean(dim=1)     # (B, 1, C)
-        
-        # edge_embed = self.linear1(edge_global)
-        # node_embed = self.linear2(node_global)
-                
-        channel_attention = edge_global + node_global
-        channel_attention = channel_attention.unsqueeze(dim=1)
-        # channel_attention = self.sigmoid(self.linear3(channel_attention)) # (B, 1, C)
-        channel_attention = self.sigmoid(channel_attention) # (B, 1, C)
-        
-        
-        # cls_token_out = cls_token + torch.mul(cls_token, channel_attention)    #(B, 1, C)
-        cls_token_out = cls_token + torch.mul(self.linear4(cls_token), channel_attention)    #(B, 1, C)
-        
-        out = torch.cat((cls_token_out, x[:, 1:]), dim=1)
-                
-        return out

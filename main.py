@@ -50,7 +50,7 @@ def init_parser():
     
     parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
-    parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
+    parser.add_argument('--lr', default=0.003, type=float, help='initial learning rate')
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
@@ -181,8 +181,9 @@ def main(args):
         
     
     elif args.model == 'g-vit':
+        from models.vit_pytorch.git import GiT        
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout)
+        model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     # Convnets
 
@@ -609,7 +610,7 @@ if __name__ == '__main__':
     logger = log.getLogger(__name__)
     formatter = log.Formatter('%(message)s')
     streamHandler = log.StreamHandler()
-    fileHandler = log.FileHandler(log_dir, 'w')
+    fileHandler = log.FileHandler(log_dir, 'a')
     streamHandler.setFormatter(formatter)
     fileHandler.setFormatter(formatter)
     logger.addHandler(streamHandler)
