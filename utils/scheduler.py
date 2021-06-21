@@ -108,7 +108,7 @@ def build_scheduler(args, optimizer, n_iter_per_epoch):
         first_cycle_steps=num_steps,
         cycle_mult=1.,
         max_lr = args.lr,
-        min_lr = 3e-6,
+        min_lr = 1e-6,
         warmup_steps=warmup_steps
         )
     return lr_scheduler
