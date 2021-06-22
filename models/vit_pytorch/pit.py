@@ -97,7 +97,7 @@ class Transformer(nn.Module):
                 PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
-            self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
+        self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for attn, ff in self.layers:
             x = self.drop_path(attn(x)) + x

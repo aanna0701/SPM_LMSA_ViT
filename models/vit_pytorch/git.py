@@ -149,13 +149,13 @@ class GiT(nn.Module):
         self.pool = pool
         self.to_latent = nn.Identity()
 
-        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
+        assert pool in {'cls', 'mean', 'readout'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
         
-        nn.linear_mlp_head = nn.Linear(dim, num_classes) if pool == 'cls' else nn.Linear(dim+1, num_classes)
+        nn.linear_mlp_head = nn.Linear(dim, num_classes) if not pool == 'readout' else nn.Linear(dim+1, num_classes)
         self._init_weights(nn.linear_mlp_head)
         
         self.mlp_head = nn.Sequential(
-            nn.LayerNorm(dim) if pool == 'cls' else nn.LayerNorm(dim+1),
+            nn.LayerNorm(dim) if not pool == 'readout' else nn.LayerNorm(dim+1),
             nn.linear_mlp_head
         )
 
@@ -181,7 +181,7 @@ class GiT(nn.Module):
         x = self.transformer(x)
 
         # x = x.mean(dim = 1) if self.pool == 'mean' else read_out(x)
-        x = read_out(x).mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+        x = read_out(x).mean(dim = 1) if self.pool == 'readout' else x[:, 0]
 
         x = self.to_latent(x)
         return self.mlp_head(x)

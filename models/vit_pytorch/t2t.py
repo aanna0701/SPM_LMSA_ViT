@@ -2,7 +2,7 @@ import math
 import torch
 from torch import nn
 
-from vit_pytorch.vit import Transformer
+from .vit import Transformer
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
@@ -24,7 +24,7 @@ class RearrangeImage(nn.Module):
 # main class
 
 class T2TViT(nn.Module):
-    def __init__(self, *, image_size, num_classes, dim, depth = None, heads = None, mlp_dim = None, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., transformer = None, t2t_layers = ((7, 4), (3, 2), (3, 2))):
+    def __init__(self, *, image_size, num_classes, dim=256, depth = 8, heads = 4, mlp_dim = 512, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., transformer = None, t2t_layers = ((3, 2), (3, 2))):
         super().__init__()
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
@@ -60,10 +60,18 @@ class T2TViT(nn.Module):
         self.pool = pool
         self.to_latent = nn.Identity()
 
+        self.linear_mlp_head = nn.Linear(dim, num_classes)
+        self._init_weights(self.linear_mlp_head)
+        
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, num_classes)
+            self.linear_mlp_head
         )
+        
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
 
     def forward(self, img):
         x = self.to_patch_embedding(img)

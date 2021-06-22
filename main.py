@@ -50,11 +50,11 @@ def init_parser():
     
     parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
-    parser.add_argument('--lr', default=0.003, type=float, help='initial learning rate')
+    parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 'g-pit', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
+    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 't2t-vit', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
@@ -185,8 +185,6 @@ def main(args):
         dim_head = args.channel // args.heads
         model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
-    # Convnets
-
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
         if img_size == 32:
@@ -201,6 +199,12 @@ def main(args):
         args.heads = 2
         args.depth = (2, 6, 4)
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+
+    elif args.model =='t2t-vit':
+        from models.vit_pytorch.t2t import T2TViT
+        model = T2TViT(image_size=img_size, num_classes=100)
+        
+    # Convnets
 
     elif args.model == 'vgg16':
         from models.conv_cifar_pytoch.vgg import VGG
