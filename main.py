@@ -202,7 +202,7 @@ def main(args):
 
     elif args.model =='t2t-vit':
         from models.vit_pytorch.t2t import T2TViT
-        model = T2TViT(image_size=img_size, num_classes=100)
+        model = T2TViT(image_size=img_size, num_classes=100, depth=args.depth)
         
     # Convnets
 
