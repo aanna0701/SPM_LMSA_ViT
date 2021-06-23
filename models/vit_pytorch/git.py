@@ -2,7 +2,7 @@ import torch
 from torch import nn, einsum
 import torch.nn.functional as F
 
-from einops import rearrange
+from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
 # helpers
@@ -116,7 +116,7 @@ class Transformer(nn.Module):
 
 
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'mean', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'readout', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -133,14 +133,9 @@ class GiT(nn.Module):
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             self.linear_to_path,
         )
+
         
-        # self.linear_cls_tokens = nn.Linear(num_patches, 1)
-        # self._init_weights(self.linear_cls_tokens)
-        # self.to_cls_tokens = nn.Sequential(
-        #     Rearrange('b n c -> b c n'),
-        #     self.linear_cls_tokens,
-        #     Rearrange('b c n -> b n c')
-        # )
+        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
@@ -169,13 +164,11 @@ class GiT(nn.Module):
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
-        # cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
-
-        # cls_tokens = self.to_cls_tokens(x)
+        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         
-        # x = torch.cat((cls_tokens, x), dim=1)
-        # x += self.pos_embedding[:, :(n + 1)]
-        x += self.pos_embedding[:, :n]
+        x = torch.cat((cls_tokens, x), dim=1)
+        x += self.pos_embedding[:, :(n + 1)]
+        # x += self.pos_embedding[:, :n]
         x = self.dropout(x)
 
         x = self.transformer(x)

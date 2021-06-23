@@ -120,8 +120,8 @@ class CvT(nn.Module):
         *,
         num_classes,
         s1_emb_dim = 64,
-        s1_emb_kernel = 7,
-        s1_emb_stride = 4,
+        s1_emb_kernel = 3,
+        s1_emb_stride = 2,
         s1_proj_kernel = 3,
         s1_kv_proj_stride = 2,
         s1_heads = 1,
@@ -146,23 +146,34 @@ class CvT(nn.Module):
         dropout = 0.
     ):
         super().__init__()
-        kwargs = dict(locals())
 
         dim = 3
         layers = []
 
-        for prefix in ('s1', 's2', 's3'):
-            config, kwargs = group_by_key_prefix_and_remove_prefix(f'{prefix}_', kwargs)
-
-            layers.append(nn.Sequential(
-                nn.Conv2d(dim, config['emb_dim'], kernel_size = config['emb_kernel'], padding = (config['emb_kernel'] // 2), stride = config['emb_stride']),
-                LayerNorm(config['emb_dim']),
-                Transformer(dim = config['emb_dim'], proj_kernel = config['proj_kernel'], kv_proj_stride = config['kv_proj_stride'], depth = config['depth'], heads = config['heads'], mlp_mult = config['mlp_mult'], dropout = dropout)
+    
+        layers.append(nn.Sequential(
+                nn.Conv2d(dim, s1_emb_dim, kernel_size = s1_emb_kernel, padding = (s1_emb_kernel // 2), stride = s1_emb_stride),
+                LayerNorm(s1_emb_dim),
+                Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout)
             ))
-
-            dim = config['emb_dim']
+        dim = s1_emb_dim
+    
+        layers.append(nn.Sequential(
+                nn.Conv2d(dim, s2_emb_dim, kernel_size = s2_emb_kernel, padding = (s2_emb_kernel // 2), stride = s2_emb_stride),
+                LayerNorm(s2_emb_dim),
+                Transformer(dim = s2_emb_dim, proj_kernel = s2_proj_kernel, kv_proj_stride = s2_kv_proj_stride, depth = s2_depth, heads = s2_heads, mlp_mult = s2_mlp_mult, dropout = dropout)
+            ))
+        dim = s2_emb_dim
+    
+        layers.append(nn.Sequential(
+                nn.Conv2d(dim, s3_emb_dim, kernel_size = s3_emb_kernel, padding = (s3_emb_kernel // 2), stride = s3_emb_stride),
+                LayerNorm(s3_emb_dim),
+                Transformer(dim = s3_emb_dim, proj_kernel = s3_proj_kernel, kv_proj_stride = s3_kv_proj_stride, depth = s3_depth, heads = s3_heads, mlp_mult = s3_mlp_mult, dropout = dropout)
+            ))
+        dim = s3_emb_dim
 
         self.layers = nn.Sequential(
+            
             *layers,
             nn.AdaptiveAvgPool2d(1),
             Rearrange('... () () -> ...'),

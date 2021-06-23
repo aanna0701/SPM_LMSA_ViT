@@ -5,3 +5,7 @@ backup/
 GiT_2/
 params/
 *.txt
+*.png
+*.eps
+*.pyc
+events*

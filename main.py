@@ -22,7 +22,6 @@ from utils.training_functions import accuracy
 import argparse
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
-import models.create_model as m
 from torch.utils.tensorboard import SummaryWriter
 
 best_acc1 = 0
@@ -613,7 +612,7 @@ if __name__ == '__main__':
     
     # logger
 
-    log_dir = os.path.join(save_path, 'logs.txt')
+    log_dir = os.path.join(save_path, 'history.csv')
     logger = log.getLogger(__name__)
     formatter = log.Formatter('%(message)s')
     streamHandler = log.StreamHandler()
