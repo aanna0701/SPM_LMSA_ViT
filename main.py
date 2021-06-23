@@ -53,7 +53,7 @@ def init_parser():
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 't2t-vit', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
+    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
@@ -204,7 +204,7 @@ def main(args):
         model = T2TViT(image_size=img_size, num_classes=n_classes, depth=args.depth)
         
 
-    elif args.model =='cit':
+    elif args.model =='cvt':
         from models.vit_pytorch.cvt import CvT
         model = CvT(num_classes=n_classes)
         
