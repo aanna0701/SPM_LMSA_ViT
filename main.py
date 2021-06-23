@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 from utils.autoaug import SVHNPolicy
 from utils.mix import cutmix_data, mixup_data, mixup_criterion
 import numpy as np
