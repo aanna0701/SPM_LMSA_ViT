@@ -121,7 +121,7 @@ class CvT(nn.Module):
         num_classes,
         s1_emb_dim = 64,
         s1_emb_kernel = 3,
-        s1_emb_stride = 2,
+        s1_emb_stride = 1,
         s1_proj_kernel = 3,
         s1_kv_proj_stride = 2,
         s1_heads = 1,
@@ -152,7 +152,7 @@ class CvT(nn.Module):
 
     
         layers.append(nn.Sequential(
-                nn.Conv2d(dim, s1_emb_dim, kernel_size = s1_emb_kernel, padding = (s1_emb_kernel // 2), stride = s1_emb_stride),
+                nn.Conv2d(dim, s1_emb_dim, kernel_size = s1_emb_kernel, padding = 1, stride = s1_emb_stride),
                 LayerNorm(s1_emb_dim),
                 Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout)
             ))
