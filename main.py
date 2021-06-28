@@ -60,7 +60,7 @@ def init_parser():
 
     parser.add_argument('--gpu', default=0, type=int)
 
-    parser.add_argument('--no-cuda', action='store_true', help='disable cuda')
+    parser.add_argument('--no_cuda', action='store_true', help='disable cuda')
 
     parser.add_argument('--ls', action='store_true', help='label smoothing')
 
@@ -82,7 +82,7 @@ def init_parser():
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
 
-    # * Mixup params
+    # Mixup params
   
     parser.add_argument('--cm',action='store_true' , help='Use Cutmix')
     parser.add_argument('--beta', default=1.0, type=float,

@@ -2,8 +2,6 @@ from __future__ import absolute_import
 
 from torchvision.transforms import *
 
-import numpy as np
-import torch
 import random
 import math
 
@@ -20,7 +18,7 @@ class RandomErasing(object):
         if random.uniform(0, 1) > self.EPSILON:
             return img
 
-        for attempt in range(100):
+        for _ in range(100):
             area = img.size()[1] * img.size()[2]
        
             target_area = random.uniform(self.sl, self.sh) * area

@@ -1,4 +1,3 @@
-#!/bin/zsh
 
 
 # for s in 3 4 5
@@ -10,10 +9,10 @@
 
 for s in 3 4 5
 do
-	python main.py --depth 12 --heads 3 --channel 72 --lr 0.001 --gpu 1 --model g-vit --tag 12-72-aa-mu-cm-sd-ra-re-w_cls_readout --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
-#	python main.py --depth 12 --heads 3 --channel 96 --lr 0.001 --gpu 0 --model g-vit --tag 12-96-aa-mu-cm-sd-ra-re-w_cls_readout --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
-#	python main.py --depth 12 --heads 3 --channel 144 --lr 0.001 --gpu 0 --model g-vit --tag 12-144-aa-mu-cm-sd-ra-re-w_cls_readout --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
-	python main.py --depth 12 --heads 3 --channel 192 --lr 0.001 --gpu 1 --model g-vit --tag 12-192-aa-mu-cm-sd-ra-re-w_cls_readout --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+	python main.py --depth 12 --heads 3 --channel 72 --lr 0.001 --gpu 1 --model vit --tag 12-72-aa-mu-cm-sd-ra-re-sd02 --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.2 --ra 3 --cm --re 0.25
+#	python main.py --depth 12 --heads 3 --channel 96 --lr 0.001 --gpu 0 --model vit --tag 12-96-aa-mu-cm-sd-ra-re-sd02 --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.2 --ra 3 --cm --re 0.25
+#	python main.py --depth 12 --heads 3 --channel 144 --lr 0.001 --gpu 0 --model vit --tag 12-144-aa-mu-cm-sd-ra-re-sd02 --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.2 --ra 3 --cm --re 0.25
+	python main.py --depth 12 --heads 3 --channel 192 --lr 0.001 --gpu 1 --model vit --tag 12-192-aa-mu-cm-sd-ra-re-sd02 --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.2 --ra 3 --cm --re 0.25
 done
 
 for s in 3
