@@ -210,37 +210,40 @@ def main(args):
     
     summary(model, (3, img_size, img_size))
     
+    model.load_state_dict(torch.load(os.path.join(os.getcwd(), args.weights, 'best.pth')))
     
-    validate(val_loader, model, args)
+    
+    rank(val_loader, model, args)
     
     
-def validate(val_loader, model, args):
+def rank(val_loader, model, args):
     
     value = {}
-    result = 0
     model.eval()
     with torch.no_grad():
         for i, (images, _) in enumerate(val_loader):
-            if (not args.no_cuda) and torch.cuda.is_available():
-                images = images.cuda(args.gpu, non_blocking=True)
+            if i < 1:
+                if (not args.no_cuda) and torch.cuda.is_available():
+                    images = images.cuda(args.gpu, non_blocking=True)
 
-            print(f'{i+1}th batch')
             
-            _ = model(images)
-            
-            hidden_states = model.transformer.hidden_states
-            if i == 0:
-                for key in hidden_states:
-                    value[key] = compute_rank(hidden_states[key]) 
-            
-            else:
-                for key in hidden_states:
-                    value[key] += compute_rank(hidden_states[key])
-
-            print(f'{value}')
-            
+                _ = model(images)
+                
+                hidden_states = model.transformer.hidden_states
+                if i == 0:
+                    for key in hidden_states:
+                        # value[key] = compute_rank(hidden_states[key]) 
+                        value[key] = [hidden_states[key]]
+                
+                else:
+                    for key in hidden_states:
+                        # value[key] += compute_rank(hidden_states[key])
+                        value[key].append(hidden_states[key])
+        
+        
         for key in value:
-            value[key] /= len(val_loader)
+            value[key] = torch.cat(value[key], dim=0)
+            value[key] = compute_rank(value[key])
         
         print('done')
         print(f'{value}')
