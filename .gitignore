@@ -8,4 +8,6 @@ params/
 *.png
 *.eps
 *.pyc
+*.pth
+*.csv
 events*

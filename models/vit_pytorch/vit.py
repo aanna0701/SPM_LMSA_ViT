@@ -87,6 +87,9 @@ class Transformer(nn.Module):
     def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
+        self.f2 = None
+        self.f8 = None
+        self.f12 = None
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
@@ -94,8 +97,15 @@ class Transformer(nn.Module):
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
-        for attn, ff in self.layers:
+        for i, (attn, ff) in enumerate(self.layers):
+            
             x = self.drop_path(attn(x)) + x
+            if i == 1:
+                self.f2 = x
+            elif i == 7:
+                self.f8 = x
+            else:
+                self.f12 = x
             x = self.drop_path(ff(x)) + x
         return x
 
@@ -133,6 +143,8 @@ class ViT(nn.Module):
             nn.LayerNorm(dim),
             nn.linear_mlp_head
         )
+        
+        self.final_cls_token = None
 
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -154,4 +166,7 @@ class ViT(nn.Module):
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
 
         x = self.to_latent(x)
+        
+        self.final_cls_token = x
+        
         return self.mlp_head(x)
