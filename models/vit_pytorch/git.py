@@ -96,10 +96,10 @@ class Transformer(nn.Module):
             if i > 0 and i % 3 == 0:
                 self.heads -= 1
                 self.dim = self.heads * dim_head
-            print(self.heads)
+            
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(self.dim, heads = self.heads, dim_head = dim_head, dropout = dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
+                PreNorm(dim, FeedForward(self.dim, self.dim * 2, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
