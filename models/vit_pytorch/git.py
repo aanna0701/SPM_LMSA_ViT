@@ -45,7 +45,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, out_dim, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
@@ -57,7 +57,7 @@ class Attention(nn.Module):
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
         self._init_weights(self.to_qkv)
         
-        self.to_out = nn.Linear(inner_dim, dim)
+        self.to_out = nn.Linear(inner_dim, out_dim)
         self._init_weights(self.to_out)
 
         self.to_out = nn.Sequential(
@@ -90,13 +90,15 @@ class Transformer(nn.Module):
         self.hidden_states = {}
         self.heads = heads
         self.dim = dim
+        self.out_dim = dim
         
 
         for i in range(depth):
             if i > 0 and i % 3 == 0:
                 self.heads -= 1
                 self.dim = self.heads * dim_head
-            print(self.dim)
+            elif i > 0 and i % 3 == 2:
+                self.out_dim = (self.heads - 1) * dim_head
             
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(self.dim, heads = self.heads, dim_head = dim_head, dropout = dropout)),
