@@ -94,7 +94,7 @@ class Transformer(nn.Module):
 
         for i in range(depth):
             if i % 3 == 0:
-                self.heads = heads_list[i]
+                self.heads = heads_list[idx]
                 idx += 1
                 self.dim_head = dim // self.heads
             print(self.dim_head)
