@@ -89,14 +89,16 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
         self.heads = heads
+        self.dim = dim
         
 
         for i in range(depth):
             if i > 0 and i % 3 == 0:
                 self.heads -= 1
+                self.dim = self.heads * dim_head
             print(self.heads)
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads = self.heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(self.dim, heads = self.heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
