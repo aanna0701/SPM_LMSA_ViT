@@ -93,9 +93,9 @@ class Transformer(nn.Module):
         
 
         for i in range(depth):
-            if i > 0 and i % 3 == 0:
-                self.heads -= 1
-                self.dim = self.heads * dim_head
+        #     if i > 0 and i % 3 == 0:
+        #         self.heads -= 1
+        #         self.dim = self.heads * dim_head
             
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(self.dim, heads = self.heads, dim_head = dim_head, dropout = dropout)),
