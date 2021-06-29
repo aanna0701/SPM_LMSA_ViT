@@ -90,12 +90,12 @@ class Transformer(nn.Module):
         self.hidden_states = {}
         self.dim_head = dim_head
         heads_list = [6, 4, 3]
-        i = 0
+        idx = 0
 
         for i in range(depth):
             if i % 3 == 0:
                 self.heads = heads_list[i]
-                i += 1
+                idx += 1
                 self.dim_head = dim // self.heads
             print(self.dim_head)
                 
