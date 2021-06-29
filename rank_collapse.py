@@ -1,9 +1,6 @@
 #!/usr/bin/env python
-import numpy as np
-import random
 import logging as log
 import torch
-import torch.nn as nn
 import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
@@ -15,11 +12,13 @@ from utils.relative_norm_residuals import compute_rank
 from utils.logger_dict import Logger_dict
 import argparse
 from torch.utils.tensorboard import SummaryWriter
+import glob
+
+import logging as log
 
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
-
 
 
 def init_parser():
@@ -36,19 +35,9 @@ def init_parser():
 
     parser.add_argument('-b', '--batch-size', default=1000, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
-
     parser.add_argument('--gpu', default=0, type=int)
 
-    parser.add_argument('--channel', type=int, help='disable cuda')
-
-    parser.add_argument('--heads', type=int, help='disable cuda')
-
-    parser.add_argument('--depth', type=int, help='disable cuda')
-
     parser.add_argument('--tag', type=str, help='tag')
-
-    parser.add_argument('--down_conv', action='store_true', help='down conv embedding')
 
     parser.add_argument('--weights', type=str, required=True)
     
@@ -61,6 +50,8 @@ def init_parser():
 def main(args):
     global best_acc1    
     global best_acc5    
+
+    weights_paths = glob.glob(os.path.join(args.weights, '*'))
 
     '''
         Dataset
@@ -109,62 +100,8 @@ def main(args):
         img_mean, img_std = (0.4711, 0.4499, 0.4031), (0.2747, 0.2660, 0.2815)
         img_size = 84
         in_channels = 3
+   
     
-    '''
-        Model 
-    '''    
-    
-    # ViTs
-    
-    if args.model == 'vit':
-        from models.vit_pytorch.vit import ViT        
-        dim_head = args.channel // args.heads
-        model = ViT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head)
-    #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
-        
-    
-    elif args.model == 'g-vit':
-        from models.vit_pytorch.git import GiT        
-        dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head)
-
-    elif args.model == 'pit':
-        from models.vit_pytorch.pit import PiT
-        if img_size == 32:
-            patch_size = 4
-        elif img_size > 32:
-            patch_size = 8
-        dim_head = args.channel // args.heads
-        if args.channel == 144:
-            args.channel = 64
-        else:
-            args.channel = 96
-        args.heads = 2
-        args.depth = (2, 6, 4)
-        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head)
-
-    elif args.model =='t2t-vit':
-        from models.vit_pytorch.t2t import T2TViT
-        model = T2TViT(image_size=img_size, num_classes=n_classes, depth=args.depth)
-        
-
-    elif args.model =='cvt':
-        from models.vit_pytorch.cvt import CvT
-        model = CvT(num_classes=n_classes)
-        
-    '''
-        GPU
-    '''
-
-    if (not args.no_cuda) and torch.cuda.is_available():
-        torch.cuda.set_device(args.gpu)
-        model.cuda(args.gpu)
-        
-    
-    '''
-        Trainer
-    '''
-
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
     '''
@@ -208,15 +145,81 @@ def main(args):
         val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
     
     
-    summary(model, (3, img_size, img_size))
+    '''
+        Model 
+    '''    
     
-    model.load_state_dict(torch.load(os.path.join(os.getcwd(), args.weights, 'best.pth')))
+    for weight in weights_paths:
+        path_split = weight.split('-')
+        model_name = path_split[0].split('/')[1]
+        depth = int(path_split[1])
+        heads = int(path_split[2])
+        channel = int(path_split[3])
+
+        
+        
+        # ViTs
+        
+        if model_name == 'vit':
+            from models.vit_pytorch.vit import ViT        
+            dim_head = channel // heads
+            model = ViT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=channel, mlp_dim=channel*2, depth=depth, heads=heads, dim_head=dim_head)
+        #     model = m.make_ViT(depth, channel, down_conv=args.down_conv, GA=False, heads = heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
+            
+        
+        elif model_name == 'g-vit':
+            from models.vit_pytorch.git import GiT        
+            dim_head = channel // heads
+            model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=channel, mlp_dim=channel*2, depth=depth, heads=heads, dim_head=dim_head)
+
+        elif model_name == 'pit':
+            from models.vit_pytorch.pit import PiT
+            if img_size == 32:
+                patch_size = 4
+            elif img_size > 32:
+                patch_size = 8
+            dim_head = channel // heads
+            if channel == 144:
+                channel = 64
+            else:
+                channel = 96
+            heads = 2
+            depth = (2, 6, 4)
+            model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=channel, mlp_dim=channel*2, depth=depth, heads=heads, dim_head=dim_head)
+
+        elif model_name =='t2t-vit':
+            from models.vit_pytorch.t2t import T2TViT
+            model = T2TViT(image_size=img_size, num_classes=n_classes, depth=depth)
+            
+
+        elif model_name =='cvt':
+            from models.vit_pytorch.cvt import CvT
+            model = CvT(num_classes=n_classes)
+                
+        '''
+            GPU
+        '''
+
+        if (not args.no_cuda) and torch.cuda.is_available():
+            torch.cuda.set_device(args.gpu)
+            model.cuda(args.gpu)
+            
+        
+        '''
+            Trainer
+        '''
+
+
+        
+        summary(model, (3, img_size, img_size))
+        
+        model.load_state_dict(torch.load(os.path.join(os.getcwd(), weight, 'best.pth')))
+        
+        
+        rank(val_loader, model, weight, args)
     
     
-    rank(val_loader, model, args)
-    
-    
-def rank(val_loader, model, args):
+def rank(val_loader, model, weight, args):
     
     value = {}
     model.eval()
@@ -246,7 +249,8 @@ def rank(val_loader, model, args):
             value[key] = compute_rank(value[key])
         
         print('done')
-        print(f'{value}')
+        logger.debug(f'{weight}')
+        logger.debug(f'{value}')
         
        
 
@@ -254,22 +258,13 @@ def rank(val_loader, model, args):
 if __name__ == '__main__':
     parser = init_parser()
     args = parser.parse_args()
-    global save_path
-    global writer
     
-    # random seed
-
-    
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.dataset}-{args.tag}"
-    save_path = os.path.join(os.getcwd(), 'save', model_name)
-    if save_path:
-        os.makedirs(save_path, exist_ok=True)
-        
-    writer = SummaryWriter(os.path.join(os.getcwd(), 'tensorboard', model_name))
+    global logger
     
     # logger
 
-    log_dir = os.path.join(save_path, 'history.csv')
+    log_dir = os.path.join('rank_results', args.tag,'rank.csv')
+    os.makedirs(os.path.join('rank_results', args.tag), exist_ok=True)
     logger = log.getLogger(__name__)
     formatter = log.Formatter('%(message)s')
     streamHandler = log.StreamHandler()
@@ -279,12 +274,5 @@ if __name__ == '__main__':
     logger.addHandler(streamHandler)
     logger.addHandler(fileHandler)
     logger.setLevel(level=log.DEBUG)
-
-    
-    global logger_dict
-    global keys
-    
-    logger_dict = Logger_dict(logger, save_path)
-    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'V Top-5']
-    
+ 
     main(args)
