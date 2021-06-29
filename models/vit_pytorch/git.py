@@ -88,12 +88,14 @@ class Transformer(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
-        self.heads = heads
         self.dim_head = dim_head
+        heads_list = [6, 4, 3]
+        i = 0
 
         for i in range(depth):
-            if i > 0 and i % 3 == 0:
-                self.heads -= 1
+            if i % 3 == 0:
+                self.heads = heads_list[i]
+                i += 1
                 self.dim_head = dim // self.heads
             print(self.dim_head)
                 
