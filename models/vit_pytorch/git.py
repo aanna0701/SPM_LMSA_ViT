@@ -44,8 +44,54 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-class Attention(nn.Module):
-    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
+# class G_Attention(nn.Module):
+#     def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
+#         super().__init__()
+#         inner_dim = dim_head *  heads
+#         project_out = not (heads == 1 and dim_head == dim)
+
+#         self.heads = heads
+#         self.scale = dim_head ** -0.5
+
+#         self.attend = nn.Softmax(dim = -1)
+#         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+#         self._init_weights(self.to_qkv)
+        
+#         self.to_out = nn.Linear(inner_dim, dim)
+#         self._init_weights(self.to_out)
+
+#         self.to_out = nn.Sequential(
+#             self.to_out,
+#             nn.Dropout(dropout)
+#         ) if project_out else nn.Identity()
+        
+#         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
+#         self.g_block = G_Block(dim_head, dropout)
+        
+#     def _init_weights(self,layer):
+#         nn.init.xavier_normal_(layer.weight)
+#         if layer.bias is not None:
+#             nn.init.zeros_(layer.bias)  
+
+#     def forward(self, x):
+#         b, n, _, h = *x.shape, self.heads
+#         qkv = self.to_qkv(x).chunk(3, dim = -1)
+#         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
+#         # global_attribute = self.g_block(x)
+
+#         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+
+#         scores = self.attend(dots)
+
+#         out = einsum('b h i j, b h j d -> b h i d', scores, v)
+#         global_attribute = self.g_block(out)
+#         out = out + global_attribute
+#         out = rearrange(out, 'b h n d -> b n (h d)')
+#         return self.to_out(out)
+    
+
+class G_Attention(nn.Module):
+    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0., ver=1):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
@@ -63,7 +109,11 @@ class Attention(nn.Module):
         self.to_out = nn.Sequential(
             self.to_out,
             nn.Dropout(dropout)
-        ) if project_out else nn.Identity()      
+        ) if project_out else nn.Identity()
+        
+        # self.g_block = G_Block(dim, inner_dim, heads, dropout)
+        self.g_block = G_Block(dim_head, dropout)
+        self.ver = ver
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -74,45 +124,99 @@ class Attention(nn.Module):
         b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
+        # global_attribute = self.g_block(x)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
-        attn = self.attend(dots)
+        scores = self.attend(dots)
 
-        out = einsum('b h i j, b h j d -> b h i d', attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
+        out = einsum('b h i j, b h j d -> b h i d', scores, v)
+        global_attribute = self.g_block(out[:, :, 1:])
+        if self.ver == 1:
+            cls_tokens = out[:, :, (0,)] + global_attribute
+        elif self.ver == 2:
+            cls_tokens = torch.mul(out[:, :, (0, )], nn.functional.sigmoid(global_attribute))
+        cat = torch.cat([cls_tokens, out[:, :, 1:]], dim=-2)
+        out = rearrange(cat, 'b h n d -> b n (h d)')
+        out = self.to_out(out)
+        
+        return out
+    
+class G_Block(nn.Module):
+    def __init__(self, dim_head, dropout):
+        super().__init__()
+        
+        self.to_phi = nn.Linear(dim_head, dim_head)
+        self._init_weights(self.to_phi)
+
+        self.to_phi = nn.Sequential(
+            self.to_phi,
+            nn.Dropout(dropout)
+        )
+        
+        self.rho = nn.GELU()
+
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
+    
+    def forward(self, x):
+        phi = self.to_phi(x)
+        pool, _ = phi.max(dim=-2, keepdim=True)
+        rho = self.rho(pool)
+        
+        return rho
+    
+# class G_Block(nn.Module):
+#     def __init__(self, dim, inner_dim, heads, dropout):
+#         super().__init__()
+        
+#         self.to_phi = nn.Linear(dim, inner_dim)
+#         self._init_weights(self.to_phi)
+
+#         self.to_phi = nn.Sequential(
+#             self.to_phi,
+#             nn.Dropout(dropout)
+#         )
+        
+#         self.rho = nn.GELU()
+#         self.heads = heads
+
+#     def _init_weights(self,layer):
+#         nn.init.xavier_normal_(layer.weight)
+#         if layer.bias is not None:
+#             nn.init.zeros_(layer.bias)  
+    
+#     def forward(self, x):
+#         phi = self.to_phi(x)
+#         phi = rearrange(phi, 'b n (h d) -> b h n d', h = self.heads)
+#         pool, _ = phi.max(dim=-2, keepdim=True)
+#         rho = self.rho(pool)
+        
+#         return rho
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0., ver=1):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
-        self.dim_head = dim_head
-        heads_list = [6, 4, 3]
-        idx = 0
 
-        for i in range(depth):
-            if i % 3 == 0:
-                self.heads = heads_list[idx]
-                idx += 1
-                self.dim_head = dim // self.heads
-            print(self.dim_head)
-                
+        for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads = self.heads, dim_head = self.dim_head, dropout = dropout)),
+                PreNorm(dim, G_Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout, ver=ver)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
-        for i, (attn, ff) in enumerate(self.layers):            
+        for i, (attn, ff) in enumerate(self.layers):     
             x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
             self.hidden_states[str(i)] = x
         return x
 
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0., ver=1):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -133,10 +237,10 @@ class GiT(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth, ver=ver)
 
         self.pool = pool
-        self.to_latent = nn.Identity()
+        # self.to_latent = nn.Identity()
         
         nn.linear_mlp_head = nn.Linear(dim, num_classes)
         self._init_weights(nn.linear_mlp_head)
@@ -165,10 +269,10 @@ class GiT(nn.Module):
 
         x = self.transformer(x)
 
-        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+        # x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
 
-        x = self.to_latent(x)
+        # x = self.to_latent(x)
         
-        self.final_cls_token = x
+        # self.final_cls_token = x
         
-        return self.mlp_head(x)
+        return self.mlp_head(x[:, 0])

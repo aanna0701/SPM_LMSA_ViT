@@ -78,6 +78,8 @@ def init_parser():
     
     parser.add_argument('--sd', default=0, type=float, help='rate of stochastic depth')
     
+    parser.add_argument('--ver', default=1, type=int, help='Version')
+    
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
@@ -181,7 +183,7 @@ def main(args):
     elif args.model == 'g-vit':
         from models.vit_pytorch.git import GiT        
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, ver=args.ver)
 
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
