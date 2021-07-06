@@ -112,7 +112,7 @@ class G_Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-        self.g_block = G_Block(dim_head, dropout)
+        self.g_block = G_Block(dim, dim_head, dropout)
         self.ver = ver
         
     def _init_weights(self,layer):
