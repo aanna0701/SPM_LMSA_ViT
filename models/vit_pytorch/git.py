@@ -242,7 +242,7 @@ class GiT(nn.Module):
         self._init_weights(nn.linear_mlp_head)
 
         self.mlp_head = nn.Sequential(
-            nn.LayerNorm(dim),
+            nn.LayerNorm(dim+1),
             nn.linear_mlp_head
         )
         
