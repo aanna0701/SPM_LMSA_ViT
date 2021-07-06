@@ -131,30 +131,29 @@ class G_Attention(nn.Module):
         scores = self.attend(dots)
 
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
-        global_attribute = self.g_block(out[:, :, 1:])
-        if self.ver == 1:
-            cls_tokens = out[:, :, (0,)] + global_attribute
-        elif self.ver == 2:
-            cls_tokens = torch.mul(out[:, :, (0, )], nn.functional.sigmoid(global_attribute))
-        cat = torch.cat([cls_tokens, out[:, :, 1:]], dim=-2)
-        out = rearrange(cat, 'b h n d -> b n (h d)')
+        global_attribute = self.g_block(x)
+        out = out + global_attribute
+        
+        out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.to_out(out)
         
         return out
     
 class G_Block(nn.Module):
-    def __init__(self, dim_head, dropout):
+    def __init__(self, dim, dim_head, dropout):
         super().__init__()
         
-        self.to_phi = nn.Linear(dim_head, dim_head)
+        self.to_phi = nn.Linear(dim, dim)
         self._init_weights(self.to_phi)
+        self.dim_head = dim_head
 
         self.to_phi = nn.Sequential(
             self.to_phi,
             nn.Dropout(dropout)
         )
         
-        self.rho = nn.GELU()
+        # self.rho = nn.GELU()
+        self.rho = nn.Identity()
 
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -163,7 +162,8 @@ class G_Block(nn.Module):
     
     def forward(self, x):
         phi = self.to_phi(x)
-        pool, _ = phi.max(dim=-2, keepdim=True)
+        phi = rearrange(phi, 'b n (h d) -> b h n d', d=self.dim_head)
+        pool = phi.mean(dim=-2, keepdim=True)
         rho = self.rho(pool)
         
         return rho
@@ -216,7 +216,7 @@ class Transformer(nn.Module):
         return x
 
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0., ver=1):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0., ver=1):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -225,7 +225,6 @@ class GiT(nn.Module):
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
         patch_dim = channels * patch_height * patch_width
-        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         self.linear_to_path = nn.Linear(patch_dim, dim)
         self._init_weights(self.linear_to_path)
@@ -238,11 +237,8 @@ class GiT(nn.Module):
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth, ver=ver)
-
-        self.pool = pool
-        # self.to_latent = nn.Identity()
         
-        nn.linear_mlp_head = nn.Linear(dim, num_classes)
+        nn.linear_mlp_head = nn.Linear(dim+1, num_classes)
         self._init_weights(nn.linear_mlp_head)
 
         self.mlp_head = nn.Sequential(
@@ -250,29 +246,27 @@ class GiT(nn.Module):
             nn.linear_mlp_head
         )
         
-        self.final_cls_token = None
-
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
 
     def forward(self, img):
-        # pathc embedding
+        # patch embedding
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
-        x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
+        x += self.pos_embedding[:, :n]
         x = self.dropout(x)
 
         x = self.transformer(x)
-
-        # x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
-
-        # x = self.to_latent(x)
-        
-        # self.final_cls_token = x
+        x = self.read_out(x)
         
         return self.mlp_head(x[:, 0])
+    
+    def read_out(self, x):
+        maxpool, _ = x.max(dim=-1, keepdim = True)
+        cat = torch.cat([x, maxpool], dim=-1)
+        out = cat.mean(dim=-2, keepdim=True)
+        
+        return out
