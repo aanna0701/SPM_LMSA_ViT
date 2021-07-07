@@ -30,7 +30,6 @@ def init_parser():
     parser.add_argument('--depth', type=int, help='disable cuda')
 
     parser.add_argument('--tag', type=str, help='tag')
-    parser.add_argument('--model', type=str, default='deit', choices=['deit', 'g-deit', 'vit', 'g-vit', 'pit', 'g-pit'])
 
     parser.add_argument('-b', '--batch-size', default=5000, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')

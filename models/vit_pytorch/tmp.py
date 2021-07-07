@@ -89,64 +89,9 @@ class FeedForward(nn.Module):
 #         out = rearrange(out, 'b h n d -> b n (h d)')
 #         return self.to_out(out)
     
-# class G_Attention(nn.Module):
-#     def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0., ver=1):
-#         super().__init__()
-#         inner_dim = dim_head *  heads
-#         project_out = not (heads == 1 and dim_head == dim)
-
-#         self.heads = heads
-#         self.scale = dim_head ** -0.5
-
-#         self.attend = nn.Softmax(dim = -1)
-#         self.to_qkv = nn.Linear(dim, inner_dim, bias = False)
-#         self._init_weights(self.to_qkv)
-        
-#         self.to_out = nn.Linear(inner_dim, dim)
-#         self._init_weights(self.to_out)
-
-#         self.to_out = nn.Sequential(
-#             self.to_out,
-#             nn.Dropout(dropout)
-#         ) if project_out else nn.Identity()
-        
-#         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-#         self.g_block = G_Block(dim, dim_head, dropout)
-#         self.ver = ver
-#         self.mask = torch.eye(num_patches, num_patches)
-#         self.mask = self.mask.unsqueeze(dim=0).unsqueeze(dim=0)
-#         self.gelu = nn.GELU()
-        
-#     def _init_weights(self,layer):
-#         nn.init.xavier_normal_(layer.weight)
-#         if layer.bias is not None:
-#             nn.init.zeros_(layer.bias)  
-
-#     def forward(self, x):
-#         b, n, _, h = *x.shape, self.heads
-#         mask = self.mask.expand(b, h, *self.mask[0, 0].size())
-        
-#         qkv = self.to_qkv(x)
-#         qkv = rearrange(qkv, 'b n (h d) -> b h n d', h = h)
-
-#         dots = einsum('b h i d, b h j d -> b h i j', qkv, qkv) * self.scale
-#         dots = self.gelu(dots)
-#         # dots[:, :].fill_diagonal_(float('-inf'))
-#         dots[mask == 1] = float('-inf')        
-
-#         scores = self.attend(dots)
-
-#         out = einsum('b h i j, b h j d -> b h i d', scores, qkv)
-#         global_attribute = self.g_block(x)
-#         out = out + global_attribute
-        
-#         out = rearrange(out, 'b h n d -> b n (h d)')
-#         out = self.to_out(out)
-        
-#         return out
 
 class G_Attention(nn.Module):
-    def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0., batch_size=1):
+    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0., ver=1):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
@@ -167,10 +112,8 @@ class G_Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-        self.g_block = G_Block(dim, dim_head, dropout)
-        self.mask = torch.eye(num_patches+1, num_patches+1)
-        self.mask = (self.mask == 1).nonzero()
-        self.inf = float('-inf')
+        self.g_block = G_Block(dim_head, dropout)
+        self.ver = ver
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -178,34 +121,33 @@ class G_Attention(nn.Module):
             nn.init.zeros_(layer.bias)  
 
     def forward(self, x):
-        h = self.heads
+        b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
         # global_attribute = self.g_block(x)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-    
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        
-        
+
         scores = self.attend(dots)
 
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
-        # global_attribute = self.g_block(x)
-        # out = out + global_attribute
-        
-        out = rearrange(out, 'b h n d -> b n (h d)')
+        global_attribute = self.g_block(out[:, :, 1:])
+        if self.ver == 1:
+            cls_tokens = out[:, :, (0,)] + global_attribute
+        elif self.ver == 2:
+            cls_tokens = torch.mul(out[:, :, (0, )], nn.functional.sigmoid(global_attribute))
+        cat = torch.cat([cls_tokens, out[:, :, 1:]], dim=-2)
+        out = rearrange(cat, 'b h n d -> b n (h d)')
         out = self.to_out(out)
         
         return out
     
 class G_Block(nn.Module):
-    def __init__(self, dim, dim_head, dropout):
+    def __init__(self, dim_head, dropout):
         super().__init__()
         
-        self.to_phi = nn.Linear(dim, dim)
+        self.to_phi = nn.Linear(dim_head, dim_head)
         self._init_weights(self.to_phi)
-        self.dim_head = dim_head
 
         self.to_phi = nn.Sequential(
             self.to_phi,
@@ -222,7 +164,6 @@ class G_Block(nn.Module):
     
     def forward(self, x):
         phi = self.to_phi(x)
-        phi = rearrange(phi, 'b n (h d) -> b h n d', d=self.dim_head)
         pool = phi.mean(dim=-2, keepdim=True)
         rho = self.rho(pool)
         
@@ -257,14 +198,14 @@ class G_Block(nn.Module):
 #         return rho
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0., batch_size=1):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0., ver=1):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
 
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, G_Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout, batch_size=batch_size)),
+                PreNorm(dim, G_Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout, ver=ver)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -276,7 +217,7 @@ class Transformer(nn.Module):
         return x
 
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0., batch_size=0):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0., ver=1):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -285,6 +226,7 @@ class GiT(nn.Module):
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
         patch_dim = channels * patch_height * patch_width
+        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         self.linear_to_path = nn.Linear(patch_dim, dim)
         self._init_weights(self.linear_to_path)
@@ -296,7 +238,10 @@ class GiT(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth, batch_size=batch_size)
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth, ver=ver)
+
+        self.pool = pool
+        # self.to_latent = nn.Identity()
         
         nn.linear_mlp_head = nn.Linear(dim, num_classes)
         self._init_weights(nn.linear_mlp_head)
@@ -306,23 +251,15 @@ class GiT(nn.Module):
             nn.linear_mlp_head
         )
         
+        self.final_cls_token = None
+
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
 
     def forward(self, img):
-        # patch embedding
-        # x = self.to_patch_embedding(img)
-        # b, n, _ = x.shape
-
-        # x += self.pos_embedding[:, :n]
-        # x = self.dropout(x)
-
-        # x = self.transformer(x)
-        # x = self.read_out(x)
-        
-        # patch embedding
+        # pathc embedding
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
@@ -333,16 +270,10 @@ class GiT(nn.Module):
 
         x = self.transformer(x)
 
-        x =  x[:, 0]
+        # x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
 
         # x = self.to_latent(x)
         
+        # self.final_cls_token = x
         
-        return self.mlp_head(x)
-    
-    def read_out(self, x):
-        maxpool, _ = x.max(dim=-1, keepdim = True)
-        cat = torch.cat([x, maxpool], dim=-1)
-        out = cat.mean(dim=-2)
-        
-        return out
+        return self.mlp_head(x[:, 0])

@@ -46,7 +46,7 @@ def init_parser():
     
     parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
     
-    parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
+    parser.add_argument('-b', '--batch_size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
     parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
     
@@ -126,6 +126,7 @@ def main(args):
         n_classes = 10
         img_mean, img_std = (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
         img_size = 32
+        patch_size = 4
         in_channels = 3
         
     elif args.dataset == 'CIFAR100':
@@ -135,6 +136,7 @@ def main(args):
         n_classes = 100
         img_mean, img_std = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
         img_size = 32
+        patch_size = 4
         in_channels = 3
         
     elif args.dataset == 'SVHN':
@@ -144,6 +146,7 @@ def main(args):
         n_classes = 10
         img_mean, img_std = (0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970) 
         img_size = 32
+        patch_size = 4
         in_channels = 3
         
     elif args.dataset == 'T-IMNET':
@@ -153,6 +156,7 @@ def main(args):
         n_classes = 200
         img_mean, img_std = (0.4802, 0.4481, 0.3975), (0.2770, 0.2691, 0.2821)
         img_size = 64
+        patch_size = 8
         in_channels = 3
         
     elif args.dataset == 'M-IMNET':
@@ -162,6 +166,7 @@ def main(args):
         n_classes = 64
         img_mean, img_std = (0.4711, 0.4499, 0.4031), (0.2747, 0.2660, 0.2815)
         img_size = 84
+        patch_size = 8
         in_channels = 3
     
     '''
@@ -176,14 +181,14 @@ def main(args):
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
-        model = ViT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
         from models.vit_pytorch.git import GiT        
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = 4, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, ver=args.ver)
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, batch_size=args.batch_size)
 
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
