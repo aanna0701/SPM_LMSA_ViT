@@ -51,9 +51,8 @@ class Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        # self.scale = dim_head ** -0.5        
-        # self.scale = nn.Parameter(torch.rand(heads))
-        self.scale = nn.Parameter(torch.rand(1))
+        self.scale = nn.Parameter(1e-1*torch.ones(1))
+      
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -66,9 +65,10 @@ class Attention(nn.Module):
             self.to_out,
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
-        self.mask = torch.eye(num_patches+1, num_patches+1)
+        self.mask = torch.eye(num_patches, num_patches)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
+        self.score = None
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -82,13 +82,10 @@ class Attention(nn.Module):
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
-    
-        
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
+        self.score = attn
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
@@ -99,25 +96,27 @@ class Transformer(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
-        self.scale = {}
 
-        for i in range(depth):
+        for _ in range(depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
-            ]))            
-            
+            ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
+        
+        self.scores = []
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):            
             x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
+            
+            self.scores.append(attn.fn.score)
+            
             self.hidden_states[str(i)] = x
-            self.scale[str(i)] = attn.fn.scale
         return x
 
-class ViT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+class Model(nn.Module):
+    def __init__(self, *, img_size=32, patch_size=4, num_classes=100, dim=192, depth=9, heads=12, mlp_dim=384, pool = 'cls', channels = 3, dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.1):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -152,6 +151,7 @@ class ViT(nn.Module):
         )
         
         self.final_cls_token = None
+        self.scores = None
 
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -169,6 +169,7 @@ class ViT(nn.Module):
         x = self.dropout(x)
 
         x = self.transformer(x)
+        self.scores = self.transformer.scores
 
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
 

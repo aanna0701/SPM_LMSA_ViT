@@ -44,7 +44,7 @@ def init_parser():
     # Optimization hyperparams
     parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
     
-    parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
+    parser.add_argument('--warmup', default=10, type=int, metavar='N', help='number of warmup epochs')
     
     parser.add_argument('-b', '--batch_size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
@@ -188,7 +188,7 @@ def main(args):
     elif args.model == 'g-vit':
         from models.vit_pytorch.git import GiT        
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, batch_size=args.batch_size)
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
@@ -446,6 +446,11 @@ def main(args):
         print(Style.RESET_ALL)        
         
         writer.add_scalar("Learning Rate", lr, epoch)
+        
+        for i in range(len(model.transformer.scale)):
+            for idx, scale in enumerate(model.transformer.scale[str(i)]):
+                
+                writer.add_scalar(f"Scale/depth{i}_head{idx}", nn.functional.sigmoid(scale), epoch)
         
     print(Fore.RED+'*'*80)
     logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')

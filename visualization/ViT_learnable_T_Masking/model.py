@@ -146,15 +146,13 @@ class FeedForward(nn.Module):
 #         return out
 
 class G_Attention(nn.Module):
-    def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0., batch_size=1):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        # self.scale = dim_head ** -0.5
-        # self.scale = nn.Parameter(torch.rand(heads))
-        self.scale = nn.Parameter(torch.rand(1))
+        self.scale = nn.Parameter(1e-1*torch.ones(1))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -173,6 +171,7 @@ class G_Attention(nn.Module):
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
+        self.score = None
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -186,14 +185,13 @@ class G_Attention(nn.Module):
         # global_attribute = self.g_block(x)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
     
         dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         
         
         scores = self.attend(dots)
         
+        self.score = scores
 
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
         # global_attribute = self.g_block(x)
@@ -262,28 +260,31 @@ class G_Block(nn.Module):
 #         return rho
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0., batch_size=1):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
-        self.scale = {}
 
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, G_Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, G_Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout, batch_size=batch_size)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
+        
+        self.scores = []
+        
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):     
             x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
-            self.hidden_states[str(i)] = x         
-            self.scale[str(i)] = attn.fn.scale
+            self.scores.append(attn.fn.score)
+
+            self.hidden_states[str(i)] = x
         return x
 
-class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+class Model(nn.Module):
+    def __init__(self, *, img_size=32, patch_size=4, num_classes=100, dim=192, depth=9, heads=12, mlp_dim=384, channels = 3, dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.1, batch_size=0):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -303,10 +304,11 @@ class GiT(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth, batch_size=batch_size)
         
         nn.linear_mlp_head = nn.Linear(dim, num_classes)
         self._init_weights(nn.linear_mlp_head)
+        self.scores = None
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
@@ -339,6 +341,8 @@ class GiT(nn.Module):
         x = self.dropout(x)
 
         x = self.transformer(x)
+        
+        self.scores = self.transformer.scores
 
         x =  x[:, 0]
 

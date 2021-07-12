@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from colorama import Fore, Style
 import os
-from visualization.ViT_Masking.model import Model
+from visualization.ViT.model import Model
 import glob
 from random import sample
 from PIL import Image
@@ -37,16 +37,16 @@ def main(args, save_path):
     '''
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
-    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_Masking', 'best.pth')))
+    model.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
     
     
     img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)     
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
-    img_paths = glob.glob(os.path.join(args.data_path, '*'))    
-    img_path = sample(img_paths, 1)
-    
+    # img_paths = glob.glob(os.path.join(args.data_path, '*'))    
+    # img_path = sample(img_paths, 1)    
     # img = Image.open(img_path[0])
+    
     img = Image.open(os.path.join('./visualization', 'input.png'))
     img.save(os.path.join(save_path, 'input.png'))
     
@@ -65,7 +65,7 @@ def main(args, save_path):
     for i in range(len(scores)):
         fig, axs = plt.subplots(3, 4, figsize=(28, 21))
         layer_viz = scores[i][0, :, :, :]
-        layer_viz = scailing(layer_viz)
+        # layer_viz = scailing(layer_viz)
         layer_viz = layer_viz.data
         for j, filter in enumerate(layer_viz):
             ax = axs.flat[j]
@@ -93,8 +93,7 @@ def inference(img, model, args):
         
         _ = model(images)
         
-    return model.transformer.scores    
-            
+    return model.transformer.scores                
             
 
 if __name__ == '__main__':
