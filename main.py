@@ -149,6 +149,17 @@ def main(args):
         patch_size = 4
         in_channels = 3
         
+    elif args.dataset == 'IMNET':
+        from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('IMNET')
+        print('*'*80 + Style.RESET_ALL)
+        n_classes = 1000
+        img_mean, img_std = IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+        img_size = 224
+        patch_size = 16
+        in_channels = 3
+        
     elif args.dataset == 'T-IMNET':
         print(Fore.YELLOW+'*'*80)
         logger.debug('T-IMNET')
@@ -388,6 +399,14 @@ def main(args):
             transforms.Resize(img_size),
             transforms.ToTensor(),
             *normalize]))
+        
+    elif args.dataset == 'IMNET':
+        train_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'imnet', 'train'), transform=augmentations)
+        val_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'imnet', 'val'), 
+            transform=transforms.Compose([
+            transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
         
     elif args.dataset == 'T-IMNET':
         train_dataset = datasets.ImageFolder(
