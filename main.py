@@ -340,7 +340,7 @@ def main(args):
         else:
             print("ImageNet Policy")    
             from utils.autoaug import ImageNetPolicy
-            size = int((256 / 224) * args.input_size)
+            size = int((256 / 224) * 224)
             augmentations += [
                 transforms.Resize(size, interpolation=3), transforms.CenterCrop(224), transforms.RandomHorizontalFlip(),
                 ImageNetPolicy()
