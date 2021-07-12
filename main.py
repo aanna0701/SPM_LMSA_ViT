@@ -341,7 +341,7 @@ def main(args):
             print("ImageNet Policy")    
             from utils.autoaug import ImageNetPolicy
             augmentations += [
-                transforms.RandomResizedCrop(224), transforms.RandomHorizontalFlip(),
+                transforms.Resize(224, interpolation=3), transforms.CenterCrop(args.input_size), transforms.RandomHorizontalFlip(),
                 ImageNetPolicy()
             ]
         print('*'*80 + Style.RESET_ALL)
