@@ -340,9 +340,8 @@ def main(args):
         else:
             print("ImageNet Policy")    
             from utils.autoaug import ImageNetPolicy
-            size = int((256 / 224) * 224)
             augmentations += [
-                transforms.Resize(size, interpolation=3), transforms.CenterCrop(224), transforms.RandomHorizontalFlip(),
+                transforms.RandomResizedCrop(224),
                 ImageNetPolicy()
             ]
         print('*'*80 + Style.RESET_ALL)
@@ -409,7 +408,8 @@ def main(args):
         val_dataset = datasets.ImageFolder(
             root=os.path.join(args.data_path, 'imnet', 'val'), 
             transform=transforms.Compose([
-            transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
+            transforms.Resize(int(img_size*1.14)),
+            transforms.CenterCrop(img_size), transforms.ToTensor(), *normalize]))
         
     elif args.dataset == 'T-IMNET':
         train_dataset = datasets.ImageFolder(
@@ -443,6 +443,7 @@ def main(args):
     
     
     summary(model, (3, img_size, img_size))
+    # print(model)
     
     print()
     print("Beginning training")
@@ -469,10 +470,10 @@ def main(args):
         
         writer.add_scalar("Learning Rate", lr, epoch)
         
-        for i in range(len(model.transformer.scale)):
-            for idx, scale in enumerate(model.transformer.scale[str(i)]):
+        # for i in range(len(model.transformer.scale)):
+        #     for idx, scale in enumerate(model.transformer.scale[str(i)]):
                 
-                writer.add_scalar(f"Scale/depth{i}_head{idx}", nn.functional.sigmoid(scale), epoch)
+        #         writer.add_scalar(f"Scale/depth{i}_head{idx}", nn.functional.sigmoid(scale), epoch)
         
     print(Fore.RED+'*'*80)
     logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')
