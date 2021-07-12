@@ -321,6 +321,8 @@ def main(args):
             from utils.autoaug import CIFAR10Policy
             augmentations += [
                 
+                transforms.RandomCrop(img_size, padding=4),
+                transforms.RandomHorizontalFlip(),
                 CIFAR10Policy()
             ]
             
@@ -329,6 +331,8 @@ def main(args):
             from utils.autoaug import ImageNetPolicy
             augmentations += [
                 
+              transforms.RandomCrop(img_size, padding=4),
+                transforms.RandomHorizontalFlip(),
                 SVHNPolicy()
             ]
         
@@ -337,7 +341,7 @@ def main(args):
             print("ImageNet Policy")    
             from utils.autoaug import ImageNetPolicy
             augmentations += [
-                
+                transforms.RandomResizedCrop(224), transforms.RandomHorizontalFlip(),
                 ImageNetPolicy()
             ]
         print('*'*80 + Style.RESET_ALL)
@@ -351,8 +355,6 @@ def main(args):
         
         
         augmentations += [                
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop(img_size, padding=4),
             transforms.ToTensor(),
             *normalize,
             RandomErasing(probability = args.re, sh = args.re_sh, r1 = args.re_r1, mean=img_mean)]
