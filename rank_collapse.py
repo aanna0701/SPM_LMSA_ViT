@@ -8,7 +8,7 @@ import torchvision.datasets as datasets
 from colorama import Fore, Style
 from torchsummary import summary
 import os
-from utils.relative_norm_residuals import compute_rank
+from utils.relative_norm_residuals import compute_relative_norm_residuals
 from utils.logger_dict import Logger_dict
 import argparse
 from torch.utils.tensorboard import SummaryWriter
@@ -33,7 +33,7 @@ def init_parser():
 
     parser.add_argument('--print-freq', default=1, type=int, metavar='N', help='log frequency (by iteration)')
 
-    parser.add_argument('-b', '--batch-size', default=1000, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
+    parser.add_argument('-b', '--batch-size', default=500, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
 
     parser.add_argument('--gpu', default=0, type=int)
 
@@ -51,7 +51,7 @@ def main(args):
     global best_acc1    
     global best_acc5    
 
-    weights_paths = glob.glob(os.path.join(args.weights, '*'))
+    weights_paths = glob.glob(os.path.join(args.weights, '*best.pth'))
 
     '''
         Dataset
@@ -150,13 +150,20 @@ def main(args):
     '''    
     
     for weight in weights_paths:
-        path_split = weight.split('-')
-        model_name = path_split[0].split('/')[1]
-        depth = int(path_split[1])
-        heads = int(path_split[2])
-        channel = int(path_split[3])
-
         
+        path_split = weight.split('/')
+        if path_split[1][0] == 'g':
+            model_name = path_split[1].split('-')[0] + '-' + path_split[1].split('-')[1]
+            depth = int(path_split[1].split('-')[2])
+            heads = int(path_split[1].split('-')[3])
+            channel = int(path_split[1].split('-')[4])
+            
+        else:
+            model_name = path_split[1].split('-')[0]
+            depth = int(path_split[1].split('-')[1])
+            heads = int(path_split[1].split('-')[2])
+            channel = int(path_split[1].split('-')[3])
+
         
         # ViTs
         
@@ -212,8 +219,8 @@ def main(args):
 
         
         summary(model, (3, img_size, img_size))
-        
-        model.load_state_dict(torch.load(os.path.join(os.getcwd(), weight, 'best.pth')))
+        print(weight)
+        model.load_state_dict(torch.load(os.path.join(os.getcwd(), weight)))
         
         
         rank(val_loader, model, weight, args)
@@ -225,28 +232,38 @@ def rank(val_loader, model, weight, args):
     model.eval()
     with torch.no_grad():
         for i, (images, _) in enumerate(val_loader):
-            if i < 1:
-                if (not args.no_cuda) and torch.cuda.is_available():
-                    images = images.cuda(args.gpu, non_blocking=True)
+            if (not args.no_cuda) and torch.cuda.is_available():
+                images = images.cuda(args.gpu, non_blocking=True)
 
+        
+            _ = model(images)
             
-                _ = model(images)
-                
-                hidden_states = model.transformer.hidden_states
-                if i == 0:
-                    for key in hidden_states:
-                        # value[key] = compute_rank(hidden_states[key]) 
-                        value[key] = [hidden_states[key]]
-                
-                else:
-                    for key in hidden_states:
-                        # value[key] += compute_rank(hidden_states[key])
-                        value[key].append(hidden_states[key])
+            hidden_states = model.transformer.hidden_states
+            
+            if i == 0:
+                for key in hidden_states:
+                    # value[key] = compute_rank(hidden_states[key]) 
+                    value[key] = [hidden_states[key]]
+                    # value[key] = [[inputs[key], hidden_states[key]]]
+            
+            else:
+                for key in hidden_states:
+                    # value[key] += compute_rank(hidden_states[key])
+                    value[key].append(hidden_states[key])
+                    # value[key].append([inputs[key], hidden_states[key]])
         
         
         for key in value:
             value[key] = torch.cat(value[key], dim=0)
-            value[key] = compute_rank(value[key])
+            value[key] = value[key].mean(-1).mean(-1).item()
+            
+            # value[key] = compute_relative_norm_residuals(value[key])
+            # value[key] = value[key].mean().item()
+            
+            # value[key] = [torch.cat(value[key][0], dim=0), torch.cat(value[key][1], dim=0)]
+            # value[key] = compute_relative_norm_residuals(value[key][0], value[key][1])
+            # value[key] = value[key].mean().item()
+            
         
         print('done')
         logger.debug(f'{weight}')

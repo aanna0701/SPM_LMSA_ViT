@@ -4,6 +4,8 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
+from utils.relative_norm_residuals import compute_relative_norm_residuals
+
 # helpers
 
 def pair(t):
@@ -52,8 +54,8 @@ class Attention(nn.Module):
 
         self.heads = heads
         # self.scale = dim_head ** -0.5        
-        # self.scale = nn.Parameter(torch.rand(heads))
-        self.scale = nn.Parameter(torch.rand(1))
+        self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -70,6 +72,8 @@ class Attention(nn.Module):
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         
+        self.value = 0
+        
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
@@ -79,18 +83,23 @@ class Attention(nn.Module):
         b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
+      
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
+
+
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
+        
+        self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
@@ -110,9 +119,11 @@ class Transformer(nn.Module):
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):            
-            x = self.drop_path(attn(x)) + x
+            inputs_ = x
+            x = self.drop_path(attn(x))        
+            self.hidden_states[str(i)] = attn.fn.value
+            x = inputs_
             x = self.drop_path(ff(x)) + x
-            self.hidden_states[str(i)] = x
             self.scale[str(i)] = attn.fn.scale
         return x
 

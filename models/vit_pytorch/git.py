@@ -4,6 +4,8 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
+from utils.relative_norm_residuals import compute_relative_norm_residuals
+
 # helpers
 
 def pair(t):
@@ -145,6 +147,7 @@ class FeedForward(nn.Module):
         
 #         return out
 
+
 class G_Attention(nn.Module):
     def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
@@ -153,8 +156,8 @@ class G_Attention(nn.Module):
 
         self.heads = heads
         # self.scale = dim_head ** -0.5
-        # self.scale = nn.Parameter(torch.rand(heads))
-        self.scale = nn.Parameter(torch.rand(1))
+        self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -173,6 +176,7 @@ class G_Attention(nn.Module):
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
+        self.value = 0
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -185,9 +189,9 @@ class G_Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
         # global_attribute = self.g_block(x)
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
     
         dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         
@@ -198,6 +202,7 @@ class G_Attention(nn.Module):
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
         # global_attribute = self.g_block(x)
         # out = out + global_attribute
+        self.value = compute_relative_norm_residuals(v, out)
         
         out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.to_out(out)
@@ -275,10 +280,12 @@ class Transformer(nn.Module):
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
-        for i, (attn, ff) in enumerate(self.layers):     
-            x = self.drop_path(attn(x)) + x
-            x = self.drop_path(ff(x)) + x
-            self.hidden_states[str(i)] = x         
+        for i, (attn, ff) in enumerate(self.layers):    
+            input_ = x
+            x = self.drop_path(attn(x))           
+            self.hidden_states[str(i)] = attn.fn.value
+            x = x + input_
+            x = self.drop_path(ff(x)) + x         
             self.scale[str(i)] = attn.fn.scale
         return x
 

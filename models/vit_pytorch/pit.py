@@ -50,13 +50,15 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        # self.scale = dim_head ** -0.5
+        
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -70,6 +72,10 @@ class Attention(nn.Module):
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
         
+        self.mask = torch.eye(num_patches+1, num_patches+1)
+        self.mask = (self.mask == 1).nonzero()
+        self.inf = float('-inf')
+        
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
@@ -80,7 +86,11 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+    
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+     
 
         attn = self.attend(dots)
 
@@ -89,19 +99,24 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
+        
+        self.hidden_states = {}
+        self.scale = {}
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, num_patches=num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
-        for attn, ff in self.layers:
+        for i, (attn, ff) in enumerate(self.layers):
             x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
+                     
+            self.scale[str(i)] = attn.fn.scale
         return x
 
 # depthwise convolution, for pooling
@@ -155,6 +170,9 @@ class Pool(nn.Module):
 
 # main class
 
+def pair(t):
+    return t if isinstance(t, tuple) else (t, t)
+
 class PiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
@@ -180,11 +198,15 @@ class PiT(nn.Module):
         self.dropout = nn.Dropout(emb_dropout)
 
         layers = []
+        
+        image_height, image_width = pair(img_size)
+        patch_height, patch_width = pair(patch_size)
+        num_patches = (image_height // patch_height) * (image_width // patch_width)
 
         for ind, (layer_depth, layer_heads) in enumerate(zip(depth, heads)):
             not_last = ind < (len(depth) - 1)
             
-            layers.append(Transformer(dim, layer_depth, layer_heads, dim_head, mlp_dim, dropout, stochastic_depth))
+            layers.append(Transformer(dim, num_patches, layer_depth, layer_heads, dim_head, mlp_dim, dropout, stochastic_depth))
 
             if not_last:
                 layers.append(Pool(dim))

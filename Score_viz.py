@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from colorama import Fore, Style
 import os
-from visualization.ViT.model import Model
+from visualization.ViT_learnable_T.model import Model
 import glob
 from random import sample
 from PIL import Image
@@ -37,7 +37,7 @@ def main(args, save_path):
     '''
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
-    model.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
+    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_learnable_T', 'best.pth')))
     
     
     img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)     
