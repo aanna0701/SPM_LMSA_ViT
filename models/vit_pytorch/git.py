@@ -163,7 +163,7 @@ class G_Attention(nn.Module):
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
         self._init_weights(self.to_qkv)
         
-        self.to_out = nn.Linear(inner_dim, dim)
+        self.to_out = nn.Linear(inner_dim + 12, dim)
         self._init_weights(self.to_out)
 
         self.to_out = nn.Sequential(
@@ -172,7 +172,7 @@ class G_Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-        self.g_block = G_Block(dim, dim_head, dropout)
+        self.g_block = G_Block()
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
@@ -187,7 +187,7 @@ class G_Attention(nn.Module):
         h = self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
-        # global_attribute = self.g_block(x)
+        channel_agg = self.g_block(v)
 
         # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         scale = self.scale
@@ -200,9 +200,12 @@ class G_Attention(nn.Module):
         
 
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
+        
+        out = torch.cat([out, channel_agg], dim=-1)
+
         # global_attribute = self.g_block(x)
         # out = out + global_attribute
-        self.value = compute_relative_norm_residuals(v, out)
+        self.value = compute_relative_norm_residuals(v, out[:, :, :, :-1])
         
         out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.to_out(out)
@@ -210,20 +213,9 @@ class G_Attention(nn.Module):
         return out
     
 class G_Block(nn.Module):
-    def __init__(self, dim, dim_head, dropout):
+    def __init__(self):
         super().__init__()
         
-        self.to_phi = nn.Linear(dim, dim)
-        self._init_weights(self.to_phi)
-        self.dim_head = dim_head
-
-        self.to_phi = nn.Sequential(
-            self.to_phi,
-            nn.Dropout(dropout)
-        )
-        
-        # self.rho = nn.GELU()
-        self.rho = nn.Identity()
 
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -231,12 +223,9 @@ class G_Block(nn.Module):
             nn.init.zeros_(layer.bias)  
     
     def forward(self, x):
-        phi = self.to_phi(x)
-        phi = rearrange(phi, 'b n (h d) -> b h n d', d=self.dim_head)
-        pool = phi.mean(dim=-2, keepdim=True)
-        rho = self.rho(pool)
+        agg = x.mean(dim=-1, keepdim=True)
         
-        return rho
+        return agg
     
 # class G_Block(nn.Module):
 #     def __init__(self, dim, inner_dim, heads, dropout):
