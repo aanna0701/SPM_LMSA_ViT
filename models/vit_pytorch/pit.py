@@ -56,9 +56,9 @@ class Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        # self.scale = dim_head ** -0.5
+        self.scale = dim_head ** -0.5
         
-        self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -86,11 +86,11 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-     
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         attn = self.attend(dots)
 
@@ -199,9 +199,6 @@ class PiT(nn.Module):
 
         layers = []
         
-        image_height, image_width = pair(img_size)
-        patch_height, patch_width = pair(patch_size)
-        num_patches = (image_height // patch_height) * (image_width // patch_width)
 
         for ind, (layer_depth, layer_heads) in enumerate(zip(depth, heads)):
             not_last = ind < (len(depth) - 1)
