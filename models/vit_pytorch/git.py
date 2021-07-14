@@ -192,11 +192,10 @@ class Transformer(nn.Module):
         for i, (attn, ff) in enumerate(self.layers):
             if i == 0:
                 self.h = []   
-            input_ = x
-            x = self.drop_path(attn(x))
-            self.h.append(attn.fn.avg_h)           
+            x = self.drop_path(attn(x)) + x
+            # self.h.append(attn.fn.avg_h)           
             # self.hidden_states[str(i)] = attn.fn.value
-            x = x + input_
+      
             x = self.drop_path(ff(x)) + x         
             # self.scale[str(i)] = attn.fn.scale
         return x

@@ -99,7 +99,7 @@ class Attention(nn.Module):
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         
-        self.value = compute_relative_norm_residuals(v, out)
+        # self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
@@ -118,11 +118,9 @@ class Transformer(nn.Module):
             
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
-        for i, (attn, ff) in enumerate(self.layers):            
-            inputs_ = x
-            x = self.drop_path(attn(x))        
-            self.hidden_states[str(i)] = attn.fn.value
-            x = inputs_
+        for i, (attn, ff) in enumerate(self.layers):       
+            x = self.drop_path(attn(x)) + x
+            # self.hidden_states[str(i)] = attn.fn.value
             x = self.drop_path(ff(x)) + x
             self.scale[str(i)] = attn.fn.scale
         return x
