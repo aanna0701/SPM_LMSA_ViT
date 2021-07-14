@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from colorama import Fore, Style
 import os
-from visualization.ViT_learnable_T.model import Model
+from visualization.EiT_01.model import Model
 import glob
 from random import sample
 from PIL import Image
@@ -37,7 +37,7 @@ def main(args, save_path):
     '''
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
-    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_learnable_T', 'best.pth')))
+    model.load_state_dict(torch.load(os.path.join('./visualization/EiT_01', 'best.pth')))
     
     
     img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)     
@@ -69,7 +69,7 @@ def main(args, save_path):
         layer_viz = layer_viz.data
         for j, filter in enumerate(layer_viz):
             ax = axs.flat[j]
-            sns.heatmap(filter.detach().cpu(), cmap='YlGnBu', ax=ax, vmin=0, vmax=1)
+            sns.heatmap(filter.detach().cpu(), cmap='icefire', ax=ax, vmin=0, vmax=1)
             ax.set_title(f'{i+1}th depth / {j+1}th head', fontsize=5)
             ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
           

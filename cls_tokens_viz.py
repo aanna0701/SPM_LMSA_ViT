@@ -66,7 +66,7 @@ def main(args, save_path):
     for i in range(len(scores)):
         if i==0 or (i+1) % 3 == 0:
             fig, axs = plt.subplots(3, 4, figsize=(28, 21))
-            layer_viz = scores[i][0, :, -1, :-1]
+            layer_viz = scores[i][0, :, 0, 1:]
             # layer_viz = scailing(layer_viz)
             layer_viz = rearrange(layer_viz, 'b (h w) -> b h w', h=int(math.sqrt(layer_viz.size(-1))))
             layer_viz = layer_viz.data
@@ -79,12 +79,6 @@ def main(args, save_path):
             fig.savefig(os.path.join(save_path, f'scores_{i+1}.png'), format='png', dpi=1200)
             plt.cla()
             plt.clf()
-
-def scailing(x):
-    x_min, _ = x.min(dim=-1, keepdim = True)
-    x_max, _ = x.max(dim=-1, keepdim = True)
-    out = torch.div(x - x_min, x_max - x_min)
-    return out
 
 def inference(img, model, args):
     print('inferencing')

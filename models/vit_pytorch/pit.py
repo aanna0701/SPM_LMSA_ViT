@@ -73,6 +73,7 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         self.mask = torch.eye(num_patches+1, num_patches+1)
+        print(num_patches)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         

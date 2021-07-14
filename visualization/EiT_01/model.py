@@ -46,7 +46,7 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-class G_Attention(nn.Module):
+class Attention(nn.Module):
     def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
         inner_dim = dim_head *  heads
@@ -61,7 +61,7 @@ class G_Attention(nn.Module):
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
         self._init_weights(self.to_qkv)
         
-        self.to_out = nn.Linear(inner_dim + 24, dim)
+        self.to_out = nn.Linear(inner_dim, dim)
         self._init_weights(self.to_out)
 
         self.to_out = nn.Sequential(
@@ -70,7 +70,6 @@ class G_Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-        self.g_block = G_Block()
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
@@ -78,6 +77,10 @@ class G_Attention(nn.Module):
         self.entropy = HLoss(self.mask)
         self.avg_h = None
         self.num_nodes = num_patches
+        self.l2 = NSLoss(self.mask)
+        self.avg_l2 = None
+        
+        self.score = None
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -97,18 +100,12 @@ class G_Attention(nn.Module):
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         
         
-        scores = self.attend(dots)
-        
+        scores = self.attend(dots)     
 
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
-        
-        # self.avg_h = self.entropy(scores) / self.num_nodes
-        
-        # out = torch.cat([out, channel_agg], dim=-1)
-
-        # global_attribute = self.g_block(x)
-        # out = out + global_attribute
-        # self.value = compute_relative_norm_residuals(v, out[:, :, :, :-1])
+        self.avg_l2 = self.l2(scores)
+        self.avg_h = self.entropy(scores) / self.num_nodes
+        self.score = scores
         
         out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.to_out(out)
@@ -122,29 +119,25 @@ class HLoss(nn.Module):
         
     def forward(self, x):
         log = torch.log(x)
-        log[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
+        # log[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
         info = torch.mul(log, x)
         h = -1.0*torch.sum(info, dim=-1)
-        h = h.sum(dim=-1, keepdim=True)
+        h = h.sum(dim=-1)
         
         return h
     
-class G_Block(nn.Module):
-    def __init__(self):
-        super().__init__()
+class NSLoss(nn.Module):
+    def __init__(self, mask):
+        super(NSLoss, self).__init__()
+        self.mask = mask
         
-
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
-    
     def forward(self, x):
-        agg_mean = x.mean(dim=-1, keepdim=True)
-        agg_max, _ = x.max(dim=-1, keepdim=True)
-        agg = torch.cat([agg_mean, agg_max], dim=-1)
+        # x[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
+        l2 = torch.norm(x, dim=-1, p=2)
+        print(x[0,0,0])
         
-        return agg
+        return l2
+    
     
 # class G_Block(nn.Module):
 #     def __init__(self, dim, inner_dim, heads, dropout):
@@ -181,10 +174,12 @@ class Transformer(nn.Module):
         self.hidden_states = {}
         self.scale = {}
         self.h = []
+        self.l2 = []
+        self.scores = []
 
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, G_Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -192,17 +187,21 @@ class Transformer(nn.Module):
         for i, (attn, ff) in enumerate(self.layers):
             if i == 0:
                 self.h = []   
+                self.l2 = []   
             input_ = x
             x = self.drop_path(attn(x))
             self.h.append(attn.fn.avg_h)           
+            self.l2.append(attn.fn.avg_l2)           
             # self.hidden_states[str(i)] = attn.fn.value
+            
+            self.scores.append(attn.fn.score)
             x = x + input_
             x = self.drop_path(ff(x)) + x         
             # self.scale[str(i)] = attn.fn.scale
         return x
 
-class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+class Model(nn.Module):
+    def __init__(self, *, img_size=32, patch_size=4, num_classes=100, dim=192, depth=9, heads=12, mlp_dim=384, channels = 3, dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.1):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -233,6 +232,9 @@ class GiT(nn.Module):
         )
         
         self.h_loss = 0.
+        self.l2_loss = 0.
+        
+        self.scores = None
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -261,10 +263,14 @@ class GiT(nn.Module):
 
         x = self.transformer(x)
         
-        # entropy = torch.cat(self.transformer.h, dim=1)
+        entropy = torch.cat(self.transformer.h, dim=1)
+        l2 = torch.cat(self.transformer.l2, dim=1)
         
-        # self.h_loss = entropy.mean(dim=-1)
-        # print(self.h_loss)
+        self.l2_loss = l2.mean()
+        
+        self.h_loss = entropy.mean()
+        
+        self.scores = self.transformer.scores
 
         x =  x[:, 0]
 
