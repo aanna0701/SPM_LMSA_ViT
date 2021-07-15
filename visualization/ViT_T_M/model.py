@@ -152,7 +152,7 @@ class G_Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -167,7 +167,7 @@ class G_Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-        self.g_block = G_Block(dim, dim_head, dropout)
+        # self.g_block = G_Block(dim, dim_head, dropout)
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
@@ -184,7 +184,9 @@ class G_Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
         # global_attribute = self.g_block(x)
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+    
     
         dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         
