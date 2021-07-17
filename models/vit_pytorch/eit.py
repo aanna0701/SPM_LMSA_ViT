@@ -47,7 +47,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0., is_last=False):
+    def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0., is_last=False ,gam=0.1):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
@@ -74,11 +74,11 @@ class Attention(nn.Module):
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         self.value = 0
-        self.entropy = HLoss(self.mask)
+        self.entropy = HLoss()
         self.avg_h = None
         self.num_nodes = num_patches
-        self.l2 = NSLoss(self.mask)
-        self.cls_l2 = None
+        self.norm = NSLoss(gam)
+        self.cls_norm = None
         self.is_last = is_last
         
     def _init_weights(self,layer):
@@ -104,8 +104,8 @@ class Attention(nn.Module):
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
         
         if self.is_last:
-            self.cls_l2 = self.l2(scores[:, :, 0])
-        self.avg_h = self.entropy(scores) / self.num_nodes
+            self.cls_norm = self.norm(scores[:, :, 0])
+            self.avg_h = self.entropy(scores[:, :, 0])
         
         out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.to_out(out)
@@ -113,30 +113,33 @@ class Attention(nn.Module):
         return out
     
 class HLoss(nn.Module):
-    def __init__(self, mask):
+    def __init__(self):
         super(HLoss, self).__init__()
-        self.mask = mask
         
     def forward(self, x):
-        log = torch.log(x + 1e-6)
+        log = torch.log(x + 1e-12)
         # log[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
         info = torch.mul(log, x)
         h = -1.0*torch.sum(info, dim=-1)
-        h = h.sum(dim=-1)
+        h = h.mean(dim=-1)
         
         return h
     
 class NSLoss(nn.Module):
-    def __init__(self, mask):
+    def __init__(self, gamma):
         super(NSLoss, self).__init__()
-        self.mask = mask
+        self.gamma = gamma
         
     def forward(self, x):
         # x[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
-        l2 = torch.linalg.norm(x, dim=-1, ord=2)
-        return l2
+        square = torch.square(x)
+        zero_apx = torch.div(square, square + self.gamma)
+        return zero_apx
+        
+        # l2 = torch.linalg.norm(x, dim=-1, ord=2)
+        # return l2
         # max = torch.linalg.norm(x, dim=-1, ord=float('inf'))
-        return max
+        # return max
         
     
     
@@ -169,31 +172,28 @@ class NSLoss(nn.Module):
 #         return rho
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0., gam=0.1):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
         self.scale = {}
-        self.h = []
-        self.cls_l2 = None
+        self.h = None
+        self.cls_norm = None
         is_last = False
         for i in range(depth):
             if i == depth-1 :
                 is_last = True
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_last=is_last)),
+                PreNorm(dim, Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_last=is_last, gam=gam)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):
-            if i == 0:
-                self.h = []   
-                self.l2 = []   
             # input_ = x
             x = self.drop_path(attn(x)) + x
-            self.h.append(attn.fn.avg_h)           
-            self.cls_l2 = attn.fn.cls_l2           
+            self.h = attn.fn.avg_h         
+            self.cls_norm = attn.fn.cls_norm           
             # self.hidden_states[str(i)] = attn.fn.value
             # x = x + input_
             x = self.drop_path(ff(x)) + x         
@@ -201,7 +201,7 @@ class Transformer(nn.Module):
         return x
 
 class EiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0., gam=0.1):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -221,7 +221,7 @@ class EiT(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth, gam=gam)
         
         nn.linear_mlp_head = nn.Linear(dim, num_classes)
         self._init_weights(nn.linear_mlp_head)
@@ -232,7 +232,7 @@ class EiT(nn.Module):
         )
         
         self.h_loss = 0.
-        self.l2_loss = 0.
+        self.norm_loss = 0.
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -260,13 +260,11 @@ class EiT(nn.Module):
         x = self.dropout(x)
 
         x = self.transformer(x)
+                
         
-        entropy = torch.cat(self.transformer.h, dim=1)
+        self.norm_loss = self.transformer.cls_norm.mean()
         
-        
-        self.l2_loss = self.transformer.cls_l2.mean()
-        
-        self.h_loss = entropy.mean()
+        self.h_loss = self.transformer.h.mean()
 
         x =  x[:, 0]
 

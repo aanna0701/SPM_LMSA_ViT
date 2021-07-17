@@ -44,6 +44,8 @@ def init_parser():
     parser.add_argument('--print-freq', default=1, type=int, metavar='N', help='log frequency (by iteration)')
     
     parser.add_argument('--lam', default=1., type=float, )
+    
+    parser.add_argument('--gam', default=0.1, type=float, )
 
     # Optimization hyperparams
     parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
@@ -202,7 +204,7 @@ def main(args):
     if args.model == 'eit':
         from models.vit_pytorch.eit import EiT        
         dim_head = args.channel // args.heads
-        model = EiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = EiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, gam=args.gam)
     #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
@@ -572,7 +574,9 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             loss = criterion(output, target)
             
         # loss = loss + BETA * model.h_loss + (1 - LAMBDA) * model.l2_loss
-        loss = loss + LAMBDA * (1 - model.l2_loss)
+        # loss = loss + LAMBDA * (1 - model.l2_loss)
+        # if args.model == 'eit':
+            # loss = loss + LAMBDA * model.norm_loss
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
@@ -589,7 +593,9 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
             # progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
-            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(1 - model.l2_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            # progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(model.h_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            
 
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
@@ -613,9 +619,10 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             output = model(images)
             loss = criterion(output, target)
             
-            if args.model == 'eit':
+            # if args.model == 'eit':
                 # loss = loss + BETA * model.h_loss + (1 - LAMBDA) * model.l2_loss
-                loss = loss + LAMBDA * (1 - model.l2_loss)
+                # loss = loss + LAMBDA * (1 - model.l2_loss)
+                # loss = loss + LAMBDA * model.norm_loss
             
             acc = accuracy(output, target, (1, 5))
             acc1 = acc[0]
@@ -628,7 +635,8 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             if args.print_freq >= 0 and i % args.print_freq == 0:
                 avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
                 # progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
-                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(1 - model.l2_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
+                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
+                # progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(model.h_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
     print()        
 
     # total_mins = -1 if time_begin is None else (time() - time_begin) / 60
