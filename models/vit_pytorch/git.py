@@ -116,16 +116,15 @@ class G_Attention(nn.Module):
         return out
     
 class HLoss(nn.Module):
-    def __init__(self, mask):
+    def __init__(self):
         super(HLoss, self).__init__()
-        self.mask = mask
         
     def forward(self, x):
-        log = torch.log(x)
-        log[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
+        log = torch.log(x + 1e-12)
+        # log[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
         info = torch.mul(log, x)
         h = -1.0*torch.sum(info, dim=-1)
-        h = h.sum(dim=-1, keepdim=True)
+        h = h.mean(dim=-1)
         
         return h
     
