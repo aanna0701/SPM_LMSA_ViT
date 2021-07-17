@@ -218,8 +218,10 @@ class GiT(nn.Module):
             self.linear_to_path,
         )
 
+        
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
-        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        self.cls_embedding = nn.Conv1d(dim, dim, num_patches, groups=dim)
+        # self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
         
@@ -253,7 +255,8 @@ class GiT(nn.Module):
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+        # cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+        cls_tokens = self.cls_embedding(x)
         x = torch.cat((cls_tokens, x), dim=1)
         x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
