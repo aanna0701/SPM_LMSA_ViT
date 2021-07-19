@@ -68,12 +68,13 @@ class DepthWiseConv2d(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, proj_kernel, kv_proj_stride, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, proj_kernel, kv_proj_stride, num_patches, heads = 8, dim_head = 64, dropout = 0.,):
         super().__init__()
         inner_dim = dim_head *  heads
         padding = proj_kernel // 2
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        # self.scale = dim_head ** -0.5
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
 
@@ -84,28 +85,39 @@ class Attention(nn.Module):
             nn.Conv2d(inner_dim, dim, 1),
             nn.Dropout(dropout)
         )
+        
+        # self.mask = torch.eye(num_patches+1, num_patches+1)
+        # self.mask = (self.mask == 1).nonzero()
+        # self.inf = float('-inf')
 
     def forward(self, x):
         shape = x.shape
         b, n, _, y, h = *shape, self.heads
         q, k, v = (self.to_q(x), *self.to_kv(x).chunk(2, dim = 1))
-        q, k, v = map(lambda t: rearrange(t, 'b (h d) x y -> (b h) (x y) d', h = h), (q, k, v))
+        q, k, v = map(lambda t: rearrange(t, 'b (h d) x y -> b h (x y) d', h = h), (q, k, v))
 
-        dots = einsum('b i d, b j d -> b i j', q, k) * self.scale
+        # dots = einsum('b i d, b j d -> b i j', q, k) * self.scale
+
+        
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+    
+  
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
-        out = einsum('b i j, b j d -> b i d', attn, v)
-        out = rearrange(out, '(b h) (x y) d -> b (h d) x y', h = h, y = y)
+        out = einsum('b h i j, b h j d -> b h i d', attn, v)
+        out = rearrange(out, 'b h (x y) d -> b (h d) x y', h = h, y = y)
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, proj_kernel, kv_proj_stride, depth, heads, dim_head = 64, mlp_mult = 4, dropout = 0.):
+    def __init__(self, dim, proj_kernel, kv_proj_stride, depth, heads, num_patches, dim_head = 64, mlp_mult = 4, dropout = 0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, proj_kernel = proj_kernel, kv_proj_stride = kv_proj_stride, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, proj_kernel = proj_kernel, kv_proj_stride = kv_proj_stride, heads = heads, dim_head = dim_head, dropout = dropout, num_patches=num_patches)),
                 PreNorm(dim, FeedForward(dim, mlp_mult, dropout = dropout))
             ]))
     def forward(self, x):
@@ -119,6 +131,7 @@ class CvT(nn.Module):
         self,
         *,
         num_classes,
+        img_size=32,
         s1_emb_dim = 64,
         s1_emb_kernel = 3,
         s1_emb_stride = 1,
@@ -150,25 +163,28 @@ class CvT(nn.Module):
         dim = 3
         layers = []
 
-    
+        
+        num_patches = conv_output_size(img_size, s1_emb_kernel, s1_emb_stride, 1)
         layers.append(nn.Sequential(
                 nn.Conv2d(dim, s1_emb_dim, kernel_size = s1_emb_kernel, padding = 1, stride = s1_emb_stride),
                 LayerNorm(s1_emb_dim),
-                Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout)
+                Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout, num_patches=num_patches)
             ))
+        
         dim = s1_emb_dim
-    
+        num_patches = conv_output_size(num_patches, s2_emb_kernel, s2_emb_stride, (s2_emb_kernel // 2))
         layers.append(nn.Sequential(
                 nn.Conv2d(dim, s2_emb_dim, kernel_size = s2_emb_kernel, padding = (s2_emb_kernel // 2), stride = s2_emb_stride),
                 LayerNorm(s2_emb_dim),
-                Transformer(dim = s2_emb_dim, proj_kernel = s2_proj_kernel, kv_proj_stride = s2_kv_proj_stride, depth = s2_depth, heads = s2_heads, mlp_mult = s2_mlp_mult, dropout = dropout)
+                Transformer(dim = s2_emb_dim, proj_kernel = s2_proj_kernel, kv_proj_stride = s2_kv_proj_stride, depth = s2_depth, heads = s2_heads, mlp_mult = s2_mlp_mult, dropout = dropout, num_patches=num_patches)
             ))
         dim = s2_emb_dim
-    
+        
+        num_patches = conv_output_size(num_patches, s3_emb_kernel, s3_emb_stride, (s3_emb_kernel // 2))
         layers.append(nn.Sequential(
                 nn.Conv2d(dim, s3_emb_dim, kernel_size = s3_emb_kernel, padding = (s3_emb_kernel // 2), stride = s3_emb_stride),
                 LayerNorm(s3_emb_dim),
-                Transformer(dim = s3_emb_dim, proj_kernel = s3_proj_kernel, kv_proj_stride = s3_kv_proj_stride, depth = s3_depth, heads = s3_heads, mlp_mult = s3_mlp_mult, dropout = dropout)
+                Transformer(dim = s3_emb_dim, proj_kernel = s3_proj_kernel, kv_proj_stride = s3_kv_proj_stride, depth = s3_depth, heads = s3_heads, mlp_mult = s3_mlp_mult, dropout = dropout, num_patches=num_patches)
             ))
         dim = s3_emb_dim
 
@@ -182,3 +198,7 @@ class CvT(nn.Module):
 
     def forward(self, x):
         return self.layers(x)
+
+
+def conv_output_size(image_size, kernel_size, stride, padding = 0):
+    return int(((image_size - kernel_size + (2 * padding)) / stride) + 1)

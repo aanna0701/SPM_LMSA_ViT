@@ -592,8 +592,11 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
-            # progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
-            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            if args.model == 'eit':
+                progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            else:
+                progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
+            
             # progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(model.h_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
             
 
@@ -634,8 +637,11 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
 
             if args.print_freq >= 0 and i % args.print_freq == 0:
                 avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
-                # progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
-                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
+                if args.model == 'eit':
+                    progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
+                else:
+                    progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
+                
                 # progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(model.h_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
     print()        
 
