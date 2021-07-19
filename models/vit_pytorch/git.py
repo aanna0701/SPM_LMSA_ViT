@@ -4,7 +4,6 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
-from utils.relative_norm_residuals import compute_relative_norm_residuals
 
 # helpers
 
@@ -61,7 +60,7 @@ class G_Attention(nn.Module):
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
         self._init_weights(self.to_qkv)
         
-        self.to_out = nn.Linear(inner_dim + 24, dim)
+        self.to_out = nn.Linear(inner_dim, dim)
         self._init_weights(self.to_out)
 
         self.to_out = nn.Sequential(
@@ -70,12 +69,12 @@ class G_Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-        self.g_block = G_Block()
+        # self.g_block = G_Block(dim, num_patches)
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         self.value = 0
-        self.entropy = HLoss(self.mask)
+        self.entropy = HLoss()
         self.avg_h = None
         self.num_nodes = num_patches
         
@@ -111,6 +110,7 @@ class G_Attention(nn.Module):
         # self.value = compute_relative_norm_residuals(v, out[:, :, :, :-1])
         
         out = rearrange(out, 'b h n d -> b n (h d)')
+        # out = self.g_block(out)
         out = self.to_out(out)
         
         return out
@@ -129,21 +129,25 @@ class HLoss(nn.Module):
         return h
     
 class G_Block(nn.Module):
-    def __init__(self):
+    def __init__(self, dim, num_patches):
         super().__init__()
+        self.node_agg = nn.Conv1d(dim, dim, num_patches, groups=dim)
+        self._init_weights(self.node_agg)
         
-
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
     
     def forward(self, x):
-        agg_mean = x.mean(dim=-1, keepdim=True)
-        agg_max, _ = x.max(dim=-1, keepdim=True)
-        agg = torch.cat([agg_mean, agg_max], dim=-1)
         
-        return agg
+        nodes = x[:, :, 1:]
+        cls_token = x[:, :, (0,)]
+        nodes_agg = self.node_agg(rearrange(nodes,'b n d -> b d n'))
+        nodes_agg = rearrange(nodes_agg, 'b d n -> b n d')
+        cls_out = torch.mul(cls_token, nn.functional.sigmoid(nodes_agg))
+                
+        return torch.cat([cls_out, nodes])
     
 # class G_Block(nn.Module):
 #     def __init__(self, dim, inner_dim, heads, dropout):
@@ -208,19 +212,21 @@ class GiT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
-        patch_dim = channels * patch_height * patch_width
+        patch_dim = 5 * channels * patch_height * patch_width
 
         self.linear_to_path = nn.Linear(patch_dim, dim)
-        self._init_weights(self.linear_to_path)
+        self._init_weights(self.linear_to_path)        
+        self.patch_shifting = patch_shifting(dim, patch_dim, patch_height, patch_width)   
         self.to_patch_embedding = nn.Sequential(
+            self.patch_shifting,
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             self.linear_to_path,
         )
 
+    
         
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
-        self.cls_embedding = nn.Conv1d(dim, dim, num_patches, groups=dim)
-        # self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
         
@@ -251,11 +257,12 @@ class GiT(nn.Module):
         # x = self.read_out(x)
         
         # patch embedding
+        # x = self.to_patch_embedding(img)
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
-        # cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
-        cls_tokens = self.cls_embedding(x)
+        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+        # cls_tokens = self.cls_embedding(x)
         x = torch.cat((cls_tokens, x), dim=1)
         x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
@@ -274,3 +281,30 @@ class GiT(nn.Module):
         
         return self.mlp_head(x)
     
+class patch_shifting(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+
+    def forward(self, x):
+        # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
+        # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
+        # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
+        # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
+        
+        # print(x_l.shape)
+        # print(x_r.shape)
+        # print(x_t.shape)
+        # print(x_b.shape)
+        
+        x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+        
+        x_l = x_pad[:, :, 1:-1, :-2]
+        x_r = x_pad[:, :, 1:-1, 2:]
+        x_t = x_pad[:, :, :-2, 1:-1]
+        x_b = x_pad[:, :, 2:, 1:-1]
+        
+        x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
+        
+        return x_cat
+        

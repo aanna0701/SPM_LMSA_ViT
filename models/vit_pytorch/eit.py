@@ -133,7 +133,7 @@ class NSLoss(nn.Module):
     def forward(self, x):
         # x[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
         square = torch.square(x)
-        zero_apx = torch.div(square, square + self.gamma)
+        zero_apx = torch.div(square, square + self.gamma ** 2)
         return zero_apx
         
         # l2 = torch.linalg.norm(x, dim=-1, ord=2)

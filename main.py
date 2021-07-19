@@ -575,8 +575,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             
         # loss = loss + BETA * model.h_loss + (1 - LAMBDA) * model.l2_loss
         # loss = loss + LAMBDA * (1 - model.l2_loss)
-        # if args.model == 'eit':
-            # loss = loss + LAMBDA * model.norm_loss
+        if args.model == 'eit':
+            loss = loss + LAMBDA * model.norm_loss
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
@@ -619,10 +619,10 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             output = model(images)
             loss = criterion(output, target)
             
-            # if args.model == 'eit':
+            if args.model == 'eit':
                 # loss = loss + BETA * model.h_loss + (1 - LAMBDA) * model.l2_loss
                 # loss = loss + LAMBDA * (1 - model.l2_loss)
-                # loss = loss + LAMBDA * model.norm_loss
+                loss = loss + LAMBDA * model.norm_loss
             
             acc = accuracy(output, target, (1, 5))
             acc1 = acc[0]
