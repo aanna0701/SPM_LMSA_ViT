@@ -105,13 +105,14 @@ class Transformer(nn.Module):
         
         self.scores = []
     def forward(self, x):
+        self.hidden_states['patch_embedding'] = x[:, 1:].mean(dim=-1)
         for i, (attn, ff) in enumerate(self.layers):            
             x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
             
+            self.hidden_states[str(i)] = x[:, 1:].mean(dim=-1)
             self.scores.append(attn.fn.score)
             
-            self.hidden_states[str(i)] = x
         return x
 
 class Model(nn.Module):
@@ -151,6 +152,7 @@ class Model(nn.Module):
         
         self.final_cls_token = None
         self.scores = None
+        self.featuremaps = None
 
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -167,7 +169,10 @@ class Model(nn.Module):
         x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
+        
         x = self.transformer(x)
+        
+        self.featuremaps = self.transformer.hidden_states
         self.scores = self.transformer.scores
 
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
@@ -177,3 +182,32 @@ class Model(nn.Module):
         self.final_cls_token = x
         
         return self.mlp_head(x)
+
+class patch_shifting(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+
+    def forward(self, x):
+        # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
+        # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
+        # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
+        # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
+        
+        # print(x_l.shape)
+        # print(x_r.shape)
+        # print(x_t.shape)
+        # print(x_b.shape)
+        
+        x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+
+
+        x_l = x_pad[:, :, 1:-1, :-2]
+        x_r = x_pad[:, :, 1:-1, 2:]
+        x_t = x_pad[:, :, :-2, 1:-1]
+        x_b = x_pad[:, :, 2:, 1:-1]
+        
+        x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
+        
+        return x_cat
+        
