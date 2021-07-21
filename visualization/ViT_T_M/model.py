@@ -349,6 +349,7 @@ class Model(nn.Module):
         self.scores = self.transformer.scores
 
         x =  x[:, 0]
+        self.final_cls_token = x
 
         # x = self.to_latent(x)
         

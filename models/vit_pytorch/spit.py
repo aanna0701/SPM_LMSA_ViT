@@ -73,7 +73,6 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         self.mask = torch.eye(num_patches+1, num_patches+1)
-        print(num_patches)
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         
@@ -120,38 +119,24 @@ class Transformer(nn.Module):
             self.scale[str(i)] = attn.fn.scale
         return x
 
-# depthwise convolution, for pooling
-
-class DepthWiseConv2d(nn.Module):
-    def __init__(self, dim_in, dim_out, kernel_size, padding, stride, bias = True):
-        super().__init__()
-        
-        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias)
-        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size = 1, bias = bias)
-        self._init_weights(self.conv1)
-        self._init_weights(self.conv2)
-        
-        self.net = nn.Sequential(
-            nn.Conv2d(dim_in, dim_out, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias),
-            nn.Conv2d(dim_out, dim_out, kernel_size = 1, bias = bias)
-        ) 
-    
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
-        
-    def forward(self, x):
-        return self.net(x)
-
 # pooling layer
 
 class Pool(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.downsample = DepthWiseConv2d(dim, dim * 2, kernel_size = 3, stride = 2, padding = 1)
+        
+        self.squeeze = nn.Conv2d(dim, dim//4, 1, bias=False)
+        self._init_weights(self.squeeze)
+        
         self.cls_ff = nn.Linear(dim, dim * 2)
         self._init_weights(self.cls_ff)
+        
+        self.patch_shifting = Patch_shifting()
+        
+        self.unfold = Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = 2, p2 = 2)
+        
+        self.tokens_ff = nn.Linear((dim//4)*5*4, dim*2, bias=False)
+        self._init_weights(self.tokens_ff)
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -162,10 +147,11 @@ class Pool(nn.Module):
         cls_token, tokens = x[:, :1], x[:, 1:]
 
         cls_token = self.cls_ff(cls_token)
-
         tokens = rearrange(tokens, 'b (h w) c -> b c h w', h = int(sqrt(tokens.shape[1])))
-        tokens = self.downsample(tokens)
-        tokens = rearrange(tokens, 'b c h w -> b (h w) c')
+        tokens = self.squeeze(tokens)
+        tokens_shift_cat = self.patch_shifting(tokens)
+        tokens = self.unfold(tokens_shift_cat)
+        tokens = self.tokens_ff(tokens)
 
         return torch.cat((cls_token, tokens), dim = 1)
 
@@ -174,25 +160,26 @@ class Pool(nn.Module):
 def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
-class PiT(nn.Module):
+class SPiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
         assert isinstance(depth, tuple), 'depth must be a tuple of integers, specifying the number of blocks before each downsizing'
         heads = cast_tuple(heads, len(depth))
 
-        patch_dim = 3 * patch_size ** 2
+        image_height, image_width = pair(img_size)
+        patch_height, patch_width = pair(patch_size)
+        num_patches = (image_height // patch_height) * (image_width // patch_width)        
+        patch_dim = 5 * 3 * patch_height * patch_width
 
         self.linear_to_path = nn.Linear(patch_dim, dim)
         self._init_weights(self.linear_to_path)
         self.to_patch_embedding = nn.Sequential(
-            nn.Unfold(kernel_size = patch_size, stride = patch_size // 2),
-            Rearrange('b c n -> b n c'),
+            Patch_shifting(),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
             self.linear_to_path
         )
 
-        output_size = conv_output_size(img_size, patch_size, patch_size // 2)
-        num_patches = output_size ** 2
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -209,7 +196,7 @@ class PiT(nn.Module):
             if not_last:
                 layers.append(Pool(dim))
                 dim *= 2
-                num_patches = conv_output_size(num_patches, 3, 2, 1)
+                num_patches = num_patches // 4
                 
 
         self.layers = nn.Sequential(*layers)
@@ -240,3 +227,23 @@ class PiT(nn.Module):
         x = self.layers(x)
 
         return self.mlp_head(x[:, 0])
+    
+
+class Patch_shifting(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+
+    def forward(self, x):
+        
+        x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+        
+        x_l = x_pad[:, :, 1:-1, :-2]
+        x_r = x_pad[:, :, 1:-1, 2:]
+        x_t = x_pad[:, :, :-2, 1:-1]
+        x_b = x_pad[:, :, 2:, 1:-1]
+        
+        x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
+        
+        return x_cat
+        
