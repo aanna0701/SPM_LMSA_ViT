@@ -204,7 +204,7 @@ class PiT(nn.Module):
         for ind, (layer_depth, layer_heads) in enumerate(zip(depth, heads)):
             not_last = ind < (len(depth) - 1)
             
-            layers.append(Transformer(dim, num_patches, layer_depth, layer_heads, dim_head, mlp_dim, dropout, stochastic_depth))
+            layers.append(Transformer(dim, num_patches, layer_depth, layer_heads, dim_head, dim*2, dropout, stochastic_depth))
 
             if not_last:
                 layers.append(Pool(dim))
