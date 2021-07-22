@@ -9,7 +9,8 @@ from torch.nn import functional as F
 import math
 from colorama import Fore, Style
 import os
-from visualization.ViT_T_M.model import Model
+# from visualization.RES110.model import resnet110 as Model
+from visualization.ViT_PE.model import Model
 # from visualization.ViT_Masking.model import Model
 from PIL import Image
 from einops import rearrange
@@ -102,7 +103,8 @@ def main(args, save_path):
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
     # model.load_state_dict(torch.load(os.path.join('./visualization/ViT_Masking', 'best.pth')))
-    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_T_M', 'best.pth')))
+    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_PE', 'best.pth')))
+    # model.load_state_dict(torch.load(os.path.join('./visualization/RES110', 'best.pth')))
     
     
     img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)     

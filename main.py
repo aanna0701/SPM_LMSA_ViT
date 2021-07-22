@@ -194,14 +194,14 @@ def main(args):
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
-        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*4, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
         from models.vit_pytorch.git import GiT        
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = 16, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*4, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
@@ -214,7 +214,7 @@ def main(args):
             args.channel = 64
         else:
             args.channel = 96
-        args.heads = 2
+        args.heads = (2, 4, 8)
         args.depth = (2, 6, 4)
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
@@ -332,7 +332,7 @@ def main(args):
             
         elif 'SVHN' in args.dataset:
             print("SVHN Policy")    
-            from utils.autoaug import ImageNetPolicy
+            from utils.autoaug import SVHNPolicy
             augmentations += [
                 
               transforms.RandomCrop(img_size, padding=4),
@@ -341,13 +341,22 @@ def main(args):
             ]
         
             
-        else:
+        elif args.dataset == 'IMNET':
             print("ImageNet Policy")    
             from utils.autoaug import ImageNetPolicy
             augmentations += [
                 transforms.RandomResizedCrop(224),
                 ImageNetPolicy()
             ]
+            
+        else:
+            from utils.autoaug import ImageNetPolicy
+            augmentations += [                
+              transforms.RandomCrop(img_size, padding=4),
+                transforms.RandomHorizontalFlip(),
+                ImageNetPolicy()
+            ]
+            
         print('*'*80 + Style.RESET_ALL)
         
 
