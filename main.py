@@ -26,9 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
-LAMBDA = 1
-# BETA = 0.2
-# C = 1
+
 
 
 def init_parser():
@@ -42,15 +40,11 @@ def init_parser():
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
 
     parser.add_argument('--print-freq', default=1, type=int, metavar='N', help='log frequency (by iteration)')
-    
-    parser.add_argument('--lam', default=1., type=float, )
-    
-    parser.add_argument('--gam', default=0.1, type=float, )
 
     # Optimization hyperparams
     parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
     
-    parser.add_argument('--warmup', default=10, type=int, metavar='N', help='number of warmup epochs')
+    parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
     
     parser.add_argument('-b', '--batch_size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
@@ -58,7 +52,7 @@ def init_parser():
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'eit', 'g-vit', 'pit', 'spit', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
+    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
@@ -85,6 +79,8 @@ def init_parser():
     parser.add_argument('--sd', default=0, type=float, help='rate of stochastic depth')
     
     parser.add_argument('--ver', default=1, type=int, help='Version')
+    
+    parser.add_argument('--resume', default=False, help='Version')
     
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
@@ -198,20 +194,14 @@ def main(args):
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
-        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
-    #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
-        
-    if args.model == 'eit':
-        from models.vit_pytorch.eit import EiT        
-        dim_head = args.channel // args.heads
-        model = EiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, gam=args.gam)
+        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*4, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
     
     elif args.model == 'g-vit':
         from models.vit_pytorch.git import GiT        
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = GiT(img_size=img_size, patch_size = 16, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*4, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
@@ -227,21 +217,6 @@ def main(args):
         args.heads = 2
         args.depth = (2, 6, 4)
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
-  
-    elif args.model == 'spit':
-        from models.vit_pytorch.spit import SPiT
-        if img_size == 32:
-            patch_size = 2
-        elif img_size > 32:
-            patch_size = 8
-        dim_head = args.channel // args.heads
-        if args.channel == 144:
-            args.channel = 64
-        else:
-            args.channel = 96
-        args.heads = 2
-        args.depth = (2, 6, 4)
-        model = SPiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model =='t2t-vit':
         from models.vit_pytorch.t2t import T2TViT
@@ -284,6 +259,8 @@ def main(args):
     logger.debug(f'Initial learning rate: {args.lr:.6f}')
     logger.debug(f"Start training for {args.epochs} epochs")
     print('*'*80+Style.RESET_ALL)
+    
+    
     
     '''
         Criterion
@@ -477,10 +454,27 @@ def main(args):
     print()
     
     lr = optimizer.param_groups[0]["lr"]
+    
+    if args.resume:
+        checkpoint = torch.load(args.resume)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        lr = checkpoint['loss']
+        scheduler = checkpoint['scheduler']
+        args.epochs = checkpoint['epoch'] + 1
+    
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)
         lr = train(train_loader, model, criterion, optimizer, epoch, scheduler, args)
         acc1, acc5 = validate(val_loader, model, criterion, lr, args, epoch=epoch)
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'epoch': epoch,
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': lr,
+            'scheduler': scheduler.state_dict(), 
+            }, 
+            os.path.join(save_path, 'checkpoint.pth'))
         logger_dict.print()
         if acc1 > best_acc1:
             print('* Best model upate *')
@@ -496,8 +490,6 @@ def main(args):
         print(Style.RESET_ALL)        
         
         writer.add_scalar("Learning Rate", lr, epoch)
-        if args.model == 'eit':
-            writer.add_scalar("Global average Entropy", model.h_loss.item(), epoch)
         
         # for i in range(len(model.transformer.scale)):
         #     for idx, scale in enumerate(model.transformer.scale[str(i)]):
@@ -587,11 +579,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             mix_paramter = 0
             output = model(images)
             loss = criterion(output, target)
-            
-        # loss = loss + BETA * model.h_loss + (1 - LAMBDA) * model.l2_loss
-        # loss = loss + LAMBDA * (1 - model.l2_loss)
-        if args.model == 'eit':
-            loss = loss + LAMBDA * model.norm_loss
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
@@ -607,13 +594,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
             avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
-            if args.model == 'eit':
-                progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
-            else:
-                progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
-            
-            # progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {float(model.h_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
-            
+            progress_bar(i, len(train_loader),f'[Epoch {epoch+1}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
 
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
@@ -637,11 +618,6 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             output = model(images)
             loss = criterion(output, target)
             
-            if args.model == 'eit':
-                # loss = loss + BETA * model.h_loss + (1 - LAMBDA) * model.l2_loss
-                # loss = loss + LAMBDA * (1 - model.l2_loss)
-                loss = loss + LAMBDA * model.norm_loss
-            
             acc = accuracy(output, target, (1, 5))
             acc1 = acc[0]
             acc5 = acc[1]
@@ -652,12 +628,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
 
             if args.print_freq >= 0 and i % args.print_freq == 0:
                 avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
-                if args.model == 'eit':
-                    progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(model.norm_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
-                else:
-                    progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
-                
-                # progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {float(model.h_loss.item()):.4e}, {avg_loss:.4e},   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
+                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
     print()        
 
     # total_mins = -1 if time_begin is None else (time() - time_begin) / 60
@@ -718,7 +689,5 @@ if __name__ == '__main__':
     
     logger_dict = Logger_dict(logger, save_path)
     keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'V Top-5']
-    
-    LAMBDA = args.lam
     
     main(args)

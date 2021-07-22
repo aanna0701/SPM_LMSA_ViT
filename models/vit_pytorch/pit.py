@@ -50,15 +50,15 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, patch_size, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        # self.scale = dim_head ** -0.5
         
-        # self.scale = nn.Parameter(torch.rand(heads))
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -72,9 +72,9 @@ class Attention(nn.Module):
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
         
-        self.mask = torch.eye(num_patches+1, num_patches+1)
-        print(num_patches)
-        self.mask = (self.mask == 1).nonzero()
+        self.mask = torch.eye(patch_size+1, patch_size+1)
+        print(heads)
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
         
     def _init_weights(self,layer):
@@ -87,11 +87,11 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         attn = self.attend(dots)
 
@@ -100,7 +100,7 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, patch_size, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         
@@ -108,7 +108,7 @@ class Transformer(nn.Module):
         self.scale = {}
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches=num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, patch_size=patch_size, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -132,8 +132,8 @@ class DepthWiseConv2d(nn.Module):
         self._init_weights(self.conv2)
         
         self.net = nn.Sequential(
-            nn.Conv2d(dim_in, dim_out, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias),
-            nn.Conv2d(dim_out, dim_out, kernel_size = 1, bias = bias)
+            self.conv1,
+            self.conv2
         ) 
     
     def _init_weights(self,layer):
@@ -204,12 +204,12 @@ class PiT(nn.Module):
         for ind, (layer_depth, layer_heads) in enumerate(zip(depth, heads)):
             not_last = ind < (len(depth) - 1)
             
-            layers.append(Transformer(dim, num_patches, layer_depth, layer_heads, dim_head, dim*2, dropout, stochastic_depth))
+            layers.append(Transformer(dim, output_size, layer_depth, layer_heads, dim_head, dim*2, dropout, stochastic_depth))
 
             if not_last:
                 layers.append(Pool(dim))
                 dim *= 2
-                num_patches = conv_output_size(num_patches, 3, 2, 1)
+                output_size = conv_output_size(output_size, 3, 2, 1)
                 
 
         self.layers = nn.Sequential(*layers)

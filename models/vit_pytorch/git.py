@@ -3,7 +3,8 @@ from torch import nn, einsum
 from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-
+import math
+# from utils.positional_encoding import positionalencoding2d
 
 # helpers
 
@@ -184,6 +185,8 @@ class Transformer(nn.Module):
         self.hidden_states = {}
         self.scale = {}
         self.h = []
+        
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
 
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
@@ -195,6 +198,7 @@ class Transformer(nn.Module):
         for i, (attn, ff) in enumerate(self.layers):
             if i == 0:
                 self.h = []   
+            x += self.pos_embedding
             x = self.drop_path(attn(x)) + x
             # self.h.append(attn.fn.avg_h)           
             # self.hidden_states[str(i)] = attn.fn.value
@@ -204,7 +208,7 @@ class Transformer(nn.Module):
         return x
 
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -215,22 +219,28 @@ class GiT(nn.Module):
         patch_dim = channels * patch_height * patch_width
         # patch_dim = 5 * channels * patch_height * patch_width
 
-        self.linear_to_path = nn.Linear(patch_dim, dim)
-        self._init_weights(self.linear_to_path)        
 
-        # self.patch_shifting = patch_shifting(dim, patch_dim, patch_height, patch_width)   
         # self.to_patch_embedding = nn.Sequential(
-        #     self.patch_shifting,
+        #     PatchShifting(),
+        #     DepthWiseConv2d(3*5, dim, 4, 0, 4),
+        #     Rearrange('b c h w -> b (h w) c')
+        # )
+        
+        self.linear_to_path = nn.Linear(patch_dim, dim)
+        self._init_weights(self.linear_to_path)
+        
+        
+        # self.to_patch_embedding = nn.Sequential(
+        #     PatchShifting(),
         #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
         #     self.linear_to_path,
-
+        # )
+    
         self.to_patch_embedding = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             self.linear_to_path,
         )
     
-        
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
@@ -262,14 +272,12 @@ class GiT(nn.Module):
         # x = self.read_out(x)
         
         # patch embedding
-        # x = self.to_patch_embedding(img)
-        x = self.to_patch_embedding(img)
+        x = self.to_patch_embedding(img) 
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         # cls_tokens = self.cls_embedding(x)
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
         x = self.transformer(x)
@@ -286,7 +294,7 @@ class GiT(nn.Module):
         
         return self.mlp_head(x)
     
-class patch_shifting(nn.Module):
+class PatchShifting(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -312,4 +320,4 @@ class patch_shifting(nn.Module):
         x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
         
         return x_cat
-        
+    

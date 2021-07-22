@@ -7,10 +7,9 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 from torch.nn import functional as F
 import math
-import numbers
 from colorama import Fore, Style
 import os
-from visualization.ViT.model import Model
+from visualization.ViT_T_M.model import Model
 # from visualization.ViT_Masking.model import Model
 from PIL import Image
 from einops import rearrange
@@ -103,7 +102,7 @@ def main(args, save_path):
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
     # model.load_state_dict(torch.load(os.path.join('./visualization/ViT_Masking', 'best.pth')))
-    model.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
+    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_T_M', 'best.pth')))
     
     
     img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)     
@@ -131,6 +130,7 @@ def main(args, save_path):
         
     
         img = Image.open(img_path)
+        img.save(os.path.join(save_path, f'{i}_input.png'))
         features = inference(transform(img).unsqueeze(dim=0), model, args) 
         
         img = transforms.ToTensor()(img)
@@ -138,6 +138,15 @@ def main(args, save_path):
         img = img.detach().cpu().numpy()
         
         for key in features:
+            
+            feauturemap = features[key]
+            feauturemap = rearrange(feauturemap, 'b (h w) -> b h w', h=int(math.sqrt(feauturemap.size(-1))))
+            feauturemap = transforms.Resize(32)(feauturemap)
+            feauturemap = feauturemap.squeeze(dim=0)
+            feauturemap = (feauturemap - torch.min(feauturemap)) / (torch.max(feauturemap)-torch.min(feauturemap))
+            feauturemap = feauturemap.detach().cpu()
+          
+            
             if key == 'patch_embedding':
                 plt.rcParams["figure.figsize"] = (8,4)
                 ax1 = plt.subplot(1, 2, 1)
@@ -145,39 +154,23 @@ def main(args, save_path):
                 ax1.set_title(f'Input Image', fontsize=8, pad=5)
                 ax1.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
                 
-                patch_embedding = features['patch_embedding']
-                patch_embedding = rearrange(patch_embedding, 'b (h w) -> b h w', h=int(math.sqrt(patch_embedding.size(-1))))
-                patch_embedding = transforms.Resize(32)(patch_embedding)
-                patch_embedding = patch_embedding.squeeze(dim=0)
-                patch_embedding = (patch_embedding - torch.min(patch_embedding)) / (torch.max(patch_embedding)-torch.min(patch_embedding))
-                patch_embedding = patch_embedding.detach().cpu()
-
+          
                 ax2 = plt.subplot(1, 2, 2)
-                ax2.imshow(patch_embedding, cmap='rainbow', vmin=0, vmax=1)
+                ax2.imshow(feauturemap, cmap='rainbow', vmin=0, vmax=1)
                 ax2.set_title(f'Patch embedding', fontsize=8, pad=5)
                 ax2.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
                 
                 plt.savefig(os.path.join(save_path, f'{i}_Patch Embedding.png'), format='png', dpi=400)
                 plt.clf()
                 
-            else:
-                plt.rcParams["figure.figsize"] = (20,4)
-                ax1 = plt.subplot(2, 5, 1)
-                ax1.imshow(img)
-                ax1.set_title(f'Input Image', fontsize=8, pad=5)
-                ax1.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-                
-                feauturemap = features[key]
-                feauturemap = rearrange(feauturemap, 'b (h w) -> b h w', h=int(math.sqrt(feauturemap.size(-1))))
-                feauturemap = transforms.Resize(32)(feauturemap)
-                feauturemap = feauturemap.squeeze(dim=0)
-                feauturemap = (feauturemap - torch.min(feauturemap)) / (torch.max(feauturemap)-torch.min(feauturemap))
-                feauturemap = feauturemap.detach().cpu()
-                
-                ax = plt.subplot(2, 5, int(key)+2)
-                ax.imshow(feauturemap, cmap='rainbow', vmin=0, vmax=1)
-                ax.set_title(f'{key}th Featuremap', fontsize=8, pad=5)
-                ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+            title = f'Layer{key}\'s Featuremap' if not key == 'patch_embedding' else f'Patch embedding'
+            
+            plt.rcParams["figure.figsize"] = (20,4)
+                       
+            ax = plt.subplot(2, 5, int(key)+2) if not key == 'patch_embedding' else plt.subplot(2, 5, 1)
+            ax.imshow(feauturemap, cmap='rainbow', vmin=0, vmax=1)
+            ax.set_title(title, fontsize=8, pad=5)
+            ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
                 
             plt.savefig(os.path.join(save_path, f'{i}_Featuremaps.png'), format='png', dpi=400)
 

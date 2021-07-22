@@ -4,7 +4,6 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
-from utils.relative_norm_residuals import compute_relative_norm_residuals
 
 # helpers
 
@@ -53,8 +52,8 @@ class G_Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
-        # self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = dim_head ** -0.5
+        self.scale = nn.Parameter(torch.rand(heads))
         # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
@@ -90,11 +89,11 @@ class G_Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
         # channel_agg = self.g_block(v)
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
     
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         
         
         scores = self.attend(dots)
@@ -214,20 +213,29 @@ class GiT(nn.Module):
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
         patch_dim = 5 * channels * patch_height * patch_width
-        # patch_dim = 9 * channels * patch_height * patch_width
+        # patch_dim = 5 * channels * patch_height * patch_width
 
         # self.linear_to_path = nn.Linear(patch_dim, dim)
-        # self._init_weights(self.linear_to_path)      
+        # self._init_weights(self.linear_to_path)        
         # self.to_patch_embedding = nn.Sequential(
-        #     patch_shifting(),
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-        #     self.linear_to_path,
+        #     PatchShifting(),
+        #     DepthWiseConv2d(3*5, dim, 4, 0, 4),
+        #     Rearrange('b c h w -> b (h w) c')
         # )
-
-        self.patch_conv = nn.Conv2d(3, dim, kernel_size=6, stride=4, padding=1)
-        self._init_weights(self.patch_conv)
-        self.patch_rearrange = Rearrange('b c h w -> b (h w) c')
-
+        
+        self.linear_to_mixing = nn.Linear(patch_dim, patch_dim//4)
+        self._init_weights(self.linear_to_mixing)
+        
+        self.linear_to_patch = nn.Linear(patch_dim//4, dim)
+        self._init_weights(self.linear_to_patch)
+        
+        self.to_patch_embedding = nn.Sequential(
+            PatchShifting(),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            self.linear_to_mixing,
+            nn.LayerNorm(patch_dim//4),
+            self.linear_to_patch
+        )
     
         
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -263,9 +271,7 @@ class GiT(nn.Module):
         
         # patch embedding
         # x = self.to_patch_embedding(img)
-        # x = self.to_patch_embedding(img)
-        x = self.patch_conv(img)
-        x = self.patch_rearrange(x)
+        x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
@@ -288,7 +294,7 @@ class GiT(nn.Module):
         
         return self.mlp_head(x)
     
-class patch_shifting(nn.Module):
+class PatchShifting(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -304,16 +310,13 @@ class patch_shifting(nn.Module):
         # print(x_t.shape)
         # print(x_b.shape)
         
-        x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
-
-
-        x_l = x_pad[:, :, 1:-1, :-2]
-        x_r = x_pad[:, :, 1:-1, 2:]
-        x_t = x_pad[:, :, :-2, 1:-1]
-        x_b = x_pad[:, :, 2:, 1:-1]
+        x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
         
+        x_l = x_pad[:, :, 2:-2, :-4]
+        x_r = x_pad[:, :, 2:-2, 4:]
+        x_t = x_pad[:, :, :-4, 2:-2]
+        x_b = x_pad[:, :, 4:, 2:-2]
         
         x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
         
         return x_cat
-        
