@@ -61,21 +61,23 @@ def main(args, save_path):
     
 
     
-    
+    fig, axs = plt.subplots(3, 3, figsize=(15, 15))
     for i in range(len(scores)):
-        fig, axs = plt.subplots(3, 4, figsize=(28, 21))
-        layer_viz = scores[i][0, :, :, :]
-        # layer_viz = scailing(layer_viz)
+        
+        layer_viz = scores[i][0, :, :, :].sum(dim=0)
+        layer_viz = scailing(layer_viz)
         layer_viz = layer_viz.data
-        for j, filter in enumerate(layer_viz):
-            ax = axs.flat[j]
-            sns.heatmap(filter.detach().cpu(), cmap='icefire', ax=ax, vmin=0, vmax=1)
-            ax.set_title(f'{i+1}th depth / {j+1}th head', fontsize=5)
-            ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+        # for j, filter in enumerate(layer_viz):
+        #     ax = axs.flat[j]
+        #     sns.heatmap(filter.detach().cpu(), cmap='rainbow', ax=ax, vmin=0, vmax=1)
+        #     ax.set_title(f'{i+1}th depth / {j+1}th head', fontsize=5)
+        #     ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+        ax = axs.flat[i]
+        sns.heatmap(layer_viz.detach().cpu(), cmap='icefire', ax=ax, vmin=0, vmax=1)
+        ax.set_title(f'{i+1}th depth', fontsize=10)
+        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
           
-        fig.savefig(os.path.join(save_path, f'scores_{i+1}.png'), format='png', dpi=1200)
-        plt.cla()
-        plt.clf()
+    fig.savefig(os.path.join(save_path, f'scores.png'), format='png', dpi=1200)
 
 def scailing(x):
     x_min, _ = x.min(dim=-1, keepdim = True)
@@ -92,7 +94,8 @@ def inference(img, model, args):
         images = img.cuda(args.gpu, non_blocking=True)
         
         _ = model(images)
-        
+    
+    
     return model.transformer.scores                
             
 

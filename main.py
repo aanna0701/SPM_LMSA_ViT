@@ -44,7 +44,7 @@ def init_parser():
     # Optimization hyperparams
     parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
     
-    parser.add_argument('--warmup', default=5, type=int, metavar='N', help='number of warmup epochs')
+    parser.add_argument('--warmup', default=10, type=int, metavar='N', help='number of warmup epochs')
     
     parser.add_argument('-b', '--batch_size', default=128, type=int, metavar='N', help='mini-batch size (default: 128)', dest='batch_size')
     
@@ -52,7 +52,7 @@ def init_parser():
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit', 'pit', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
+    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit','g-vit2', 'pit', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
@@ -202,21 +202,40 @@ def main(args):
         from models.vit_pytorch.git import GiT        
         dim_head = args.channel // args.heads
         model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+    
+    elif args.model == 'g-vit2':
+        from models.vit_pytorch.git_2 import GiT        
+        dim_head = args.channel // args.heads
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
         if img_size == 32:
-            patch_size = 4
-        elif img_size > 32:
             patch_size = 8
+        elif img_size > 32:
+            patch_size = 16
         dim_head = args.channel // args.heads
         if args.channel == 144:
-            args.channel = 64
+            args.channel = 128
         else:
-            args.channel = 96
-        args.heads = (2, 4, 8)
-        args.depth = (2, 6, 4)
+            args.channel = 256
+        args.heads = (8, 16)
+        args.depth = (5, 4)
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+    # elif args.model == 'pit':
+    #     from models.vit_pytorch.pit import PiT
+    #     if img_size == 32:
+    #         patch_size = 4
+    #     elif img_size > 32:
+    #         patch_size = 8
+    #     dim_head = args.channel // args.heads
+    #     if args.channel == 144:
+    #         args.channel = 64
+    #     else:
+    #         args.channel = 96
+    #     args.heads = (2, 4, 8)
+    #     args.depth = (2, 6, 4)
+    #     model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model =='t2t-vit':
         from models.vit_pytorch.t2t import T2TViT

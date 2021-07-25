@@ -122,22 +122,19 @@ class Transformer(nn.Module):
 # pooling layer
 
 class Pool(nn.Module):
-    def __init__(self, dim, num_patches):
+    def __init__(self, dim):
         super().__init__()
-        
-        
-        self.cls_ff = nn.Linear(dim, dim * 2)
-        self._init_weights(self.cls_ff)
-        
-        self.patch_shifting = Patch_shifting(dim*5,dim)
-        
-        self.unfold = Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = 2, p2 = 2)
-        
-        self.tokens_ff = nn.Linear(dim*4, dim*2, bias=False)
-        self._init_weights(self.tokens_ff)
+                
 
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim*2))
+        self.token_pool = nn.Sequential(
+            Rearrange('b (h w) d -> b d h w'),
+            nn.MaxPool2d(2, 2),
+            Rearrange('b d h w -> b (h w) d')
+        )        
         
+        self.expansion = nn.Linear(dim, dim*2)
+        self._init_weights(self.expansion)
+                 
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
@@ -146,13 +143,11 @@ class Pool(nn.Module):
     def forward(self, x):
         cls_token, tokens = x[:, :1], x[:, 1:]
 
-        cls_token = self.cls_ff(cls_token)
-        tokens = rearrange(tokens, 'b (h w) c -> b c h w', h = int(sqrt(tokens.shape[1])))
-        tokens_shift_cat = self.patch_shifting(tokens)
-        tokens = self.unfold(tokens_shift_cat)
-        tokens = self.tokens_ff(tokens)
+        tokens = self.token_pool(tokens)
 
-        return torch.cat((cls_token, tokens), dim = 1) + self.pos_embedding
+        out = torch.cat((cls_token, tokens), dim = 1)
+
+        return  self.expansion(out)
 
 # main class
 
@@ -174,7 +169,7 @@ class SPiT(nn.Module):
         self.linear_to_path = nn.Linear(patch_dim, dim)
         self._init_weights(self.linear_to_path)
         self.to_patch_embedding = nn.Sequential(
-            Patch_shifting(),
+            PatchShifting(),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
             self.linear_to_path
         )
@@ -194,7 +189,7 @@ class SPiT(nn.Module):
 
             if not_last:
                 num_patches = num_patches // 4
-                layers.append(Pool(dim, num_patches))
+                layers.append(Pool(dim))
                 dim *= 2
                 
 
@@ -228,27 +223,34 @@ class SPiT(nn.Module):
         return self.mlp_head(x[:, 0])
     
 
-class Patch_shifting(nn.Module):
-    def __init__(self, dim_in=15, dim_out=3):
+class PatchShifting(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.linear_to_patch = nn.Conv2d(dim_in, dim_out, 1)
-        self._init_weights(self.linear_to_patch)   
-        
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)       
+
 
     def forward(self, x):
+        # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
+        # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
+        # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
+        # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
+        
+        # print(x_l.shape)
+        # print(x_r.shape)
+        # print(x_t.shape)
+        # print(x_b.shape)
         
         x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+        
+        x_pad = x_pad.mean(dim=1, keepdim = True)
         
         x_l = x_pad[:, :, 1:-1, :-2]
         x_r = x_pad[:, :, 1:-1, 2:]
         x_t = x_pad[:, :, :-2, 1:-1]
         x_b = x_pad[:, :, 2:, 1:-1]
         
+               
         x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
         
-        return self.linear_to_patch(x_cat)
         
+        return x_cat
+    
