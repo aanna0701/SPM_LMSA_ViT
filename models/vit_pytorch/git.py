@@ -72,7 +72,7 @@ class G_Attention(nn.Module):
         # self.g_block = G_Block(dim, inner_dim, heads, dropout)
         # self.g_block = G_Block(dim, num_patches)
         self.mask = torch.eye(num_patches+1, num_patches+1)
-        self.mask = (self.mask == 1).nonzero()
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
         self.value = 0
         self.entropy = HLoss()
@@ -196,26 +196,25 @@ class GiT(nn.Module):
         num_patches = (image_height // patch_height) * (image_width // patch_width)
         # patch_dim = channels * patch_height * patch_width
         # patch_dim = (channels)*5 * patch_height * patch_width
-        patch_dim = (channels+4) * patch_height * patch_width
+        patch_dim = (channels+8) * patch_height * patch_width
 
 
-        self.linear_to_path = nn.Linear(patch_dim, dim)
-        # self.linear_to_path = nn.Conv2d(3*5, dim, 4, 4)
+        # self.linear_to_path = nn.Linear(patch_dim, dim)
+        self.linear_to_path = nn.Conv2d(3, dim, 16, 8, 4)
         self._init_weights(self.linear_to_path)
         
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         
+        self.to_patch_embedding = nn.Sequential(
+            self.linear_to_path,
+            Rearrange('b c h w -> b (h w) c')
+        )
+        
         # self.to_patch_embedding = nn.Sequential(
         #     PatchShifting(),
-        #     self.linear_to_path,
-        #     Rearrange('b c h w -> b (h w) c')
+        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+        #     self.linear_to_path
         # )
-        
-        self.to_patch_embedding = nn.Sequential(
-            PatchShifting(),
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            self.linear_to_path
-        )
     
         # self.to_patch_embedding = nn.Sequential(
         #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
@@ -302,7 +301,6 @@ class GiT(nn.Module):
         
 #         return x_cat
     
-    
 class PatchShifting(nn.Module):
     def __init__(self):
         super().__init__()
@@ -319,19 +317,55 @@ class PatchShifting(nn.Module):
         # print(x_t.shape)
         # print(x_b.shape)
         
-        x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+        x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
         
         x_pad = x_pad.mean(dim=1, keepdim = True)
-        # x_pad = x_pad
         
-        x_l = x_pad[:, :, 1:-1, :-2]
-        x_r = x_pad[:, :, 1:-1, 2:]
-        x_t = x_pad[:, :, :-2, 1:-1]
-        x_b = x_pad[:, :, 2:, 1:-1]
+        x_l2 = x_pad[:, :, 2:-2, :-4]
+        x_r2 = x_pad[:, :, 2:-2, 4:]
+        x_t2 = x_pad[:, :, :-4, 2:-2]
+        x_b2 = x_pad[:, :, 4:, 2:-2]
+        x_lt = x_pad[:, :, :-4, :-4]
+        x_rt = x_pad[:, :, :-4, 4:]
+        x_lb = x_pad[:, :, 4:, :-4]
+        x_rb = x_pad[:, :, 4:, 4:]
         
                
-        x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lt, x_rt, x_lb, x_rb], dim=1)
         
         
         return x_cat
+    
+    
+# class PatchShifting(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+
+
+#     def forward(self, x):
+#         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
+#         # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
+#         # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
+#         # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
+        
+#         # print(x_l.shape)
+#         # print(x_r.shape)
+#         # print(x_t.shape)
+#         # print(x_b.shape)
+        
+#         x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+        
+#         x_pad = x_pad.mean(dim=1, keepdim = True)
+#         # x_pad = x_pad
+        
+#         x_l = x_pad[:, :, 1:-1, :-2]
+#         x_r = x_pad[:, :, 1:-1, 2:]
+#         x_t = x_pad[:, :, :-2, 1:-1]
+#         x_b = x_pad[:, :, 2:, 1:-1]
+        
+               
+#         x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
+        
+        
+#         return x_cat
     

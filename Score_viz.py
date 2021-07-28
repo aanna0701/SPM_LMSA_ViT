@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from colorama import Fore, Style
 import os
-from visualization.ViT_T_M.model import Model
+from visualization.ViT.model import Model
 import glob
 from random import sample
 from PIL import Image
@@ -37,7 +37,7 @@ def main(args, save_path):
     '''
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
-    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_T_M', 'best.pth')))
+    model.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
     
     
     img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)     
@@ -65,7 +65,7 @@ def main(args, save_path):
     for i in range(len(scores)):
         
         layer_viz = scores[i][0, :, :, :].sum(dim=0)
-        layer_viz = scailing(layer_viz)
+        # layer_viz = scailing(layer_viz)
         layer_viz = layer_viz.data
         # for j, filter in enumerate(layer_viz):
         #     ax = axs.flat[j]
