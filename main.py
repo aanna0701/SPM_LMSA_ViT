@@ -208,34 +208,35 @@ def main(args):
         dim_head = args.channel // args.heads
         model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
-    elif args.model == 'pit':
-        from models.vit_pytorch.pit import PiT
-        if img_size == 32:
-            patch_size = 8
-        elif img_size > 32:
-            patch_size = 16
-        dim_head = args.channel // args.heads
-        if args.channel == 144:
-            args.channel = 128
-        else:
-            args.channel = 256
-        args.heads = (8, 16)
-        args.depth = (5, 4)
-        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     # elif args.model == 'pit':
     #     from models.vit_pytorch.pit import PiT
     #     if img_size == 32:
-    #         patch_size = 4
-    #     elif img_size > 32:
     #         patch_size = 8
+    #     elif img_size > 32:
+    #         patch_size = 16
     #     dim_head = args.channel // args.heads
     #     if args.channel == 144:
-    #         args.channel = 64
+    #         args.channel = 128
     #     else:
-    #         args.channel = 96
-    #     args.heads = (2, 4, 8)
-    #     args.depth = (2, 6, 4)
+    #         args.channel = 256
+    #     args.heads = (8, 16)
+    #     args.depth = (5, 4)
     #     model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+    
+    elif args.model == 'pit':
+        from models.vit_pytorch.pit import PiT
+        if img_size == 32:
+            patch_size = 2
+        elif img_size > 32:
+            patch_size = 4
+        dim_head = args.channel // args.heads
+        if args.channel == 144:
+            args.channel = 64
+        else:
+            args.channel = 96
+        args.heads = (2, 4, 8)
+        args.depth = (2, 6, 4)
+        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model =='t2t-vit':
         from models.vit_pytorch.t2t import T2TViT

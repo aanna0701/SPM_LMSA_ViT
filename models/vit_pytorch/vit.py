@@ -3,7 +3,6 @@ from torch import nn, einsum
 from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-
 from utils.relative_norm_residuals import compute_relative_norm_residuals
 
 # helpers

@@ -3,6 +3,7 @@ from torch import nn, einsum
 from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+import torchvision.transforms as transforms
 import math
 # from utils.positional_encoding import positionalencoding2d
 
@@ -196,25 +197,25 @@ class GiT(nn.Module):
         num_patches = (image_height // patch_height) * (image_width // patch_width)
         # patch_dim = channels * patch_height * patch_width
         # patch_dim = (channels)*5 * patch_height * patch_width
-        patch_dim = (channels+8) * patch_height * patch_width
+        patch_dim = (channels+4) * patch_height * patch_width
 
 
-        # self.linear_to_path = nn.Linear(patch_dim, dim)
-        self.linear_to_path = nn.Conv2d(3, dim, 16, 8, 4)
+        self.linear_to_path = nn.Linear(patch_dim, dim)
+        # self.linear_to_path = nn.Conv2d(3, dim, 16, 8, 4)
         self._init_weights(self.linear_to_path)
         
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         
-        self.to_patch_embedding = nn.Sequential(
-            self.linear_to_path,
-            Rearrange('b c h w -> b (h w) c')
-        )
-        
         # self.to_patch_embedding = nn.Sequential(
-        #     PatchShifting(),
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-        #     self.linear_to_path
+        #     self.linear_to_path,
+        #     Rearrange('b c h w -> b (h w) c')
         # )
+        
+        self.to_patch_embedding = nn.Sequential(
+            PatchShifting(),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            self.linear_to_path
+        )
     
         # self.to_patch_embedding = nn.Sequential(
         #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
@@ -317,21 +318,17 @@ class PatchShifting(nn.Module):
         # print(x_t.shape)
         # print(x_b.shape)
         
-        x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
+        x_pad = torch.nn.functional.pad(x, (4, 4, 4, 4))
         
-        x_pad = x_pad.mean(dim=1, keepdim = True)
+        # x_pad = x_pad.mean(dim=1, keepdim = True)
+        x_pad = transforms.Grayscale()(x_pad)
         
-        x_l2 = x_pad[:, :, 2:-2, :-4]
-        x_r2 = x_pad[:, :, 2:-2, 4:]
-        x_t2 = x_pad[:, :, :-4, 2:-2]
-        x_b2 = x_pad[:, :, 4:, 2:-2]
-        x_lt = x_pad[:, :, :-4, :-4]
-        x_rt = x_pad[:, :, :-4, 4:]
-        x_lb = x_pad[:, :, 4:, :-4]
-        x_rb = x_pad[:, :, 4:, 4:]
-        
+        x_l2 = x_pad[:, :, 4:-4, :-8]
+        x_r2 = x_pad[:, :, 4:-4, 8:]
+        x_t2 = x_pad[:, :, :-8, 4:-4]
+        x_b2 = x_pad[:, :, 8:, 4:-4]
                
-        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lt, x_rt, x_lb, x_rb], dim=1)
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         
         
         return x_cat

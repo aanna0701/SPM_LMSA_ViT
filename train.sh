@@ -9,7 +9,9 @@
 
 for s in 3 4 5
 do
-	python main.py --depth 9 --heads 12 --channel 192 --lr 0.003 --gpu 1 --model g-vit2 --tag Conv_8_4_2__4_2_1 --seed ${s} --dataset T-IMNET --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+	python main.py --depth 9 --heads 12 --channel 192 --lr 0.003 --gpu 1 --model pit --tag SP_T_M --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+	python main.py --depth 9 --heads 12 --channel 144 --lr 0.003 --gpu 1 --model pit --tag SP_T_M --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
+#
 #	python main.py --depth 9 --heads 12 --channel 192 --lr 0.003 --gpu 1 --model g-vit --tag vit_sigmoid_masking --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
 #	python main.py --depth 12 --heads 12 --channel 192 --lr 0.001 --gpu 0 --model vit --tag h-12_c-192_fixed --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25
 #	python main.py --depth 9 --heads 3 --channel 192 --lr 0.001 --gpu 0 --model cvt --tag test --seed ${s} --dataset CIFAR100 --ls --aa --mu --sd 0.1 --ra 3 --cm --re 0.25

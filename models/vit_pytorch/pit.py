@@ -181,17 +181,18 @@ class PiT(nn.Module):
         assert isinstance(depth, tuple), 'depth must be a tuple of integers, specifying the number of blocks before each downsizing'
         heads = cast_tuple(heads, len(depth))
 
-        patch_dim = 3 * patch_size ** 2
+        patch_dim = (3+4) * patch_size ** 2
 
         self.linear_to_path = nn.Linear(patch_dim, dim)
         self._init_weights(self.linear_to_path)
         self.to_patch_embedding = nn.Sequential(
-            nn.Unfold(kernel_size = patch_size, stride = patch_size // 2),
-            Rearrange('b c n -> b n c'),
+            PatchShifting(),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
             self.linear_to_path
         )
 
-        output_size = conv_output_size(img_size, patch_size, patch_size // 2)
+        # output_size = conv_output_size(img_size, patch_size, patch_size // 2)
+        output_size = img_size // patch_size
         num_patches = output_size ** 2
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -240,3 +241,35 @@ class PiT(nn.Module):
         x = self.layers(x)
 
         return self.mlp_head(x[:, 0])
+
+class PatchShifting(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+
+    def forward(self, x):
+        # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
+        # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
+        # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
+        # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
+        
+        # print(x_l.shape)
+        # print(x_r.shape)
+        # print(x_t.shape)
+        # print(x_b.shape)
+        
+        x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+        
+        x_pad = x_pad.mean(dim=1, keepdim = True)
+        # x_pad = transforms.Grayscale()(x_pad)
+        
+        x_l2 = x_pad[:, :, 1:-1, :-2]
+        x_r2 = x_pad[:, :, 1:-1, 2:]
+        x_t2 = x_pad[:, :, :-2, 1:-1]
+        x_b2 = x_pad[:, :, 2:, 1:-1]
+               
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        
+        
+        return x_cat
+    

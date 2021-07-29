@@ -10,7 +10,7 @@ import math
 from colorama import Fore, Style
 import os
 # from visualization.RES110.model import resnet110 as Model
-from visualization.ViT_PE.model import Model
+from visualization.ViT.model import Model
 # from visualization.ViT_Masking.model import Model
 from PIL import Image
 from einops import rearrange
@@ -23,70 +23,6 @@ def init_parser():
     parser.add_argument('--data_path', default='./dataset/cifar100_img', type=str)
 
     return parser
-# class GaussianSmoothing(nn.Module):
-#     """
-#     Apply gaussian smoothing on a
-#     1d, 2d or 3d tensor. Filtering is performed seperately for each channel
-#     in the input using a depthwise convolution.
-#     Arguments:
-#         channels (int, sequence): Number of channels of the input tensors. Output will
-#             have this number of channels as well.
-#         kernel_size (int, sequence): Size of the gaussian kernel.
-#         sigma (float, sequence): Standard deviation of the gaussian kernel.
-#         dim (int, optional): The number of dimensions of the data.
-#             Default value is 2 (spatial).
-#     """
-#     def __init__(self, channels, kernel_size, sigma, dim=2):
-#         super(GaussianSmoothing, self).__init__()
-#         if isinstance(kernel_size, numbers.Number):
-#             kernel_size = [kernel_size] * dim
-#         if isinstance(sigma, numbers.Number):
-#             sigma = [sigma] * dim
-
-#         # The gaussian kernel is the product of the
-#         # gaussian function of each dimension.
-#         kernel = 1
-#         meshgrids = torch.meshgrid(
-#             [
-#                 torch.arange(size, dtype=torch.float32)
-#                 for size in kernel_size
-#             ]
-#         )
-#         for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
-#             mean = (size - 1) / 2
-#             kernel *= 1 / (std * math.sqrt(2 * math.pi)) * \
-#                       torch.exp(-((mgrid - mean) / std) ** 2 / 2)
-
-#         # Make sure sum of values in gaussian kernel equals 1.
-#         kernel = kernel / torch.sum(kernel)
-
-#         # Reshape to depthwise convolutional weight
-#         kernel = kernel.view(1, 1, *kernel.size())
-#         kernel = kernel.repeat(channels, *[1] * (kernel.dim() - 1))
-
-#         self.register_buffer('weight', kernel)
-#         self.groups = channels
-
-#         if dim == 1:
-#             self.conv = F.conv1d
-#         elif dim == 2:
-#             self.conv = F.conv2d
-#         elif dim == 3:
-#             self.conv = F.conv3d
-#         else:
-#             raise RuntimeError(
-#                 'Only 1, 2 and 3 dimensions are supported. Received {}.'.format(dim)
-#             )
-
-#     def forward(self, input):
-#         """
-#         Apply gaussian filter to input.
-#         Arguments:
-#             input (torch.Tensor): Input to apply gaussian filter on.
-#         Returns:
-#             filtered (torch.Tensor): Filtered output.
-#         """
-#         return self.conv(input, weight=self.weight, groups=self.groups)
 
 def main(args, save_path):
   
@@ -103,7 +39,7 @@ def main(args, save_path):
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
     # model.load_state_dict(torch.load(os.path.join('./visualization/ViT_Masking', 'best.pth')))
-    model.load_state_dict(torch.load(os.path.join('./visualization/ViT_PE', 'best.pth')))
+    model.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
     # model.load_state_dict(torch.load(os.path.join('./visualization/RES110', 'best.pth')))
     
     
@@ -142,6 +78,7 @@ def main(args, save_path):
         for key in features:
             
             feauturemap = features[key]
+            feauturemap = scailing(feauturemap)
             feauturemap = rearrange(feauturemap, 'b (h w) -> b h w', h=int(math.sqrt(feauturemap.size(-1))))
             feauturemap = transforms.Resize(32)(feauturemap)
             feauturemap = feauturemap.squeeze(dim=0)
@@ -158,7 +95,7 @@ def main(args, save_path):
                 
           
                 ax2 = plt.subplot(1, 2, 2)
-                ax2.imshow(feauturemap, cmap='rainbow', vmin=0, vmax=1)
+                ax2.imshow(feauturemap, cmap='coolwarm', vmin=0, vmax=1)
                 ax2.set_title(f'Patch embedding', fontsize=8, pad=5)
                 ax2.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
                 
@@ -170,11 +107,17 @@ def main(args, save_path):
             plt.rcParams["figure.figsize"] = (20,4)
                        
             ax = plt.subplot(2, 5, int(key)+2) if not key == 'patch_embedding' else plt.subplot(2, 5, 1)
-            ax.imshow(feauturemap, cmap='rainbow', vmin=0, vmax=1)
+            ax.imshow(feauturemap, cmap='coolwarm', vmin=0, vmax=1)
             ax.set_title(title, fontsize=8, pad=5)
             ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
                 
             plt.savefig(os.path.join(save_path, f'{i}_Featuremaps.png'), format='png', dpi=400)
+
+def scailing(x):
+    x_min, _ = x.min(dim=-1, keepdim = True)
+    x_max, _ = x.max(dim=-1, keepdim = True)
+    out = torch.div(x - x_min, x_max - x_min)
+    return out
 
 
 def inference(img, model, args):
