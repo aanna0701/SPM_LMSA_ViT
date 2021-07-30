@@ -105,7 +105,7 @@ class Attention(nn.Module):
             self.cls_l2 = self.l2(attn[:, :, 0])
             self.avg_h = self.entropy(attn[:, :, 0])
         
-        # self.value = compute_relative_norm_residuals(v, out)
+        self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
@@ -131,10 +131,11 @@ class Transformer(nn.Module):
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):       
             x = self.drop_path(attn(x)) + x
-            # self.hidden_states[str(i)] = attn.fn.value
-            self.h = attn.fn.avg_h         
-            self.cls_l2 = attn.fn.cls_l2        
+            self.hidden_states[str(i)] = attn.fn.value
+            # self.h = attn.fn.avg_h         
+            # self.cls_l2 = attn.fn.cls_l2        
             x = self.drop_path(ff(x)) + x
+            
             self.scale[str(i)] = attn.fn.scale
         return x
 

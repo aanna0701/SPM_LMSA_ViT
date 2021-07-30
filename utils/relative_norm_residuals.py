@@ -2,8 +2,6 @@ import torch
 # import jax.numpy as jnp
 # import jax
 # import functools
-import numpy as np
-from torch import einsum
 
 
 
@@ -14,7 +12,8 @@ def linf_matrix_norm(x):
     return l1_matrix_norm(x.transpose(-2, -1))
 
 def composite_norm(x):
-    return torch.sqrt(l1_matrix_norm(x) * linf_matrix_norm(x))
+    # return torch.sqrt(l1_matrix_norm(x) * linf_matrix_norm(x))
+    return l1_matrix_norm(x)
 
 def compute_residuals(inputs, hidden_states):
     # low = hidden_states.mean(-2, keepdim= True)

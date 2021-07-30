@@ -208,9 +208,10 @@ class PiT(nn.Module):
             layers.append(Transformer(dim, output_size, layer_depth, layer_heads, dim_head, dim*2, dropout, stochastic_depth))
 
             if not_last:
-                layers.append(Pool(dim))
-                dim *= 2
-                output_size = conv_output_size(output_size, 3, 2, 1)
+                if not ind:
+                    layers.append(Pool(dim))
+                    dim *= 2
+                    output_size = conv_output_size(output_size, 3, 2, 1)
                 
 
         self.layers = nn.Sequential(*layers)
@@ -258,15 +259,15 @@ class PatchShifting(nn.Module):
         # print(x_t.shape)
         # print(x_b.shape)
         
-        x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+        x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
         
         x_pad = x_pad.mean(dim=1, keepdim = True)
         # x_pad = transforms.Grayscale()(x_pad)
         
-        x_l2 = x_pad[:, :, 1:-1, :-2]
-        x_r2 = x_pad[:, :, 1:-1, 2:]
-        x_t2 = x_pad[:, :, :-2, 1:-1]
-        x_b2 = x_pad[:, :, 2:, 1:-1]
+        x_l2 = x_pad[:, :, 2:-2, :-4]
+        x_r2 = x_pad[:, :, 2:-2, 4:]
+        x_t2 = x_pad[:, :, :-4, 2:-2]
+        x_b2 = x_pad[:, :, 4:, 2:-2]
                
         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         

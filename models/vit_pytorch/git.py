@@ -320,8 +320,8 @@ class PatchShifting(nn.Module):
         
         x_pad = torch.nn.functional.pad(x, (4, 4, 4, 4))
         
-        # x_pad = x_pad.mean(dim=1, keepdim = True)
-        x_pad = transforms.Grayscale()(x_pad)
+        x_pad = x_pad.mean(dim=1, keepdim = True)
+        # x_pad = transforms.Grayscale()
         
         x_l2 = x_pad[:, :, 4:-4, :-8]
         x_r2 = x_pad[:, :, 4:-4, 8:]
