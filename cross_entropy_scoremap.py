@@ -105,7 +105,7 @@ def main(args, save_path):
 
 
     '''
-        ViT_T
+        ViT-T
     '''
         
     from visualization.ViT_T.model import Model
@@ -115,13 +115,13 @@ def main(args, save_path):
     
     values = inference(val_loader, model)
 
-    name = 'ViT_T'
+    name = 'ViT-T'
     plot_vlaues(values, name, i, colors[i])
     i+=1
     avg[name] = compute_avg(values)
 
     '''
-        ViT_M
+        ViT-M
     '''
         
     from visualization.ViT_M.model import Model
@@ -131,13 +131,13 @@ def main(args, save_path):
     
     values = inference(val_loader, model)
 
-    name = 'ViT_M'
+    name = 'ViT-M'
     plot_vlaues(values, name, i, colors[i])
     i+=1   
     avg[name] = compute_avg(values)
         
     '''
-        ViT_T_M
+        ViT-T-M
     '''
         
     from visualization.ViT_T_M.model import Model
@@ -147,16 +147,16 @@ def main(args, save_path):
     
     values = inference(val_loader, model)
 
-    name = 'ViT_T_M'
+    name = 'ViT-T-M'
     plot_vlaues(values, name, i, colors[i])
     i+=1
     avg[name] = compute_avg(values)
     
-    plt.legend(loc='upper center', fontsize='x-large', ncol=4)
+    plt.legend(loc='upper center', fontsize='xx-large', ncol=4)
     plt.ylim([0.065, 0.11])    
     plt.tick_params(axis='both', which='major', labelsize=13)
     plt.locator_params(axis="y", nbins=5)
-    plt.grid(True)
+    plt.grid(axis='y')
     
     plt.savefig(os.path.join(save_path, 'CrossEntropyOfScoreMap.png'))
     plt.clf()
@@ -166,10 +166,12 @@ def main(args, save_path):
     x, y = zip(*avgList)
     
     plt.bar(x, y, color=colors, width=0.35, zorder=3)
+    for index, value in enumerate(y):
+        plt.text(index, value+0.0005, f'{value:.4f}', fontsize='x-large', ha='center')
     plt.ylim([0.065, 0.085])
     plt.tick_params(axis='both', which='major', labelsize=13)
     plt.locator_params(axis="y", nbins=5)
-    plt.grid(True)
+    plt.grid(axis='y')
     
     plt.savefig(os.path.join(save_path, 'AVG_CrossEntropyOfScoreMap.png'))
     

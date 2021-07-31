@@ -52,7 +52,7 @@ def cutmix_data(x, y, args):
     # adjust lambda to exactly match pixel ratio
     lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (x.size()[-1] * x.size()[-2]))
     
-    return [bbx1, bby1, bbx2, bby2 ], y_a, y_b, lam,
+    return [bbx1, bby1, bbx2, bby2 ], y_a, y_b, lam, x_sliced
 
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)

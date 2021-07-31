@@ -208,10 +208,9 @@ class PiT(nn.Module):
             layers.append(Transformer(dim, output_size, layer_depth, layer_heads, dim_head, dim*2, dropout, stochastic_depth))
 
             if not_last:
-                if not ind:
-                    layers.append(Pool(dim))
-                    dim *= 2
-                    output_size = conv_output_size(output_size, 3, 2, 1)
+                layers.append(Pool(dim))
+                dim *= 2
+                output_size = conv_output_size(output_size, 3, 2, 1)
                 
 
         self.layers = nn.Sequential(*layers)

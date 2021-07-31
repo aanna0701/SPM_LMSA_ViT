@@ -235,7 +235,7 @@ def main(args):
         else:
             args.channel = 192
         args.heads = (4, 8)
-        args.depth = (6, 4)
+        args.depth = (8, 4)
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model =='t2t-vit':
@@ -548,8 +548,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             if r < args.mix_prob:
                 mix = 'cutmix'
                 mix_paramter = args.beta        
-                slicing_idx, y_a, y_b, lam = cutmix_data(images, target, args)
-                images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]]
+                slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
+                images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                 output = model(images)
                 loss = mixup_criterion(criterion, output, y_a, y_b, lam)                
             else:
@@ -583,8 +583,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if switching_prob < 0.5:
                     mix = 'cutmix'
                     mix_paramter = args.beta
-                    slicing_idx, y_a, y_b, lam = cutmix_data(images, target, args)
-                    images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]]
+                    slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
+                    images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                     output = model(images)
                     loss = mixup_criterion(criterion, output, y_a, y_b, lam)         
                 
