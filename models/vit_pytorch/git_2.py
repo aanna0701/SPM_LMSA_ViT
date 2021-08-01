@@ -200,19 +200,13 @@ class GiT(nn.Module):
 
 
         # self.linear_to_path = nn.Linear(patch_dim, dim)
-        self.linear_to_path1 = nn.Conv2d(3, dim, 3, 2, 1)
+        self.linear_to_path1 = nn.Conv2d(3, dim, 7, 4, 2)
         self._init_weights(self.linear_to_path1)
-        self.linear_to_path2 = nn.Conv2d(dim, dim, 3, 2, 1)
-        self._init_weights(self.linear_to_path2)
-        self.linear_to_path3 = nn.Conv2d(dim, dim, 3, 2, 1)
-        self._init_weights(self.linear_to_path3)
         
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         
         self.to_patch_embedding = nn.Sequential(
             self.linear_to_path1,
-            self.linear_to_path2,
-            self.linear_to_path3,
             Rearrange('b c h w -> b (h w) c')
         )
         
