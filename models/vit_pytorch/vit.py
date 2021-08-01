@@ -68,7 +68,7 @@ class Attention(nn.Module):
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
         self.mask = torch.eye(num_patches+1, num_patches+1)
-        self.mask = (self.mask == 1).nonzero()
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
         
         self.value = 0
