@@ -231,11 +231,11 @@ def main(args):
             patch_size = 8
         dim_head = args.channel // args.heads
         if args.channel == 144:
-            args.channel = 128
+            args.channel = 64
         else:
-            args.channel = 192
-        args.heads = (4, 8)
-        args.depth = (8, 4)
+            args.channel = 96
+        args.heads = (2, 4, 8)
+        args.depth = (2, 6, 4)
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model =='t2t-vit':
