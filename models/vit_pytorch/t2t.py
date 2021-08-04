@@ -151,7 +151,7 @@ class T2TViT(nn.Module):
                 RearrangeImage() if not is_first else nn.Identity(),
                 nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
                 Rearrange('b c n -> b n c'),
-                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = layer_dim, mlp_dim = layer_dim, dropout = dropout),
+                Transformer(dim = layer_dim, num_patches, heads = 1, depth = 1, dim_head = layer_dim, mlp_dim = layer_dim, dropout = dropout),
             ])
             
         num_patches = output_image_size ** 2
@@ -165,7 +165,7 @@ class T2TViT(nn.Module):
 
         if not exists(transformer):
             assert all([exists(depth), exists(heads), exists(mlp_dim)]), 'depth, heads, and mlp_dim must be supplied'
-            self.transformer = Transformer(dim, num_patches=num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth=stochastic_depth)
+            self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth=stochastic_depth)
         else:
             self.transformer = transformer
 
