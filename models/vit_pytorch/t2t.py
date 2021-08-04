@@ -115,7 +115,6 @@ class Transformer(nn.Module):
         for i, (attn, ff) in enumerate(self.layers):       
             x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
-            self.scale[str(i)] = attn.fn.scale
         return x
 
 def exists(val):
