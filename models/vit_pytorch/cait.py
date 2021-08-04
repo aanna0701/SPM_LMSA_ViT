@@ -144,7 +144,7 @@ class CaiT(nn.Module):
     ):
         super().__init__()
         assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
-        num_patches = (image_size // patch_size) ** 2
+        num_patches = (img_size // patch_size) ** 2
         patch_dim = 3 * patch_size ** 2
 
         self.to_patch_embedding = nn.Sequential(
