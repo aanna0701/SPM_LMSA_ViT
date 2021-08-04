@@ -229,7 +229,11 @@ def main(args):
 
     elif args.model =='t2t-vit':
         from models.vit_pytorch.t2t import T2TViT
-        model = T2TViT(image_size=img_size, num_classes=n_classes, stochastic_depth=args.sd)
+        if img_size == 32:
+            t2t_layers = ((3, 2), (3, 2))
+        elif img_size > 32:
+            t2t_layers = ((7, 4), (7, 4))
+        model = T2TViT(image_size=img_size, t2t_layers = t2t_layers, num_classes=n_classes, stochastic_depth=args.sd)
         
 
     elif args.model =='cvt':
