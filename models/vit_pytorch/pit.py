@@ -190,12 +190,12 @@ class PiT(nn.Module):
         # )
 
 
-        self.conv_embedding = nn.Conv2d(3, dim, patch_size, patch_size//2)
+        self.conv_embedding = nn.Conv2d(3, dim, patch_size*2, patch_size)
         self._init_weights(self.conv_embedding)
         
-        output_size = conv_output_size(img_size, patch_size, patch_size//2)
+        output_size = conv_output_size(img_size, patch_size*2, patch_size)
         
-        self.conv_embedding = nn.Conv2d(3, dim, patch_size, patch_size//2)
+        self.conv_embedding = nn.Conv2d(3, dim, patch_size*2, patch_size)
         self._init_weights(self.conv_embedding)
         self.to_patch_embedding = nn.Sequential(
             self.conv_embedding,
