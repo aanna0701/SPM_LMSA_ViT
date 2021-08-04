@@ -143,14 +143,14 @@ class T2TViT(nn.Module):
         for i, (kernel_size, stride) in enumerate(t2t_layers):
             layer_dim *= kernel_size ** 2
             is_first = i == 0
-            output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
+            output_image_size = conv_output_size(output_image_size, kernel_size, stride, 1)
             num_patches = output_image_size ** 2
             
             layers.extend([
                 RearrangeImage() if not is_first else nn.Identity(),
-                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
+                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = 1),
                 Rearrange('b c n -> b n c'),
-                Transformer(dim = layer_dim, num_patches=num_patches, heads = 4, depth = 1, dim_head = 16, mlp_dim = 64, dropout = dropout),
+                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout),
             ])
             
         num_patches = output_image_size ** 2
