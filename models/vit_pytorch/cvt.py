@@ -208,11 +208,3 @@ class CvT(nn.Module):
 
 def conv_output_size(image_size, kernel_size, stride, padding = 0):
     return int(((image_size - kernel_size + (2 * padding)) / stride) + 1)
-
-class PositionalEmbedding(nn.Module):
-    def __init__(self, num_patches, dim):
-        super().__init__()
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
-        
-    def forward(self, x):
-        return x + self.pos_embedding

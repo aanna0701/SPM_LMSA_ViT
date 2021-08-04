@@ -179,51 +179,18 @@ class PiT(nn.Module):
         super().__init__()
         heads = cast_tuple(heads, len(depth))
 
-        patch_dim = (3+4) 
-
-        # self.linear_to_path = nn.Linear(patch_dim, dim)
-        # self._init_weights(self.linear_to_path)
-        # self.to_patch_embedding = nn.Sequential(
-        #     PatchShifting(patch_size),
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-        #     self.linear_to_path
-        # )
-
 
         self.conv_embedding = nn.Conv2d(patch_dim, dim, patch_size, round(patch_size/2))
         self._init_weights(self.conv_embedding)
         
         output_size = conv_output_size(img_size, patch_size, round(patch_size/2))
         
-        # self.linear = nn.Linear(patch_dim*(patch_size)**2, dim)
-        # self._init_weights(self.linear)
-        
-        # output_size = img_size // patch_size
-        
-        
+        self.conv_embedding = nn.Conv2d(3, dim, patch_size, patch_size//2)
+        self._init_weights(self.conv_embedding)
         self.to_patch_embedding = nn.Sequential(
-            PatchShifting(patch_size),
             self.conv_embedding,
             Rearrange('b c h w -> b (h w) c')
         )
-        
-        # self.to_patch_embedding = nn.Sequential(
-        #     PatchShifting(patch_size),
-            
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-        
-        #     self.linear,
-        # )
-
-        
-        # output_size = img_size // patch_size
-        
-        # self.conv_embedding = nn.Conv2d(3, dim, patch_size, patch_size//2)
-        # self._init_weights(self.conv_embedding)
-        # self.to_patch_embedding = nn.Sequential(
-        #     self.conv_embedding,
-        #     Rearrange('b c h w -> b (h w) c')
-        # )
         
         num_patches = output_size ** 2
 
@@ -273,34 +240,3 @@ class PiT(nn.Module):
         x = self.layers(x)
 
         return self.mlp_head(x[:, 0])
-
-class PatchShifting(nn.Module):
-    def __init__(self, patch_size):
-        super().__init__()
-        self.shift = round(patch_size/2)
-
-    def forward(self, x):
-        # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
-        # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
-        # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
-        # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
-        
-        # print(x_l.shape)
-        # print(x_r.shape)
-        # print(x_t.shape)
-        # print(x_b.shape)
-        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
-        
-        x_pad = x_pad.mean(dim=1, keepdim = True)
-        # x_pad = transforms.Grayscale()
-        
-        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-               
-        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
-        
-        
-        return x_cat
-    
