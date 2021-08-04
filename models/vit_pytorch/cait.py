@@ -128,7 +128,7 @@ class CaiT(nn.Module):
     def __init__(
         self,
         *,
-        image_size,
+        img_size,
         patch_size,
         num_classes,
         dim=192,
