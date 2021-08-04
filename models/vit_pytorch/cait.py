@@ -139,7 +139,7 @@ class CaiT(nn.Module):
         dim_head = 64,
         dropout = 0.,
         emb_dropout = 0.,
-        layer_dropout = 0.
+        layer_dropout = 0.,
         stochastic_depth = 0.
     ):
         super().__init__()
