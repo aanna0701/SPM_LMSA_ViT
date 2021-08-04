@@ -123,6 +123,8 @@ class Transformer(nn.Module):
             x = self.drop_path(attn(x, context = context)) + x
             x = self.drop_path(ff(x)) + x
         return x
+    
+from utils.drop_path import DropPath
 
 class CaiT(nn.Module):
     def __init__(
