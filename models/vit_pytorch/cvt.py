@@ -137,8 +137,10 @@ class CvT(nn.Module):
         num_classes,
         img_size=32,
         s1_emb_dim = 64,
-        s1_proj_kernel = 3,
-        s1_kv_proj_stride = 2,
+        s1_emb_kernel = 7,
+        s1_emb_stride = 4,
+        s1_proj_kernel = 7,
+        s1_kv_proj_stride = 4,
         s1_heads = 1,
         s1_depth = 1,
         s1_mlp_mult = 4,
@@ -170,7 +172,7 @@ class CvT(nn.Module):
         
         num_patches = conv_output_size(img_size, patch_size, round(patch_size/2), 0)
         layers.append(nn.Sequential(
-                nn.Conv2d(dim, s1_emb_dim, kernel_size = patch_size, padding = 0, stride = round(patch_size/2)),
+                nn.Conv2d(dim, s1_emb_dim, kernel_size = s1_emb_kernel, padding = 1, stride = s1_emb_stride),
                 LayerNorm(s1_emb_dim),
                 Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout, num_patches=num_patches, stochastic_depth=stochastic_depth)
             ))
