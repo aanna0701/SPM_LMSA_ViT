@@ -52,7 +52,7 @@ def init_parser():
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit','g-vit2', 'pit', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
+    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
@@ -206,23 +206,12 @@ def main(args):
     elif args.model == 'g-vit2':
         from models.vit_pytorch.git_2 import GiT        
         dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
-
-    # elif args.model == 'pit':
-    #     from models.vit_pytorch.pit import PiT
-    #     if img_size == 32:
-    #         patch_size = 8
-    #     elif img_size > 32:
-    #         patch_size = 16
-    #     dim_head = args.channel // args.heads
-    #     if args.channel == 144:
-    #         args.channel = 128
-    #     else:
-    #         args.channel = 256
-    #     args.heads = (8, 16)
-    #     args.depth = (5, 4)
-    #     model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     
+    elif args.model == 'cait':
+        from models.vit_pytorch.cait import CaiT        
+        dim_head = args.channel // args.heads
+        model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
+
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
         if img_size == 32:

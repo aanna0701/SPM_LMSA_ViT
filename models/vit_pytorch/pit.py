@@ -277,7 +277,7 @@ class PiT(nn.Module):
 class PatchShifting(nn.Module):
     def __init__(self, patch_size):
         super().__init__()
-        self.shift = patch_size // 2
+        self.shift = round(patch_size/2)
 
     def forward(self, x):
         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)

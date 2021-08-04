@@ -104,7 +104,7 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.layer_dropout = layer_dropout
@@ -114,12 +114,14 @@ class Transformer(nn.Module):
                 LayerScale(dim, PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)), depth = ind + 1),
                 LayerScale(dim, PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)), depth = ind + 1)
             ]))
+        self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x, context = None):
         layers = dropout_layers(self.layers, dropout = self.layer_dropout)
 
         for attn, ff in layers:
-            x = attn(x, context = context) + x
-            x = ff(x) + x
+            
+            x = self.drop_path(attn(x, context = context)) + x
+            x = self.drop_path(ff(x)) + x
         return x
 
 class CaiT(nn.Module):
@@ -129,15 +131,16 @@ class CaiT(nn.Module):
         image_size,
         patch_size,
         num_classes,
-        dim,
-        depth,
-        cls_depth,
-        heads,
-        mlp_dim,
+        dim=192,
+        depth=24,
+        cls_depth=2,
+        heads=4,
+        mlp_dim=384,
         dim_head = 64,
         dropout = 0.,
         emb_dropout = 0.,
         layer_dropout = 0.
+        stochastic_depth = 0.
     ):
         super().__init__()
         assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
@@ -154,8 +157,8 @@ class CaiT(nn.Module):
 
         self.dropout = nn.Dropout(emb_dropout)
 
-        self.patch_transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, layer_dropout)
-        self.cls_transformer = Transformer(dim, cls_depth, heads, dim_head, mlp_dim, dropout, layer_dropout)
+        self.patch_transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
+        self.cls_transformer = Transformer(dim, cls_depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),

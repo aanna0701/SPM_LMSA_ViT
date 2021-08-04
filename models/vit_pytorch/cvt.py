@@ -112,19 +112,22 @@ class Attention(nn.Module):
         out = rearrange(out, 'b h (x y) d -> b (h d) x y', h = h, y = y)
         return self.to_out(out)
 
+from utils.drop_path import DropPath
 class Transformer(nn.Module):
-    def __init__(self, dim, proj_kernel, kv_proj_stride, depth, heads, num_patches, dim_head = 64, mlp_mult = 4, dropout = 0.):
+    def __init__(self, dim, proj_kernel, kv_proj_stride, depth, heads, num_patches, dim_head = 64, mlp_mult = 4, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
+        self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, proj_kernel = proj_kernel, kv_proj_stride = kv_proj_stride, heads = heads, dim_head = dim_head, dropout = dropout, num_patches=num_patches)),
                 PreNorm(dim, FeedForward(dim, mlp_mult, dropout = dropout))
             ]))
+        self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x) + x
-            x = ff(x) + x
+            x = self.drop_path(attn(x)) + x
+            x = self.drop_path(ff(x)) + x
         return x
 
 class CvT(nn.Module):
@@ -156,7 +159,8 @@ class CvT(nn.Module):
         s3_depth = 10,
         s3_mlp_mult = 4,
         dropout = 0.,
-        patch_size = 3
+        patch_size = 3,
+        stochastic_depth=0.
     ):
         super().__init__()
 
@@ -168,7 +172,7 @@ class CvT(nn.Module):
         layers.append(nn.Sequential(
                 nn.Conv2d(dim, s1_emb_dim, kernel_size = patch_size, padding = 0, stride = round(patch_size/2)),
                 LayerNorm(s1_emb_dim),
-                Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout, num_patches=num_patches)
+                Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout, num_patches=num_patches, stochastic_depth=stochastic_depth)
             ))
         
         dim = s1_emb_dim
@@ -176,7 +180,7 @@ class CvT(nn.Module):
         layers.append(nn.Sequential(
                 nn.Conv2d(dim, s2_emb_dim, kernel_size = s2_emb_kernel, padding = (s2_emb_kernel // 2), stride = s2_emb_stride),
                 LayerNorm(s2_emb_dim),
-                Transformer(dim = s2_emb_dim, proj_kernel = s2_proj_kernel, kv_proj_stride = s2_kv_proj_stride, depth = s2_depth, heads = s2_heads, mlp_mult = s2_mlp_mult, dropout = dropout, num_patches=num_patches)
+                Transformer(dim = s2_emb_dim, proj_kernel = s2_proj_kernel, kv_proj_stride = s2_kv_proj_stride, depth = s2_depth, heads = s2_heads, mlp_mult = s2_mlp_mult, dropout = dropout, num_patches=num_patches, stochastic_depth=stochastic_depth)
             ))
         dim = s2_emb_dim
         
@@ -184,7 +188,7 @@ class CvT(nn.Module):
         layers.append(nn.Sequential(
                 nn.Conv2d(dim, s3_emb_dim, kernel_size = s3_emb_kernel, padding = (s3_emb_kernel // 2), stride = s3_emb_stride),
                 LayerNorm(s3_emb_dim),
-                Transformer(dim = s3_emb_dim, proj_kernel = s3_proj_kernel, kv_proj_stride = s3_kv_proj_stride, depth = s3_depth, heads = s3_heads, mlp_mult = s3_mlp_mult, dropout = dropout, num_patches=num_patches)
+                Transformer(dim = s3_emb_dim, proj_kernel = s3_proj_kernel, kv_proj_stride = s3_kv_proj_stride, depth = s3_depth, heads = s3_heads, mlp_mult = s3_mlp_mult, dropout = dropout, num_patches=num_patches, stochastic_depth=stochastic_depth)
             ))
         dim = s3_emb_dim
 
@@ -202,3 +206,11 @@ class CvT(nn.Module):
 
 def conv_output_size(image_size, kernel_size, stride, padding = 0):
     return int(((image_size - kernel_size + (2 * padding)) / stride) + 1)
+
+class PositionalEmbedding(nn.Module):
+    def __init__(self, num_patches, dim):
+        super().__init__()
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        
+    def forward(self, x):
+        return x + self.pos_embedding
