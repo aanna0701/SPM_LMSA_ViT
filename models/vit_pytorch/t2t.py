@@ -145,13 +145,16 @@ class T2TViT(nn.Module):
             layer_dim *= kernel_size ** 2
             is_first = i == 0
             output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
-
+            num_patches = output_image_size ** 2
+            
             layers.extend([
                 RearrangeImage() if not is_first else nn.Identity(),
                 nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
                 Rearrange('b c n -> b n c'),
-                Transformer(dim = layer_dim, heads = 1, depth = 1, dim_head = layer_dim, mlp_dim = layer_dim, dropout = dropout),
+                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = layer_dim, mlp_dim = layer_dim, dropout = dropout),
             ])
+            
+        num_patches = output_image_size ** 2
 
         layers.append(nn.Linear(layer_dim, dim))
         self.to_patch_embedding = nn.Sequential(*layers)
@@ -162,7 +165,7 @@ class T2TViT(nn.Module):
 
         if not exists(transformer):
             assert all([exists(depth), exists(heads), exists(mlp_dim)]), 'depth, heads, and mlp_dim must be supplied'
-            self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth=stochastic_depth)
+            self.transformer = Transformer(dim, num_patches=num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth=stochastic_depth)
         else:
             self.transformer = transformer
 
