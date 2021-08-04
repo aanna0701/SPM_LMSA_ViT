@@ -143,7 +143,6 @@ class CaiT(nn.Module):
         stochastic_depth = 0.
     ):
         super().__init__()
-        assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
         num_patches = (img_size // patch_size) ** 2
         patch_dim = 3 * patch_size ** 2
 
