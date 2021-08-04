@@ -133,7 +133,7 @@ class RearrangeImage(nn.Module):
 # main class
 
 class T2TViT(nn.Module):
-    def __init__(self, *, image_size, num_classes, dim=256, depth = 8, heads = 4, mlp_dim = 512, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., transformer = None, t2t_layers = ((3, 2), (3, 2))):
+    def __init__(self, *, image_size, num_classes, dim=256, depth = 8, heads = 4, mlp_dim = 512, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., transformer = None, t2t_layers = ((3, 2), (3, 2)), stochastic_depth=0.):
         super().__init__()
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
@@ -162,7 +162,7 @@ class T2TViT(nn.Module):
 
         if not exists(transformer):
             assert all([exists(depth), exists(heads), exists(mlp_dim)]), 'depth, heads, and mlp_dim must be supplied'
-            self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+            self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth=stochastic_depth)
         else:
             self.transformer = transformer
 
