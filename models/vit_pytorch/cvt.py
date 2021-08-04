@@ -73,8 +73,8 @@ class Attention(nn.Module):
         inner_dim = dim_head *  heads
         padding = proj_kernel // 2
         self.heads = heads
-        # self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(torch.rand(heads))
+        self.scale = dim_head ** -0.5
+        # self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
 
@@ -96,11 +96,12 @@ class Attention(nn.Module):
         q, k, v = (self.to_q(x), *self.to_kv(x).chunk(2, dim = 1))
         q, k, v = map(lambda t: rearrange(t, 'b (h d) x y -> b h (x y) d', h = h), (q, k, v))
 
-        # dots = einsum('b i d, b j d -> b i j', q, k) * self.scale
+
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
   
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
@@ -133,8 +134,6 @@ class CvT(nn.Module):
         num_classes,
         img_size=32,
         s1_emb_dim = 64,
-        s1_emb_kernel = 3,
-        s1_emb_stride = 1,
         s1_proj_kernel = 3,
         s1_kv_proj_stride = 2,
         s1_heads = 1,
@@ -156,7 +155,8 @@ class CvT(nn.Module):
         s3_heads = 6,
         s3_depth = 10,
         s3_mlp_mult = 4,
-        dropout = 0.
+        dropout = 0.,
+        patch_size = 3
     ):
         super().__init__()
 
@@ -164,9 +164,9 @@ class CvT(nn.Module):
         layers = []
 
         
-        num_patches = conv_output_size(img_size, s1_emb_kernel, s1_emb_stride, 1)
+        num_patches = conv_output_size(img_size, patch_size, round(patch_size/2), 0)
         layers.append(nn.Sequential(
-                nn.Conv2d(dim, s1_emb_dim, kernel_size = s1_emb_kernel, padding = 1, stride = s1_emb_stride),
+                nn.Conv2d(dim, s1_emb_dim, kernel_size = patch_size, padding = 0, stride = round(patch_size/2)),
                 LayerNorm(s1_emb_dim),
                 Transformer(dim = s1_emb_dim, proj_kernel = s1_proj_kernel, kv_proj_stride = s1_kv_proj_stride, depth = s1_depth, heads = s1_heads, mlp_mult = s1_mlp_mult, dropout = dropout, num_patches=num_patches)
             ))

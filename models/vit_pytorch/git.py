@@ -92,7 +92,7 @@ class G_Attention(nn.Module):
         # channel_agg = self.g_block(v)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        # scale = self.scale
+        # #scale = self.scale
         # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
     
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
@@ -212,7 +212,7 @@ class GiT(nn.Module):
         # )
         
         self.to_patch_embedding = nn.Sequential(
-            PatchShifting(),
+            PatchShifting(patch_size),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             self.linear_to_path
         )
@@ -303,9 +303,9 @@ class GiT(nn.Module):
 #         return x_cat
     
 class PatchShifting(nn.Module):
-    def __init__(self):
+    def __init__(self, patch_size):
         super().__init__()
-
+        self.shift = patch_size // 2
 
     def forward(self, x):
         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
@@ -317,16 +317,15 @@ class PatchShifting(nn.Module):
         # print(x_r.shape)
         # print(x_t.shape)
         # print(x_b.shape)
-        
-        x_pad = torch.nn.functional.pad(x, (4, 4, 4, 4))
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
         x_pad = x_pad.mean(dim=1, keepdim = True)
         # x_pad = transforms.Grayscale()
         
-        x_l2 = x_pad[:, :, 4:-4, :-8]
-        x_r2 = x_pad[:, :, 4:-4, 8:]
-        x_t2 = x_pad[:, :, :-8, 4:-4]
-        x_b2 = x_pad[:, :, 8:, 4:-4]
+        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
                
         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         

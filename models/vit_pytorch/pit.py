@@ -56,9 +56,9 @@ class Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        # self.scale = dim_head ** -0.5
         
-        # self.scale = nn.Parameter(torch.rand(heads))
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -87,11 +87,11 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         attn = self.attend(dots)
 
@@ -177,30 +177,53 @@ def pair(t):
 class PiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
-        assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
-        assert isinstance(depth, tuple), 'depth must be a tuple of integers, specifying the number of blocks before each downsizing'
         heads = cast_tuple(heads, len(depth))
 
-        patch_dim = (3+4) * patch_size ** 2
+        patch_dim = (3+4) 
 
         # self.linear_to_path = nn.Linear(patch_dim, dim)
         # self._init_weights(self.linear_to_path)
         # self.to_patch_embedding = nn.Sequential(
-        #     PatchShifting(),
+        #     PatchShifting(patch_size),
         #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
         #     self.linear_to_path
+        # )
+
+
+        self.conv_embedding = nn.Conv2d(patch_dim, dim, patch_size, round(patch_size/2))
+        self._init_weights(self.conv_embedding)
+        
+        output_size = conv_output_size(img_size, patch_size, round(patch_size/2))
+        
+        # self.linear = nn.Linear(patch_dim*(patch_size)**2, dim)
+        # self._init_weights(self.linear)
+        
+        # output_size = img_size // patch_size
+        
+        
+        self.to_patch_embedding = nn.Sequential(
+            PatchShifting(patch_size),
+            self.conv_embedding,
+            Rearrange('b c h w -> b (h w) c')
+        )
+        
+        # self.to_patch_embedding = nn.Sequential(
+        #     PatchShifting(patch_size),
+            
+        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+        
+        #     self.linear,
         # )
 
         
         # output_size = img_size // patch_size
         
-        self.conv_embedding = nn.Conv2d(3, dim, patch_size, patch_size//2)
-        self._init_weights(self.conv_embedding)
-        self.to_patch_embedding = nn.Sequential(
-            self.conv_embedding,
-            Rearrange('b c h w -> b (h w) c')
-        )
-        output_size = conv_output_size(img_size, patch_size, patch_size // 2)
+        # self.conv_embedding = nn.Conv2d(3, dim, patch_size, patch_size//2)
+        # self._init_weights(self.conv_embedding)
+        # self.to_patch_embedding = nn.Sequential(
+        #     self.conv_embedding,
+        #     Rearrange('b c h w -> b (h w) c')
+        # )
         
         num_patches = output_size ** 2
 
@@ -252,9 +275,9 @@ class PiT(nn.Module):
         return self.mlp_head(x[:, 0])
 
 class PatchShifting(nn.Module):
-    def __init__(self):
+    def __init__(self, patch_size):
         super().__init__()
-
+        self.shift = patch_size // 2
 
     def forward(self, x):
         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
@@ -266,16 +289,15 @@ class PatchShifting(nn.Module):
         # print(x_r.shape)
         # print(x_t.shape)
         # print(x_b.shape)
-        
-        x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
         x_pad = x_pad.mean(dim=1, keepdim = True)
-        # x_pad = transforms.Grayscale()(x_pad)
+        # x_pad = transforms.Grayscale()
         
-        x_l2 = x_pad[:, :, 2:-2, :-4]
-        x_r2 = x_pad[:, :, 2:-2, 4:]
-        x_t2 = x_pad[:, :, :-4, 2:-2]
-        x_b2 = x_pad[:, :, 4:, 2:-2]
+        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
                
         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         

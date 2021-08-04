@@ -226,9 +226,9 @@ def main(args):
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
         if img_size == 32:
-            patch_size = 4
+            patch_size = 3
         elif img_size > 32:
-            patch_size = 8
+            patch_size = 7
         dim_head = args.channel // args.heads
         if args.channel == 144:
             args.channel = 64
@@ -245,7 +245,11 @@ def main(args):
 
     elif args.model =='cvt':
         from models.vit_pytorch.cvt import CvT
-        model = CvT(num_classes=n_classes)
+        if img_size == 32:
+            patch_size = 3
+        else:
+            patch_size = 7
+        model = CvT(num_classes=n_classes, patch_size=patch_size)
         
     # Convnets
 
