@@ -179,8 +179,18 @@ class PiT(nn.Module):
         super().__init__()
         heads = cast_tuple(heads, len(depth))
 
+     
 
-        self.conv_embedding = nn.Conv2d(patch_dim, dim, patch_size, round(patch_size/2))
+        # self.linear_to_path = nn.Linear(patch_dim, dim)
+        # self._init_weights(self.linear_to_path)
+        # self.to_patch_embedding = nn.Sequential(
+        #     PatchShifting(patch_size),
+        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+        #     self.linear_to_path
+        # )
+
+
+        self.conv_embedding = nn.Conv2d(3, dim, patch_size, round(patch_size/2))
         self._init_weights(self.conv_embedding)
         
         output_size = conv_output_size(img_size, patch_size, round(patch_size/2))
