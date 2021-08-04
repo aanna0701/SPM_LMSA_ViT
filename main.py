@@ -215,9 +215,9 @@ def main(args):
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
         if img_size == 32:
-            patch_size = 3
+            patch_size = 2
         elif img_size > 32:
-            patch_size = 7
+            patch_size = 4
         dim_head = args.channel // args.heads
         if args.channel == 144:
             args.channel = 64
