@@ -45,14 +45,14 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_last=False):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_pe=False, is_last=False):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5        
-        # self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = dim_head ** -0.5        
+        self.scale = nn.Parameter(torch.rand(heads))
         # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
@@ -66,8 +66,9 @@ class Attention(nn.Module):
             self.to_out,
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
-        self.mask = torch.eye(num_patches+1, num_patches+1)
-        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        num_patches = num_patches -1 if is_pe else num_patches
+        self.mask = torch.eye(num_patches+1, num_patches+1) 
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False) 
         self.inf = float('-inf')
         
         
@@ -82,13 +83,12 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
-    
-        
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+
+        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
@@ -100,13 +100,13 @@ class Attention(nn.Module):
 
 from utils.drop_path import DropPath
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0., is_pe=False):
         super().__init__()
         self.layers = nn.ModuleList([])
 
         for i in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_pe=is_pe)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))            
             
@@ -150,7 +150,7 @@ class T2TViT(nn.Module):
                 RearrangeImage() if not is_first else nn.Identity(),
                 nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
                 Rearrange('b c n -> b n c'),
-                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout),
+                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True),
             ])
             
         num_patches = output_image_size ** 2
