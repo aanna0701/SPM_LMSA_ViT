@@ -104,8 +104,6 @@ class Attention(nn.Module):
     
         dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
         
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        
         attn = self.attend(dots)        
         attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
 
