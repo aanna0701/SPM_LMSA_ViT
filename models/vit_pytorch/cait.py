@@ -70,8 +70,8 @@ class Attention(nn.Module):
         super().__init__()
         inner_dim = dim_head *  heads
         self.heads = heads
-        # self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(torch.rand(heads))
+        self.scale = dim_head ** -0.5
+        self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)

@@ -92,7 +92,7 @@ class G_Attention(nn.Module):
         # channel_agg = self.g_block(v)
 
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        # #scale = self.scale
+        # scale = self.scale
         # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
     
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
@@ -103,16 +103,7 @@ class G_Attention(nn.Module):
 
         out = einsum('b h i j, b h j d -> b h i d', scores, v)
         
-        # self.avg_h = self.entropy(scores) / self.num_nodes
-        
-        # out = torch.cat([out, channel_agg], dim=-1)
-
-        # global_attribute = self.g_block(x)
-        # out = out + global_attribute
-        # self.value = compute_relative_norm_residuals(v, out[:, :, :, :-1])
-        
         out = rearrange(out, 'b h n d -> b n (h d)')
-        # out = self.g_block(out)
         out = self.to_out(out)
         
         return out
@@ -129,35 +120,7 @@ class HLoss(nn.Module):
         h = h.mean(dim=-1)
         
         return h
-    
-    
-# class G_Block(nn.Module):
-#     def __init__(self, dim, inner_dim, heads, dropout):
-#         super().__init__()
-        
-#         self.to_phi = nn.Linear(dim, inner_dim)
-#         self._init_weights(self.to_phi)
-
-#         self.to_phi = nn.Sequential(
-#             self.to_phi,
-#             nn.Dropout(dropout)
-#         )
-        
-#         self.rho = nn.GELU()
-#         self.heads = heads
-
-#     def _init_weights(self,layer):
-#         nn.init.xavier_normal_(layer.weight)
-#         if layer.bias is not None:
-#             nn.init.zeros_(layer.bias)  
-    
-#     def forward(self, x):
-#         phi = self.to_phi(x)
-#         phi = rearrange(phi, 'b n (h d) -> b h n d', h = self.heads)
-#         pool, _ = phi.max(dim=-2, keepdim=True)
-#         rho = self.rho(pool)
-        
-#         return rho
+   
 
 class Transformer(nn.Module):
     def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):

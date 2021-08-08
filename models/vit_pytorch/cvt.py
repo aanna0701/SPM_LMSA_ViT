@@ -74,7 +74,7 @@ class Attention(nn.Module):
         padding = proj_kernel // 2
         self.heads = heads
         self.scale = dim_head ** -0.5
-        # self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.attend = nn.Softmax(dim = -1)
 
