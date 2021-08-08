@@ -186,42 +186,39 @@ class Transformer(nn.Module):
             # self.scale[str(i)] = attn.fn.scale
         return x
 
+class RearrangeImage(nn.Module):
+    def forward(self, x):
+        return rearrange(x, 'b (h w) c -> b c h w', h = int(math.sqrt(x.shape[1])))
+    
+def conv_output_size(image_size, kernel_size, stride, padding):
+    return int(((image_size - kernel_size + (2 * padding)) / stride) + 1)
+
 class GiT(nn.Module):
     def __init__(self, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
-        image_height, image_width = pair(img_size)
-        patch_height, patch_width = pair(patch_size)
+        layers = []
+        layer_dim = channels
+        output_image_size = img_size
 
-        assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
+        for i, (kernel_size, stride) in enumerate([(7, 4), (3, 2)]):
+            layer_dim *= kernel_size ** 2
+            is_first = i == 0
+            output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
+            num_patches = output_image_size ** 2
+            
+            layers.extend([
+                RearrangeImage() if not is_first else nn.Identity(),
+                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
+                Rearrange('b c n -> b n c'),
+                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout),
+            ])
+            
+        num_patches = output_image_size ** 2
 
-        num_patches = (image_height // patch_height) * (image_width // patch_width)
-        # patch_dim = channels * patch_height * patch_width
-        # patch_dim = (channels)*5 * patch_height * patch_width
-        patch_dim = (channels+4) * patch_height * patch_width
-
-
-        self.linear_to_path = nn.Linear(patch_dim, dim)
-        # self.linear_to_path = nn.Conv2d(3, dim, 16, 8, 4)
-        self._init_weights(self.linear_to_path)
+        layers.append(nn.Linear(layer_dim, dim))
+        self.to_patch_embedding = nn.Sequential(*layers)
         
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
-        
-        # self.to_patch_embedding = nn.Sequential(
-        #     self.linear_to_path,
-        #     Rearrange('b c h w -> b (h w) c')
-        # )
-        
-        self.to_patch_embedding = nn.Sequential(
-            PatchShifting(patch_size),
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            self.linear_to_path
-        )
-    
-        # self.to_patch_embedding = nn.Sequential(
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-        #     self.linear_to_path,
-        # )
-    
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))  
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
@@ -268,9 +265,9 @@ class GiT(nn.Module):
         return self.mlp_head(x)
     
 # class PatchShifting(nn.Module):
-#     def __init__(self):
+#     def __init__(self, patch_size):
 #         super().__init__()
-
+#         self.shift = patch_size // 2
 
 #     def forward(self, x):
 #         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
@@ -282,85 +279,17 @@ class GiT(nn.Module):
 #         # print(x_r.shape)
 #         # print(x_t.shape)
 #         # print(x_b.shape)
-        
-#         x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
-        
-#         x_pad = x_pad.mean(dim=1, keepdim = True)
-        
-#         x_l = x_pad[:, :, 2:-2, 1:-3]
-#         x_r = x_pad[:, :, 2:-2, 3:-1]
-#         x_t = x_pad[:, :, 1:-3, 2:-2]
-#         x_b = x_pad[:, :, 3:-1, 2:-2]
-#         x_l2 = x_pad[:, :, 2:-2, :-4]
-#         x_r2 = x_pad[:, :, 2:-2, 4:]
-#         x_t2 = x_pad[:, :, :-4, 2:-2]
-#         x_b2 = x_pad[:, :, 4:, 2:-2]
-        
-               
-#         x_cat = torch.cat([x, x_l, x_r, x_t, x_b, x_l2, x_r2, x_t2, x_b2], dim=1)
-        
-        
-#         return x_cat
-    
-class PatchShifting(nn.Module):
-    def __init__(self, patch_size):
-        super().__init__()
-        self.shift = patch_size // 2
-
-    def forward(self, x):
-        # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
-        # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
-        # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
-        # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
-        
-        # print(x_l.shape)
-        # print(x_r.shape)
-        # print(x_t.shape)
-        # print(x_b.shape)
-        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
-        
-        x_pad = x_pad.mean(dim=1, keepdim = True)
-        # x_pad = transforms.Grayscale()
-        
-        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-               
-        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
-        
-        
-        return x_cat
-    
-    
-# class PatchShifting(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-
-
-#     def forward(self, x):
-#         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
-#         # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
-#         # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
-#         # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
-        
-#         # print(x_l.shape)
-#         # print(x_r.shape)
-#         # print(x_t.shape)
-#         # print(x_b.shape)
-        
-#         x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
+#         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
 #         x_pad = x_pad.mean(dim=1, keepdim = True)
-#         # x_pad = x_pad
+#         # x_pad = transforms.Grayscale()
         
-#         x_l = x_pad[:, :, 1:-1, :-2]
-#         x_r = x_pad[:, :, 1:-1, 2:]
-#         x_t = x_pad[:, :, :-2, 1:-1]
-#         x_b = x_pad[:, :, 2:, 1:-1]
-        
+#         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+#         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+#         x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+#         x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
                
-#         x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
+#         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         
         
 #         return x_cat

@@ -71,9 +71,7 @@ class Attention(nn.Module):
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         
-        self.value = 0
-        self.avg_h = None
-        self.cls_l2 = None
+        self.KLD = 0
         self.is_last = is_last
         
     def _init_weights(self,layer):
@@ -97,7 +95,10 @@ class Attention(nn.Module):
 
         attn = self.attend(dots)
         
-        self.value = compute_H(attn)
+        if self.is_last:
+            self.score = attn
+        
+        self.KLD = compute_H(attn).mean()
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
     
@@ -112,28 +113,29 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
         self.scale = {}
-        self.h = None
-        self.cls_l2 = None
-        is_last = False
-
+        self.KLD = {}
         for i in range(depth):
-            if i == depth-1 :
+            
+            if i == depth-1:
                 is_last = True
+            else:
+                is_last = False
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_last=is_last)),
+
+                PreNorm(dim, Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_last=is_last)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
-            ]))            
-            
+            ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
+
+        
     def forward(self, x):
-        for i, (attn, ff) in enumerate(self.layers):       
+        self.hidden_states['patch_embedding'] = x[:, 1:].mean(dim=-1)
+        for i, (attn, ff) in enumerate(self.layers):     
             x = self.drop_path(attn(x)) + x
-            self.hidden_states[str(i+1)] = attn.fn.value.mean().item()
-            # self.h = attn.fn.avg_h         
-            # self.cls_l2 = attn.fn.cls_l2        
             x = self.drop_path(ff(x)) + x
-            
+
             self.scale[str(i)] = attn.fn.scale
+            self.KLD[str(i)] = attn.fn.KLD
         return x
 
 class Model(nn.Module):
@@ -195,12 +197,10 @@ class Model(nn.Module):
 
         x = self.to_latent(x)
         
-        self.final_cls_token = x
-        
         return self.mlp_head(x)
     
 def compute_H(x):
-    log = torch.log(x+1e-12)
-    cross_info = -1/64 * log
-    cross_entropy = cross_info.mean(dim=-1)
-    return cross_entropy
+    log = torch.log(x*65+1e-12)
+    info = -1/65 * log
+    kld = info.sum(dim=-1)
+    return kld

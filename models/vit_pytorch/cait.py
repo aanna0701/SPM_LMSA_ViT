@@ -66,11 +66,12 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
         inner_dim = dim_head *  heads
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        # self.scale = dim_head ** -0.5
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
@@ -84,6 +85,10 @@ class Attention(nn.Module):
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         )
+        
+        self.mask = torch.eye(num_patches+1, num_patches+1)
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        self.inf = float('-inf')
 
     def forward(self, x, context = None):
         b, n, _, h = *x.shape, self.heads
@@ -104,14 +109,14 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.layer_dropout = layer_dropout
 
         for ind in range(depth):
             self.layers.append(nn.ModuleList([
-                LayerScale(dim, PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)), depth = ind + 1),
+                LayerScale(dim, PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)), depth = ind + 1),
                 LayerScale(dim, PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)), depth = ind + 1)
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -146,20 +151,31 @@ class CaiT(nn.Module):
     ):
         super().__init__()
         num_patches = (img_size // patch_size) ** 2
-        patch_dim = 3 * patch_size ** 2
+        # patch_dim = 3 * patch_size ** 2
+        
+        # self.to_patch_embedding = nn.Sequential(
+        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+        #     nn.Linear(patch_dim, dim),
+        # )
+
+        patch_dim = 7 * patch_size ** 2
 
         self.to_patch_embedding = nn.Sequential(
+            PatchShifting(patch_size),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
             nn.Linear(patch_dim, dim),
         )
+        image_height, image_width = pair(img_size)
+        patch_height, patch_width = pair(patch_size)
+        num_patches = (image_height // patch_height) * (image_width // patch_width)
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
 
         self.dropout = nn.Dropout(emb_dropout)
 
-        self.patch_transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
-        self.cls_transformer = Transformer(dim, cls_depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
+        self.patch_transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
+        self.cls_transformer = Transformer(dim, num_patches, cls_depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
@@ -179,3 +195,27 @@ class CaiT(nn.Module):
         x = self.cls_transformer(cls_tokens, context = x)
 
         return self.mlp_head(x[:, 0])
+
+class PatchShifting(nn.Module):
+    def __init__(self, patch_size):
+        super().__init__()
+        self.shift = patch_size // 2
+
+    def forward(self, x):
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        
+        x_pad = x_pad.mean(dim=1, keepdim = True)
+        
+        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+               
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        
+        
+        return x_cat
+
+def pair(t):
+    return t if isinstance(t, tuple) else (t, t)
+    

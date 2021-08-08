@@ -146,7 +146,7 @@ class FeedForward(nn.Module):
 #         return out
 
 class G_Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_last=False):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
@@ -169,6 +169,7 @@ class G_Attention(nn.Module):
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         self.score = None
+        self.is_last = is_last
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -185,78 +186,30 @@ class G_Attention(nn.Module):
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
-        self.score = attn
-
+        if self.is_last:
+            self.score = attn
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
     
-class G_Block(nn.Module):
-    def __init__(self, dim, dim_head, dropout):
-        super().__init__()
-        
-        self.to_phi = nn.Linear(dim, dim)
-        self._init_weights(self.to_phi)
-        self.dim_head = dim_head
-
-        self.to_phi = nn.Sequential(
-            self.to_phi,
-            nn.Dropout(dropout)
-        )
-        
-        # self.rho = nn.GELU()
-        self.rho = nn.Identity()
-
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
     
-    def forward(self, x):
-        phi = self.to_phi(x)
-        phi = rearrange(phi, 'b n (h d) -> b h n d', d=self.dim_head)
-        pool = phi.mean(dim=-2, keepdim=True)
-        rho = self.rho(pool)
-        
-        return rho
-    
-# class G_Block(nn.Module):
-#     def __init__(self, dim, inner_dim, heads, dropout):
-#         super().__init__()
-        
-#         self.to_phi = nn.Linear(dim, inner_dim)
-#         self._init_weights(self.to_phi)
 
-#         self.to_phi = nn.Sequential(
-#             self.to_phi,
-#             nn.Dropout(dropout)
-#         )
-        
-#         self.rho = nn.GELU()
-#         self.heads = heads
-
-#     def _init_weights(self,layer):
-#         nn.init.xavier_normal_(layer.weight)
-#         if layer.bias is not None:
-#             nn.init.zeros_(layer.bias)  
-    
-#     def forward(self, x):
-#         phi = self.to_phi(x)
-#         phi = rearrange(phi, 'b n (h d) -> b h n d', h = self.heads)
-#         pool, _ = phi.max(dim=-2, keepdim=True)
-#         rho = self.rho(pool)
-        
-#         return rho
 
 class Transformer(nn.Module):
     def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
-
-        for _ in range(depth):
+        
+        self.score = None
+        for i in range(depth):
+            
+            if i == depth-1:
+                is_last = True
+            else:
+                is_last = False
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, G_Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, G_Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_last=is_last)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -269,6 +222,9 @@ class Transformer(nn.Module):
             x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
             self.scores.append(attn.fn.score)
+            
+            
+            self.score = attn.fn.score
 
             self.hidden_states[str(i)] = x[:, 1:].mean(dim=-1)
         return x
@@ -306,7 +262,6 @@ class Model(nn.Module):
             nn.LayerNorm(dim),
             nn.linear_mlp_head
         )
-        self.featuremaps = None
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -334,10 +289,9 @@ class Model(nn.Module):
         x = self.dropout(x)
 
         x = self.transformer(x)
-        self.featuremaps = self.transformer.hidden_states
-        self.scores = self.transformer.scores
 
         x =  x[:, 0]
+        self.final_cls_token = x
 
         # x = self.to_latent(x)
         

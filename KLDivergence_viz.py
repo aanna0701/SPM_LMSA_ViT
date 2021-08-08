@@ -9,9 +9,9 @@ import seaborn as sns
 from colorama import Fore, Style
 import os
 
-Markers = ['o', 'p', 'D', 's']
+Markers = ['o', 'X', 'D', 's']
 plt.rcParams["figure.figsize"] = (10,5)
-colors = sns.color_palette('Set1',4)
+colors = sns.color_palette('Paired',4)
 
 # plt.rcParams["xtick.labelsize"] = 'xx-large'
 # plt.rcParams["ytick.labelsize"] = 'xx-large'
@@ -19,7 +19,7 @@ colors = sns.color_palette('Set1',4)
 def init_parser():
     parser = argparse.ArgumentParser(description='CIFAR10 quick training script')
     parser.add_argument('--gpu', default=0, type=int)
-    parser.add_argument('--data_path', default='./dataset/cifar100_img', type=str)
+    parser.add_argument('--data_path', default='./dataset/', type=str)
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR100', 'CIFAR10', 'T-IMNET', 'SVHN'], type=str)
 
     return parser
@@ -38,6 +38,7 @@ def main(args, save_path):
         n_classes = 10
         img_mean, img_std = (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)
         img_size = 32
+        patch_size = 4
         
     elif args.dataset == 'CIFAR100':
         print(Fore.YELLOW+'*'*80)
@@ -46,6 +47,16 @@ def main(args, save_path):
         n_classes = 100
         img_mean, img_std = (0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
         img_size = 32
+        patch_size = 4
+        
+    elif args.dataset == 'T-IMNET':
+        print(Fore.YELLOW+'*'*80)
+        print('T-IMNET')
+        print('*'*80 + Style.RESET_ALL)
+        n_classes = 200
+        img_mean, img_std = (0.4802, 0.4481, 0.3975), (0.2770, 0.2691, 0.2821)
+        img_size = 64
+        patch_size = 8
    
     '''
         Model 
@@ -74,6 +85,12 @@ def main(args, save_path):
             transforms.Resize(img_size),
             transforms.ToTensor(),
             *normalize]))
+        
+    elif args.dataset == 'T-IMNET':
+        val_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'tiny_imagenet', 'val'), 
+            transform=transforms.Compose([
+            transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
 
     val_loader = torch.utils.data.DataLoader(val_dataset, shuffle=False, batch_size=100)
   
@@ -82,8 +99,7 @@ def main(args, save_path):
     '''
     torch.cuda.set_device(args.gpu)
     
-    avg = {}
-    
+    avg = {}  
     
     
 
@@ -92,14 +108,14 @@ def main(args, save_path):
     '''
         
     from visualization.ViT.model import Model
-    model = Model(img_size=img_size, num_classes=n_classes)
+    model = Model(img_size=img_size, patch_size=patch_size, num_classes=n_classes)
     model.load_state_dict((torch.load(os.path.join('./visualization/ViT', 'best.pth'))))
     model.cuda(args.gpu)
 
     values = inference(val_loader, model)
 
     name = 'ViT'
-    plot_vlaues(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i])
     i+=1
     avg[name] = compute_avg(values)
 
@@ -109,14 +125,14 @@ def main(args, save_path):
     '''
         
     from visualization.ViT_T.model import Model
-    model = Model(img_size=img_size, num_classes=n_classes)
+    model = Model(img_size=img_size, patch_size=patch_size, num_classes=n_classes)
     model.load_state_dict((torch.load(os.path.join('./visualization/ViT_T', 'best.pth'))))
     model.cuda(args.gpu)
     
     values = inference(val_loader, model)
 
     name = 'ViT-T'
-    plot_vlaues(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i])
     i+=1
     avg[name] = compute_avg(values)
 
@@ -125,14 +141,14 @@ def main(args, save_path):
     '''
         
     from visualization.ViT_M.model import Model
-    model = Model(img_size=img_size, num_classes=n_classes)
+    model = Model(img_size=img_size, patch_size=patch_size, num_classes=n_classes)
     model.load_state_dict((torch.load(os.path.join('./visualization/ViT_M', 'best.pth'))))
     model.cuda(args.gpu)
     
     values = inference(val_loader, model)
 
     name = 'ViT-M'
-    plot_vlaues(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i])
     i+=1   
     avg[name] = compute_avg(values)
         
@@ -141,39 +157,40 @@ def main(args, save_path):
     '''
         
     from visualization.ViT_T_M.model import Model
-    model = Model(img_size=img_size, num_classes=n_classes)
+    model = Model(img_size=img_size, patch_size=patch_size, num_classes=n_classes)
     model.load_state_dict((torch.load(os.path.join('./visualization/ViT_T_M', 'best.pth'))))
     model.cuda(args.gpu)
     
     values = inference(val_loader, model)
 
     name = 'ViT-T-M'
-    plot_vlaues(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i])
     i+=1
     avg[name] = compute_avg(values)
     
     plt.legend(loc='upper center', fontsize='xx-large', ncol=4)
-    plt.ylim([0.065, 0.11])    
-    plt.tick_params(axis='both', which='major', labelsize=13)
+    plt.ylim([0, 1.9])    
+    plt.tick_params(axis='both', which='major', labelsize=18)
     plt.locator_params(axis="y", nbins=5)
     plt.grid(axis='y')
+    # plt.xlabel('Depth', fontsize=20)
     
-    plt.savefig(os.path.join(save_path, 'CrossEntropyOfScoreMap.png'))
+    plt.savefig(os.path.join(save_path, 'KLDivergence.png'))
     plt.clf()
 
     avgList = avg.items()
-    avgList = sorted(avgList) 
+    # avgList = sorted(avgList) 
     x, y = zip(*avgList)
     
-    plt.bar(x, y, color=colors, width=0.35, zorder=3)
+    plt.bar(x, y, color=colors, width=0.5, zorder=3)
     for index, value in enumerate(y):
-        plt.text(index, value+0.0005, f'{value:.4f}', fontsize='x-large', ha='center')
-    plt.ylim([0.065, 0.085])
-    plt.tick_params(axis='both', which='major', labelsize=13)
+        plt.text(index, value+0.05, f'{value:.4f}', fontsize='xx-large', ha='center')
+    plt.ylim([0, 1.2])
+    plt.tick_params(axis='both', which='major', labelsize=18)
     plt.locator_params(axis="y", nbins=5)
     plt.grid(axis='y')
     
-    plt.savefig(os.path.join(save_path, 'AVG_CrossEntropyOfScoreMap.png'))
+    plt.savefig(os.path.join(save_path, 'AVG_KLDivergence.png'))
     
 
 
@@ -185,12 +202,13 @@ def inference(val_loader, model):
             images = images.cuda(args.gpu)
             _ = model(images)
             
-    return model.transformer.hidden_states  
+    return model.transformer.KLD  
 
-def plot_vlaues(values, name, i, colors):
+def plot_values(values, name, i, colors):
     valueList = values.items()
     valueList = sorted(valueList) 
     x, y = zip(*valueList) 
+    x = [int(x)+1 for x in x]
     
     plt.plot(x, y, label=name, marker=Markers[i], color=colors)
   

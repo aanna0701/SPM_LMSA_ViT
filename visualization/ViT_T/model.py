@@ -3,7 +3,6 @@ from torch import nn, einsum
 from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from utils.relative_norm_residuals import compute_relative_norm_residuals
 
 # helpers
 
@@ -71,9 +70,7 @@ class Attention(nn.Module):
         self.mask = (self.mask == 1).nonzero()
         self.inf = float('-inf')
         
-        self.value = 0
-        self.avg_h = None
-        self.cls_l2 = None
+        self.KLD = 0
         self.is_last = is_last
         
     def _init_weights(self,layer):
@@ -97,7 +94,7 @@ class Attention(nn.Module):
 
         attn = self.attend(dots)
 
-        self.value = compute_H(attn)
+        self.KLD = compute_H(attn).mean()
         
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
     
@@ -112,8 +109,7 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
         self.scale = {}
-        self.h = None
-        self.cls_l2 = None
+        self.KLD = {}
         is_last = False
 
         for i in range(depth):
@@ -127,13 +123,11 @@ class Transformer(nn.Module):
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):       
-            x = self.drop_path(attn(x)) + x
-            self.hidden_states[str(i+1)] = attn.fn.value.mean().item()
-            # self.h = attn.fn.avg_h         
-            # self.cls_l2 = attn.fn.cls_l2        
+            x = self.drop_path(attn(x)) + x  
             x = self.drop_path(ff(x)) + x
             
-            self.scale[str(i)] = attn.fn.scale
+            self.scale[str(i)] = attn.fn.scale.mean()
+            self.KLD[str(i)] = attn.fn.KLD
         return x
 
 class Model(nn.Module):
@@ -200,7 +194,7 @@ class Model(nn.Module):
         return self.mlp_head(x)
     
 def compute_H(x):
-    log = torch.log(x+1e-12)
-    cross_info = -1/64 * log
-    cross_entropy = cross_info.mean(dim=-1)
-    return cross_entropy
+    log = torch.log(x*65+1e-12)
+    info = -1/65 * log
+    kld = info.sum(dim=-1)
+    return kld
