@@ -66,7 +66,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., if_patch_attn=False):
         super().__init__()
         inner_dim = dim_head *  heads
         self.heads = heads
@@ -102,9 +102,8 @@ class Attention(nn.Module):
         dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
     
         dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
-        print(dots.shape)
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        print(dots.shape)
+        if if_patch_attn:
+            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         attn = self.attend(dots)        
         attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
 
@@ -113,14 +112,14 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., stochastic_depth=0., if_patch_attn=False):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.layer_dropout = layer_dropout
 
         for ind in range(depth):
             self.layers.append(nn.ModuleList([
-                LayerScale(dim, PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)), depth = ind + 1),
+                LayerScale(dim, PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)), depth = ind + 1, if_patch_attn=if_patch_attn),
                 LayerScale(dim, PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)), depth = ind + 1)
             ]))
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -178,7 +177,7 @@ class CaiT(nn.Module):
 
         self.dropout = nn.Dropout(emb_dropout)
 
-        self.patch_transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
+        self.patch_transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth, if_patch_attn=True)
         self.cls_transformer = Transformer(dim, num_patches, cls_depth, heads, dim_head, mlp_dim, dropout, layer_dropout, stochastic_depth=stochastic_depth)
 
         self.mlp_head = nn.Sequential(
