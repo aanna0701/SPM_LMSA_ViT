@@ -88,6 +88,7 @@ class Attention(nn.Module):
         self.mask = torch.eye(num_patches, num_patches)
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
+        self.if_patch_attn = if_patch_attn
 
     def forward(self, x, context = None):
         b, n, _, h = *x.shape, self.heads
