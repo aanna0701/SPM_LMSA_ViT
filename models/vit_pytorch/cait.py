@@ -102,7 +102,7 @@ class Attention(nn.Module):
         dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
     
         dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
-        
+        print(self.mask.shape)
         dots[:, :, self.mask, self.mask] = self.inf
         
         attn = self.attend(dots)        
