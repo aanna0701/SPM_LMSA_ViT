@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
-
+MODELS = ['vit', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'deepvit']
 
 
 def init_parser():
@@ -52,7 +52,7 @@ def init_parser():
     
     parser.add_argument('--weight-decay', default=5e-2, type=float, help='weight decay (default: 1e-4)')
 
-    parser.add_argument('--model', type=str, default='deit', choices=['vit', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'res56', 'mobile2', 'resxt29', 'dense121', 'vgg16'])
+    parser.add_argument('--model', type=str, default='deit', choices=MODELS)
 
     parser.add_argument('--disable-cos', action='store_true', help='disable cosine lr schedule')
 
@@ -235,14 +235,21 @@ def main(args):
             t2t_layers = ((7, 4), (3, 2))
         model = T2TViT(image_size=img_size, t2t_layers = t2t_layers, num_classes=n_classes, stochastic_depth=args.sd)
         
-
     elif args.model =='cvt':
         from models.vit_pytorch.cvt import CvT
         if img_size == 32:
             patch_size = 3
         else:
             patch_size = 7
-        model = CvT(num_classes=n_classes, patch_size=patch_size)
+        model = CvT(num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
+        
+    elif args.model =='deepvit':
+        from models.vit_pytorch.deepvit import DeepViT
+        if img_size == 32:
+            patch_size = 3
+        else:
+            patch_size = 7
+        model = DeepViT(img_size=img_size, num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
         
     # Convnets
 
@@ -485,7 +492,6 @@ def main(args):
         checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        lr = checkpoint['loss']
         scheduler = checkpoint['scheduler']
         args.epochs = checkpoint['epoch'] + 1
     
@@ -497,7 +503,6 @@ def main(args):
             'model_state_dict': model.state_dict(),
             'epoch': epoch,
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': lr,
             'scheduler': scheduler.state_dict(), 
             }, 
             os.path.join(save_path, 'checkpoint.pth'))
