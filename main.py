@@ -245,10 +245,6 @@ def main(args):
         
     elif args.model =='deepvit':
         from models.vit_pytorch.deepvit import DeepViT
-        if img_size == 32:
-            patch_size = 3
-        else:
-            patch_size = 7
         model = DeepViT(img_size=img_size, num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
         
     # Convnets
