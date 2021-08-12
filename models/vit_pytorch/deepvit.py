@@ -69,11 +69,11 @@ class Attention(nn.Module):
 
         # attention
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         
         attn = dots.softmax(dim=-1)
 
@@ -107,26 +107,26 @@ class Transformer(nn.Module):
         return x
 
 class DeepViT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim=396, depth=16, heads=12, mlp_dim=1188, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim=192, depth=16, heads=12, mlp_dim=384, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
         num_patches = (img_size // patch_size) ** 2
         
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
-        patch_dim = channels * patch_size ** 2
-        self.to_patch_embedding = nn.Sequential(
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-            nn.Linear(patch_dim, dim),
-        )
-        
-        
-        # patch_dim = (channels+4) * patch_size ** 2
+        # patch_dim = channels * patch_size ** 2
         # self.to_patch_embedding = nn.Sequential(
-        #     PatchShifting(patch_size),
         #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
         #     nn.Linear(patch_dim, dim),
         # )
+        
+        
+        patch_dim = (channels+4) * patch_size ** 2
+        self.to_patch_embedding = nn.Sequential(
+            PatchShifting(patch_size),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+            nn.Linear(patch_dim, dim),
+        )
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
