@@ -52,7 +52,8 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5        
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        if not is_pe:
+            self.scale = nn.Parameter(self.scale*torch.ones(heads))
         # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
@@ -70,6 +71,7 @@ class Attention(nn.Module):
         self.mask = torch.eye(num_patches+1, num_patches+1) 
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False) 
         self.inf = float('-inf')
+        self.is_pe = is_pe
         
         
     def _init_weights(self,layer):
@@ -82,12 +84,13 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
-
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        if self.is_pe:
+            dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        else:
+            scale = self.scale
+            dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
