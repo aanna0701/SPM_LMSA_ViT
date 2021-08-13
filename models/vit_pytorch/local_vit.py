@@ -119,10 +119,10 @@ class Transformer(nn.Module):
 # main class
 
 class LocalViT(nn.Module):
-    def __init__(self, *, image_size, patch_size, num_classes, dim=192, depth=12, heads=3, mlp_dim=768, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim=192, depth=12, heads=3, mlp_dim=768, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
-        assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
-        num_patches = (image_size // patch_size) ** 2
+        assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
+        num_patches = (img_size // patch_size) ** 2
         patch_dim = channels * patch_size ** 2
 
         self.to_patch_embedding = nn.Sequential(
