@@ -11,7 +11,7 @@ import os
 
 Markers = ['o', 'X', 'D', 's']
 plt.rcParams["figure.figsize"] = (10,5)
-colors = sns.color_palette('Paired',4)
+colors = sns.color_palette('Paired',8)
 
 # plt.rcParams["xtick.labelsize"] = 'xx-large'
 # plt.rcParams["ytick.labelsize"] = 'xx-large'
@@ -115,7 +115,7 @@ def main(args, save_path):
     values = inference(val_loader, model)
 
     name = 'ViT'
-    plot_values(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i*2+1])
     i+=1
     avg[name] = compute_avg(values)
 
@@ -132,7 +132,7 @@ def main(args, save_path):
     values = inference(val_loader, model)
 
     name = 'ViT-T'
-    plot_values(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i*2+1])
     i+=1
     avg[name] = compute_avg(values)
 
@@ -148,7 +148,7 @@ def main(args, save_path):
     values = inference(val_loader, model)
 
     name = 'ViT-M'
-    plot_values(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i*2+1])
     i+=1   
     avg[name] = compute_avg(values)
         
@@ -164,7 +164,7 @@ def main(args, save_path):
     values = inference(val_loader, model)
 
     name = 'ViT-T-M'
-    plot_values(values, name, i, colors[i])
+    plot_values(values, name, i, colors[i*2+1])
     i+=1
     avg[name] = compute_avg(values)
     
@@ -182,7 +182,11 @@ def main(args, save_path):
     # avgList = sorted(avgList) 
     x, y = zip(*avgList)
     
-    plt.bar(x, y, color=colors, width=0.5, zorder=3)
+    c = []
+    for i in range(4):
+        c.append(colors[2*i+1])
+        
+    plt.bar(x, y, color=c, width=0.5, zorder=3)
     for index, value in enumerate(y):
         plt.text(index, value+0.05, f'{value:.4f}', fontsize='xx-large', ha='center')
     plt.ylim([0, 1.2])

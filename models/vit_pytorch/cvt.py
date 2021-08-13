@@ -74,7 +74,7 @@ class Attention(nn.Module):
         padding = proj_kernel // 2
         self.heads = heads
         self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.attend = nn.Softmax(dim = -1)
 
@@ -97,11 +97,11 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b (h d) x y -> b h (x y) d', h = h), (q, k, v))
 
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
   
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf

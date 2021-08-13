@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
-MODELS = ['vit', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'deepvit']
+MODELS = ['vit', 'lovit', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'deepvit']
 
 
 def init_parser():
@@ -211,6 +211,11 @@ def main(args):
         from models.vit_pytorch.cait import CaiT        
         dim_head = args.channel // args.heads
         model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
+    
+    elif args.model == 'lovit':
+        from models.vit_pytorch.local_vit import LocalViT        
+        dim_head = args.channel // args.heads
+        model = LocalViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
 
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
