@@ -52,7 +52,7 @@ class Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        # self.scale = dim_head ** -0.5        
+        self.scale_N = dim_head ** -0.5        
         self.scale = nn.Parameter(torch.rand(heads))
         # self.scale = nn.Parameter(torch.rand(1))
 
@@ -73,6 +73,9 @@ class Attention(nn.Module):
         
         self.KLD = 0
         self.is_last = is_last
+        self.N_T_M = None
+        self.T = None
+        self.T_M = None
         
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
@@ -95,6 +98,14 @@ class Attention(nn.Module):
 
         attn = self.attend(dots)
         
+        ################################
+        
+        self.N_T_M = (einsum('b h i d, b h j d -> b h i j', q, k) * self.scale_N)[:, :, 0]
+        self.T = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))[:, :, 0]
+        self.T_M = dots[:, :, 0]
+        
+        ################################
+        
         self.KLD = compute_H(attn).mean()
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
@@ -111,10 +122,12 @@ class Transformer(nn.Module):
         self.scale = {}
         self.KLD = {}
         is_last = False
+        self.distributions = []
 
         for i in range(depth):
             if i == depth-1 :
                 is_last = True
+                self.last = True
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_last=is_last)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
@@ -128,6 +141,12 @@ class Transformer(nn.Module):
             
             self.scale[str(i)] = attn.fn.scale.mean()
             self.KLD[str(i)] = attn.fn.KLD
+            
+            # if self.last:
+            #     self.distributions.append(attn.fn.N_T_M)
+            #     self.distributions.append(attn.fn.T)
+            #     self.distributions.append(attn.fn.T_M)
+            
         return x
 
 class Model(nn.Module):

@@ -129,35 +129,6 @@ class HLoss(nn.Module):
         
         return h
     
-    
-# class G_Block(nn.Module):
-#     def __init__(self, dim, inner_dim, heads, dropout):
-#         super().__init__()
-        
-#         self.to_phi = nn.Linear(dim, inner_dim)
-#         self._init_weights(self.to_phi)
-
-#         self.to_phi = nn.Sequential(
-#             self.to_phi,
-#             nn.Dropout(dropout)
-#         )
-        
-#         self.rho = nn.GELU()
-#         self.heads = heads
-
-#     def _init_weights(self,layer):
-#         nn.init.xavier_normal_(layer.weight)
-#         if layer.bias is not None:
-#             nn.init.zeros_(layer.bias)  
-    
-#     def forward(self, x):
-#         phi = self.to_phi(x)
-#         phi = rearrange(phi, 'b n (h d) -> b h n d', h = self.heads)
-#         pool, _ = phi.max(dim=-2, keepdim=True)
-#         rho = self.rho(pool)
-        
-#         return rho
-
 class Transformer(nn.Module):
     def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
@@ -194,32 +165,18 @@ class GiT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
-        # patch_dim = channels * patch_height * patch_width
-        # patch_dim = (channels)*5 * patch_height * patch_width
-        patch_dim = (channels+8) * patch_height * patch_width
-
-
-        # self.linear_to_path = nn.Linear(patch_dim, dim)
-        self.linear_to_path1 = nn.Conv2d(3, dim, 7, 4, 2)
-        self._init_weights(self.linear_to_path1)
-        
+ 
+       
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+ 
+        patch_dim = (channels+4) * patch_height * patch_width       
         
+        self.linear_to_path = nn.Linear(patch_dim, dim)
         self.to_patch_embedding = nn.Sequential(
-            self.linear_to_path1,
-            Rearrange('b c h w -> b (h w) c')
+            PatchShifting(patch_size),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            self.linear_to_path
         )
-        
-        # self.to_patch_embedding = nn.Sequential(
-        #     PatchShifting(),
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-        #     self.linear_to_path
-        # )
-    
-        # self.to_patch_embedding = nn.Sequential(
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-        #     self.linear_to_path,
-        # )
     
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
@@ -253,119 +210,30 @@ class GiT(nn.Module):
         x = self.dropout(x)
 
         x = self.transformer(x)
-        
-        # entropy = torch.cat(self.transformer.h, dim=1)
-        
-        # self.h_loss = entropy.mean(dim=-1)
-        # print(self.h_loss)
-
+    
         x =  x[:, 0]
 
-        # x = self.to_latent(x)
         
         
         return self.mlp_head(x)
     
-# class PatchShifting(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-
-
-#     def forward(self, x):
-#         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
-#         # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
-#         # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
-#         # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
-        
-#         # print(x_l.shape)
-#         # print(x_r.shape)
-#         # print(x_t.shape)
-#         # print(x_b.shape)
-        
-#         x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
-        
-#         x_pad = x_pad.mean(dim=1, keepdim = True)
-        
-#         x_l = x_pad[:, :, 2:-2, 1:-3]
-#         x_r = x_pad[:, :, 2:-2, 3:-1]
-#         x_t = x_pad[:, :, 1:-3, 2:-2]
-#         x_b = x_pad[:, :, 3:-1, 2:-2]
-#         x_l2 = x_pad[:, :, 2:-2, :-4]
-#         x_r2 = x_pad[:, :, 2:-2, 4:]
-#         x_t2 = x_pad[:, :, :-4, 2:-2]
-#         x_b2 = x_pad[:, :, 4:, 2:-2]
-        
-               
-#         x_cat = torch.cat([x, x_l, x_r, x_t, x_b, x_l2, x_r2, x_t2, x_b2], dim=1)
-        
-        
-#         return x_cat
-    
 class PatchShifting(nn.Module):
-    def __init__(self):
+    def __init__(self, patch_size):
         super().__init__()
-
+        self.shift = int(patch_size * (3/4))
 
     def forward(self, x):
-        # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
-        # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
-        # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
-        # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
-        
-        # print(x_l.shape)
-        # print(x_r.shape)
-        # print(x_t.shape)
-        # print(x_b.shape)
-        
-        x_pad = torch.nn.functional.pad(x, (2, 2, 2, 2))
+
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
         x_pad = x_pad.mean(dim=1, keepdim = True)
         
-        x_l2 = x_pad[:, :, 2:-2, :-4]
-        x_r2 = x_pad[:, :, 2:-2, 4:]
-        x_t2 = x_pad[:, :, :-4, 2:-2]
-        x_b2 = x_pad[:, :, 4:, 2:-2]
-        x_lt = x_pad[:, :, :-4, :-4]
-        x_rt = x_pad[:, :, :-4, 4:]
-        x_lb = x_pad[:, :, 4:, :-4]
-        x_rb = x_pad[:, :, 4:, 4:]
-        
+        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
                
-        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lt, x_rt, x_lb, x_rb], dim=1)
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         
         
         return x_cat
-    
-    
-# class PatchShifting(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-
-
-#     def forward(self, x):
-#         # x_l = torch.cat([torch.nn.pad(x, ), x[:, :, :, 1:]], dim=-1)
-#         # x_r = torch.cat([x[:, :, :, :-1], self.w_pad], dim=-1)
-#         # x_t = torch.cat([self.h_pad, x[:, :, 1:]], dim=-2)
-#         # x_b = torch.cat([x[:, :, :-1], self.h_pad], dim=-2)
-        
-#         # print(x_l.shape)
-#         # print(x_r.shape)
-#         # print(x_t.shape)
-#         # print(x_b.shape)
-        
-#         x_pad = torch.nn.functional.pad(x, (1, 1, 1, 1))
-        
-#         x_pad = x_pad.mean(dim=1, keepdim = True)
-#         # x_pad = x_pad
-        
-#         x_l = x_pad[:, :, 1:-1, :-2]
-#         x_r = x_pad[:, :, 1:-1, 2:]
-#         x_t = x_pad[:, :, :-2, 1:-1]
-#         x_b = x_pad[:, :, 2:, 1:-1]
-        
-               
-#         x_cat = torch.cat([x, x_l, x_r, x_t, x_b], dim=1)
-        
-        
-#         return x_cat
-    

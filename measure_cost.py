@@ -12,6 +12,8 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 import math
 
+
+
     
 def conv_output_size(image_size, kernel_size, stride, padding):
     return int(((image_size - kernel_size + (2 * padding)) / stride) + 1)
@@ -51,21 +53,17 @@ class ViT(nn.Module):
         assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
         num_patches = (img_size // patch_size) ** 2
         patch_dim = (channels) * patch_size ** 2
-        self.to_patch_embedding = nn.Sequential(
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-            nn.Linear(patch_dim, dim),
-        )
+        # self.to_patch_embedding = nn.Sequential(
+        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+        #     nn.Linear(patch_dim, dim),
+        # )
 
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
-        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        # self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        # self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        self.to_patch_embedding = nn.Conv2d(3, dim, patch_size, patch_size)
        
     def forward(self, img):
         x = self.to_patch_embedding(img)
-        b, n, _ = x.shape
-
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
-        x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
        
         return x
 
@@ -353,54 +351,68 @@ def main():
     in_channels = 3
 
     GPU = 1
-    model_names = ['ViT', 'SPE', 'SPE_rgb','16-8-4', '10-8-1', '3-2-1x3', 'T2T']
-    models = []
-    # models.append(ViT(img_size, patch_size, 192, in_channels))
-    # models.append(SPE(img_size, patch_size, 192, in_channels))
-    # models.append(SPE_rgb(img_size, patch_size, 192, in_channels))
-    models.append(Conv1(img_size, patch_size, 192, in_channels))
-    # models.append(Conv2(img_size, patch_size, 192, in_channels))
-    # models.append(Conv3(img_size, patch_size, 192, in_channels))
-    # models.append(T2T(img_size, patch_size, 192, in_channels))
+    # model_names = ['ViT', 'SPE', 'SPE_rgb','16-8-4', '10-8-1', '3-2-1x3', 'T2T']
+    # models = []
+    # # models.append(ViT(img_size, patch_size, 192, in_channels))
+    # # models.append(SPE(img_size, patch_size, 192, in_channels))
+    # # models.append(SPE_rgb(img_size, patch_size, 192, in_channels))
+    # models.append(Conv1(img_size, patch_size, 192, in_channels))
+    # # models.append(Conv2(img_size, patch_size, 192, in_channels))
+    # # models.append(Conv3(img_size, patch_size, 192, in_channels))
+    # # models.append(T2T(img_size, patch_size, 192, in_channels))
 
 
 
 
         
 
-    torch.cuda.set_device(GPU)
+    # torch.cuda.set_device(GPU)
 
+    # # for i, model in enumerate(models):
+    # #     from torchsummary import summary
+    # #     model.cuda(GPU)
+    # #     print(f'\n{model_names[i]} Memory cost')
+    # #     summary(model, (3, img_size, img_size))
+
+    # # for i, model in enumerate(models):
+    # #     from torchsummaryX import summary
+    # #     model.cuda(GPU)
+    # #     print(f'\n{model_names[i]} FLOPs')
+    # #     summary(model, torch.zeros((1, 3, img_size, img_size)).cuda(GPU))
+        
     # for i, model in enumerate(models):
-    #     from torchsummary import summary
+    #     from torch.profiler import profile, record_function, ProfilerActivity 
     #     model.cuda(GPU)
-    #     print(f'\n{model_names[i]} Memory cost')
-    #     summary(model, (3, img_size, img_size))
-
-    # for i, model in enumerate(models):
-    #     from torchsummaryX import summary
-    #     model.cuda(GPU)
-    #     print(f'\n{model_names[i]} FLOPs')
-    #     summary(model, torch.zeros((1, 3, img_size, img_size)).cuda(GPU))
+    #     inputs = torch.randn(1, 3, img_size, img_size).cuda(GPU)
         
-    for i, model in enumerate(models):
-        from torch.profiler import profile, record_function, ProfilerActivity 
-        model.cuda(GPU)
-        inputs = torch.randn(1, 3, img_size, img_size).cuda(GPU)
+    #     print(f'\n{model_names[i]} Infer time')
         
-        print(f'\n{model_names[i]} Infer time')
-        
-        for i in range(5):
+    #     for i in range(5):
             
-            with profile(activities=[
-            ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
-                with record_function("model_inference"):
-                    model(inputs)
+    #         with profile(activities=[
+    #         ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
+    #             with record_function("model_inference"):
+    #                 model(inputs)
                                 
             
-            print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    #         print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
         
-
+    # RF
+    from torchvision import models
+    from torchsummary import summary
+    vit = ViT(img_size=224, patch_size=16, dim=192)
+    
+    resnet18 = models.resnet18(pretrained=False)
+    torch.cuda.set_device(GPU)
+    vit.cuda(GPU)
+    resnet18.cuda(GPU)
+    
+    # summary(vit, (3, 224, 224))
+    # summary(resnet18, (3, 224, 224))
+    from torch_receptive_field import receptive_field
+    receptive_field_dict = receptive_field(vit, (3, 224, 224))
+    receptive_field_for_unit(receptive_field_dict, "2", (2,2))
 
 
 if __name__ == '__main__':

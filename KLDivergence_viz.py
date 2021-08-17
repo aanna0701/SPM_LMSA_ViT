@@ -18,7 +18,7 @@ colors = sns.color_palette('Paired',8)
 
 def init_parser():
     parser = argparse.ArgumentParser(description='CIFAR10 quick training script')
-    parser.add_argument('--gpu', default=0, type=int)
+    parser.add_argument('--gpu', default=1, type=int)
     parser.add_argument('--data_path', default='./dataset/', type=str)
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR100', 'CIFAR10', 'T-IMNET', 'SVHN'], type=str)
 
@@ -163,7 +163,7 @@ def main(args, save_path):
     
     values = inference(val_loader, model)
 
-    name = 'ViT-T-M'
+    name = 'ViT-LSA'
     plot_values(values, name, i, colors[i*2+1])
     i+=1
     avg[name] = compute_avg(values)
