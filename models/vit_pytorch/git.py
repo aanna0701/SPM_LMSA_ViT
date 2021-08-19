@@ -130,7 +130,7 @@ class GiT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
-        patch_dim = (5) * patch_height * patch_width
+        patch_dim = (7) * patch_height * patch_width
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
 
@@ -190,18 +190,17 @@ class PatchShifting(nn.Module):
 
     def forward(self, x):
         
-        x = x.mean(dim=1, keepdim = True)
+        # x = x.mean(dim=1, keepdim = True)
 
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
-        # x_pad = x_pad.mean(dim=1, keepdim = True)
+        x_pad = x_pad.mean(dim=1, keepdim = True)
         
         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
         x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
         x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
                
-        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         
         
