@@ -15,7 +15,7 @@ def pair(t):
 
 def init_weights(m):
     if isinstance(m, (nn.Linear, nn.Conv2d)):
-        trunc_normal_(m.weight, std=.02)
+        nn.init.xavier_normal_(m.weight)
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
     elif isinstance(m, nn.LayerNorm):

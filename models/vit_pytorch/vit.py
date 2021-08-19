@@ -4,7 +4,6 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
-from timm.models.layers import trunc_normal_
 
 # helpers
 
@@ -15,7 +14,7 @@ def pair(t):
 
 def init_weights(m):
     if isinstance(m, (nn.Linear, nn.Conv2d)):
-        trunc_normal_(m.weight, std=.02)
+        nn.init.xavier_normal_(m.weight)
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
     elif isinstance(m, nn.LayerNorm):
