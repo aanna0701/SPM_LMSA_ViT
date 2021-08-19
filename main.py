@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
-MODELS = ['vit', 'lovit', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'deepvit']
+MODELS = ['vit', 'lovit', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'deepvit', 'res56', 'res56_linear']
 
 
 def init_parser():
@@ -262,6 +262,10 @@ def main(args):
         from models.conv_cifar_pytoch.resnet import resnet56
         model = resnet56()
 
+    elif args.model == 'res56_linear':
+        from models.conv_cifar_pytoch.resnet_linear import resnet56
+        model = resnet56()
+
     elif args.model == 'resxt29':
         from models.conv_cifar_pytoch.resnext import ResNeXt29_32x4d
         model = ResNeXt29_32x4d()
@@ -475,7 +479,16 @@ def main(args):
         Training
     '''
     
+    # all_params = set(model.parameters())
+    # wd_params = set()
+    # for m in model.modules():
+    #     if isinstance(m, (nn.Linear, nn.Conv2d)):
+    #         wd_params.add(m.weight)
+    # no_wd = all_params - wd_params
+    
+    
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.AdamW([{'params': list(no_wd), 'weight_decay': 0}, {'params': list(wd_params)}], lr=args.lr, weight_decay=args.weight_decay)
     # scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
     scheduler = build_scheduler(args, optimizer, len(train_loader))
     

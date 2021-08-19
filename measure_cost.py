@@ -66,31 +66,94 @@ class ViT(nn.Module):
         x = self.to_patch_embedding(img)
        
         return x
-
+    
+def pair(t):
+    return t if isinstance(t, tuple) else (t, t)
 class SPE(nn.Module):
-    def __init__(self, img_size, patch_size,dim, channels = 3):
+    def __init__(self, img_size, patch_size, num_classes, dim=192, depth=9, heads=12, mlp_dim=384, channels = 3, dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
-        assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
-        num_patches = (img_size // patch_size) ** 2
-        patch_dim = (channels+4) * patch_size ** 2
+        image_height, image_width = pair(img_size)
+        patch_height, patch_width = pair(patch_size)
+
+        assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
+
+        num_patches = (image_height // patch_height) * (image_width // patch_width)
+ 
+       
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+ 
+        patch_dim = (channels+4) * patch_height * patch_width       
+        
+        self.linear_to_path = nn.Linear(patch_dim, dim)
         self.to_patch_embedding = nn.Sequential(
             PatchShifting(patch_size),
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-            nn.Linear(patch_dim, dim),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            self.linear_to_path
         )
-
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+    
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
-       
+        self.dropout = nn.Dropout(0)
+        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        
+        nn.linear_mlp_head = nn.Linear(dim, num_classes)
+        self._init_weights(nn.linear_mlp_head)
+
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.linear_mlp_head
+        )
+        
+        self.h_loss = 0.
+        
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
+
     def forward(self, img):
-        x = self.to_patch_embedding(img)
+
+        
+        # patch embedding
+        x = self.to_patch_embedding(img) 
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
+        x += self.pos_embedding[:, :n+1]
+        x = self.dropout(x)
+
+        x = self.transformer(x)
+    
+        x =  x[:, 0]
+
+        
+        
+        return self.mlp_head(x)
+
+# class SPE(nn.Module):
+#     def __init__(self, img_size, patch_size,dim, channels = 3):
+#         super().__init__()
+#         assert img_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
+#         num_patches = (img_size // patch_size) ** 2
+#         patch_dim = (channels+4) * patch_size ** 2
+#         self.to_patch_embedding = nn.Sequential(
+#             PatchShifting(patch_size),
+#             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+#             nn.Linear(patch_dim, dim),
+#         )
+
+#         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+#         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
        
-        return x
+#     def forward(self, img):
+#         x = self.to_patch_embedding(img)
+#         b, n, _ = x.shape
+
+#         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+#         x = torch.cat((cls_tokens, x), dim=1)
+#         x += self.pos_embedding[:, :(n + 1)]
+       
+#         return x
 
 class SPE_rgb(nn.Module):
     def __init__(self, img_size, patch_size,dim, channels = 3):
@@ -199,7 +262,7 @@ class Conv3(nn.Module):
         return x
 
 class T2T(nn.Module):
-    def __init__(self, img_size, patch_size,dim, channels = 3):
+    def __init__(self, img_size, patch_size, num_classes, dim=192, depth=9, heads=12, mlp_dim=384, channels = 3, dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         layers = []
         layer_dim = channels
@@ -222,19 +285,81 @@ class T2T(nn.Module):
 
         layers.append(nn.Linear(layer_dim, dim))
         self.to_patch_embedding = nn.Sequential(*layers)
-        
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))  
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
-       
+        self.dropout = nn.Dropout(0)
+        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        
+        nn.linear_mlp_head = nn.Linear(dim, num_classes)
+        self._init_weights(nn.linear_mlp_head)
+
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.linear_mlp_head
+        )
+        
+        self.h_loss = 0.
+               
+    def _init_weights(self,layer):
+        nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            nn.init.zeros_(layer.bias)  
+
     def forward(self, img):
-        x = self.to_patch_embedding(img)
+
+        
+        # patch embedding
+        x = self.to_patch_embedding(img) 
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
+        x += self.pos_embedding[:, :n+1]
+        x = self.transformer(x)
+    
+        x =  x[:, 0]
+
+        
+        
+        return self.mlp_head(x)
+
+# class T2T(nn.Module):
+#     def __init__(self, img_size, patch_size,dim, channels = 3):
+#         super().__init__()
+#         layers = []
+#         layer_dim = channels
+#         output_image_size = img_size
+
+#         for i, (kernel_size, stride) in enumerate([(7, 4), (3, 2)]):
+#             layer_dim *= kernel_size ** 2
+#             is_first = i == 0
+#             output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
+#             num_patches = output_image_size ** 2
+            
+#             layers.extend([
+#                 RearrangeImage() if not is_first else nn.Identity(),
+#                 nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
+#                 Rearrange('b c n -> b n c'),
+#                 Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64),
+#             ])
+            
+#         num_patches = output_image_size ** 2
+
+#         layers.append(nn.Linear(layer_dim, dim))
+#         self.to_patch_embedding = nn.Sequential(*layers)
+        
+#         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))  
+#         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
        
-        return x
+#     def forward(self, img):
+#         x = self.to_patch_embedding(img)
+#         b, n, _ = x.shape
+
+#         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+#         x = torch.cat((cls_tokens, x), dim=1)
+#         x += self.pos_embedding[:, :(n + 1)]
+       
+#         return x
 
 class G_Attention(nn.Module):
     def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0.):
@@ -351,34 +476,34 @@ def main():
     in_channels = 3
 
     GPU = 1
-    # model_names = ['ViT', 'SPE', 'SPE_rgb','16-8-4', '10-8-1', '3-2-1x3', 'T2T']
-    # models = []
-    # # models.append(ViT(img_size, patch_size, 192, in_channels))
-    # # models.append(SPE(img_size, patch_size, 192, in_channels))
-    # # models.append(SPE_rgb(img_size, patch_size, 192, in_channels))
+    model_names = ['ViT', 'SPE', 'SPE_rgb','16-8-4', '10-8-1', '3-2-1x3', 'T2T']
+    models = []
+    # models.append(ViT(img_size, patch_size, 192, in_channels))
+    models.append(SPE(img_size, patch_size, 200))
+    # models.append(SPE_rgb(img_size, patch_size, 192, in_channels))
     # models.append(Conv1(img_size, patch_size, 192, in_channels))
-    # # models.append(Conv2(img_size, patch_size, 192, in_channels))
-    # # models.append(Conv3(img_size, patch_size, 192, in_channels))
-    # # models.append(T2T(img_size, patch_size, 192, in_channels))
+    # models.append(Conv2(img_size, patch_size, 192, in_channels))
+    # models.append(Conv3(img_size, patch_size, 192, in_channels))
+    models.append(T2T(img_size, patch_size, 200))
 
 
 
 
         
 
-    # torch.cuda.set_device(GPU)
+    torch.cuda.set_device(GPU)
 
-    # # for i, model in enumerate(models):
-    # #     from torchsummary import summary
-    # #     model.cuda(GPU)
-    # #     print(f'\n{model_names[i]} Memory cost')
-    # #     summary(model, (3, img_size, img_size))
+    for i, model in enumerate(models):
+        from torchsummary import summary
+        model.cuda(GPU)
+        print(f'\n{model_names[i]} Memory cost')
+        summary(model, (3, img_size, img_size))
 
-    # # for i, model in enumerate(models):
-    # #     from torchsummaryX import summary
-    # #     model.cuda(GPU)
-    # #     print(f'\n{model_names[i]} FLOPs')
-    # #     summary(model, torch.zeros((1, 3, img_size, img_size)).cuda(GPU))
+    # for i, model in enumerate(models):
+    #     from torchsummaryX import summary
+    #     model.cuda(GPU)
+    #     print(f'\n{model_names[i]} FLOPs')
+    #     summary(model, torch.zeros((1, 3, img_size, img_size)).cuda(GPU))
         
     # for i, model in enumerate(models):
     #     from torch.profiler import profile, record_function, ProfilerActivity 
@@ -387,32 +512,32 @@ def main():
         
     #     print(f'\n{model_names[i]} Infer time')
         
-    #     for i in range(5):
+    #     # for i in range(5):
             
-    #         with profile(activities=[
-    #         ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
-    #             with record_function("model_inference"):
-    #                 model(inputs)
-                                
-            
-    #         print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    #     with profile(activities=[
+    #     ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
+    #         with record_function("model_inference"):
+    #             model(inputs)
+                            
+        
+    #     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
         
-    # RF
-    from torchvision import models
-    from torchsummary import summary
-    vit = ViT(img_size=224, patch_size=16, dim=192)
+    # # RF
+    # from torchvision import models
+    # from torchsummary import summary
+    # vit = ViT(img_size=224, patch_size=16, dim=192)
     
-    resnet18 = models.resnet18(pretrained=False)
-    torch.cuda.set_device(GPU)
-    vit.cuda(GPU)
-    resnet18.cuda(GPU)
+    # resnet18 = models.resnet18(pretrained=False)
+    # torch.cuda.set_device(GPU)
+    # vit.cuda(GPU)
+    # resnet18.cuda(GPU)
     
-    # summary(vit, (3, 224, 224))
-    # summary(resnet18, (3, 224, 224))
-    from torch_receptive_field import receptive_field
-    receptive_field_dict = receptive_field(vit, (3, 224, 224))
-    receptive_field_for_unit(receptive_field_dict, "2", (2,2))
+    # # summary(vit, (3, 224, 224))
+    # # summary(resnet18, (3, 224, 224))
+    # from torch_receptive_field import receptive_field
+    # receptive_field_dict = receptive_field(vit, (3, 224, 224))
+    # receptive_field_for_unit(receptive_field_dict, "2", (2,2))
 
 
 if __name__ == '__main__':

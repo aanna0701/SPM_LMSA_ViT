@@ -3,8 +3,7 @@ from torch import nn, einsum
 from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-import math
-# from utils.positional_encoding import positionalencoding2d
+from utils.relative_norm_residuals import compute_relative_norm_residuals
 
 # helpers
 
@@ -12,6 +11,12 @@ def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
 # classes
+
+def init_weights(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
 
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
@@ -25,139 +30,99 @@ class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
         
-        self.linear1 = nn.Linear(dim, hidden_dim)
-        self._init_weights(self.linear1)
-        self.linear2 = nn.Linear(hidden_dim, dim)
-        self._init_weights(self.linear2)
-        
         self.net = nn.Sequential(
-            self.linear1,
+            nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-            self.linear2,
+            nn.Linear(hidden_dim, dim),
             nn.Dropout(dropout)
         )
+  
+        self.net.apply(init_weights)
         
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)      
-    
     def forward(self, x):
         return self.net(x)
 
-class G_Attention(nn.Module):
-    def __init__(self, dim, num_patches=64, heads = 8, dim_head = 64, dropout = 0.):
+class Attention(nn.Module):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
-        # self.scale = nn.Parameter(torch.rand(heads))
+        self.scale = dim_head ** -0.5        
+        self.scale = nn.Parameter(self.scale *torch.ones(heads))
         # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
-        self._init_weights(self.to_qkv)
+        init_weights(self.to_qkv)
         
-        self.to_out = nn.Linear(inner_dim, dim)
-        self._init_weights(self.to_out)
+ 
 
         self.to_out = nn.Sequential(
-            self.to_out,
+            nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
         
-        # self.g_block = G_Block(dim, inner_dim, heads, dropout)
-        # self.g_block = G_Block(dim, num_patches)
+        self.to_out.apply(init_weights)
+        
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
-        self.value = 0
-        self.entropy = HLoss()
-        self.avg_h = None
-        self.num_nodes = num_patches
         
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)
+        self.value = 0
+        self.avg_h = None
+        self.cls_l2 = None
 
     def forward(self, x):
-        h = self.heads
+        b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
-        # channel_agg = self.g_block(v)
+      
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
+        
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        
-        
-        scores = self.attend(dots)
-        
 
-        out = einsum('b h i j, b h j d -> b h i d', scores, v)
-        
-        # self.avg_h = self.entropy(scores) / self.num_nodes
-        
-        # out = torch.cat([out, channel_agg], dim=-1)
+        attn = self.attend(dots)
 
-        # global_attribute = self.g_block(x)
-        # out = out + global_attribute
-        # self.value = compute_relative_norm_residuals(v, out[:, :, :, :-1])
+        out = einsum('b h i j, b h j d -> b h i d', attn, v)
+    
         
+        self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        # out = self.g_block(out)
-        out = self.to_out(out)
-        
-        return out
-    
-class HLoss(nn.Module):
-    def __init__(self):
-        super(HLoss, self).__init__()
-        
-    def forward(self, x):
-        log = torch.log(x + 1e-12)
-        # log[:, :, self.mask[:, 0], self.mask[:, 1]] = 0.
-        info = torch.mul(log, x)
-        h = -1.0*torch.sum(info, dim=-1)
-        h = h.mean(dim=-1)
-        
-        return h
-    
+        return self.to_out(out)
+
 class Transformer(nn.Module):
     def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
         self.scale = {}
-        self.h = []
-        
 
-        for _ in range(depth):
+        for i in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, G_Attention(dim, num_patches = num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
-            ]))
+            ]))            
+            
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
-        for i, (attn, ff) in enumerate(self.layers):
-            if i == 0:
-                self.h = []   
+        for i, (attn, ff) in enumerate(self.layers):       
             x = self.drop_path(attn(x)) + x
-            # self.h.append(attn.fn.avg_h)           
-            # self.hidden_states[str(i)] = attn.fn.value
-      
-            x = self.drop_path(ff(x)) + x         
-            # self.scale[str(i)] = attn.fn.scale
+            self.hidden_states[str(i)] = attn.fn.value
+            x = self.drop_path(ff(x)) + x
+            
+            self.scale[str(i)] = attn.fn.scale
         return x
 
 class GiT(nn.Module):
-    def __init__(self, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -165,62 +130,63 @@ class GiT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
- 
-       
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
- 
-        patch_dim = (channels+4) * patch_height * patch_width       
-        
-        self.linear_to_path = nn.Linear(patch_dim, dim)
+        patch_dim = (5) * patch_height * patch_width
+        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
+
+
         self.to_patch_embedding = nn.Sequential(
             PatchShifting(patch_size),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            self.linear_to_path
+            nn.Linear(patch_dim, dim),
         )
-    
+        self.to_patch_embedding.apply(init_weights)
+
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
-        
-        nn.linear_mlp_head = nn.Linear(dim, num_classes)
-        self._init_weights(nn.linear_mlp_head)
+
+        self.pool = pool
+        self.to_latent = nn.Identity()
+
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.linear_mlp_head
+            nn.Linear(dim, num_classes)
         )
+        self.mlp_head.apply(init_weights)
         
-        self.h_loss = 0.
-        
+        self.final_cls_token = None
+
     def _init_weights(self,layer):
         nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
             nn.init.zeros_(layer.bias)  
 
     def forward(self, img):
-
-        
         # patch embedding
-        x = self.to_patch_embedding(img) 
+        x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :n+1]
+        x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
         x = self.transformer(x)
-    
-        x =  x[:, 0]
 
+        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+
+        x = self.to_latent(x)
         
+        self.final_cls_token = x
         
         return self.mlp_head(x)
-    
+
 class PatchShifting(nn.Module):
     def __init__(self, patch_size):
         super().__init__()
-        self.shift = int(patch_size * (1/4))
+        self.shift = int(patch_size * (1/2)
 
     def forward(self, x):
 
@@ -233,7 +199,8 @@ class PatchShifting(nn.Module):
         x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
         x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
                
-        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        x_cat = torch.cat([x_pad, x_l2, x_r2, x_t2, x_b2], dim=1)
         
         
         return x_cat

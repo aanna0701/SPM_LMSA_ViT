@@ -12,6 +12,12 @@ def pair(t):
 
 # classes
 
+def init_weights(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
@@ -24,24 +30,16 @@ class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
         
-        self.linear1 = nn.Linear(dim, hidden_dim)
-        self._init_weights(self.linear1)
-        self.linear2 = nn.Linear(hidden_dim, dim)
-        self._init_weights(self.linear2)
-        
         self.net = nn.Sequential(
-            self.linear1,
+            nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-            self.linear2,
+            nn.Linear(hidden_dim, dim),
             nn.Dropout(dropout)
         )
+  
+        self.net.apply(init_weights)
         
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)      
-    
     def forward(self, x):
         return self.net(x)
 
@@ -53,20 +51,22 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5        
-        # self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = nn.Parameter(self.scale *torch.ones(heads))
         # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
-        self._init_weights(self.to_qkv)
+        init_weights(self.to_qkv)
         
-        self.to_out = nn.Linear(inner_dim, dim)
-        self._init_weights(self.to_out)
+ 
 
         self.to_out = nn.Sequential(
-            self.to_out,
+            nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
+        
+        self.to_out.apply(init_weights)
+        
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
@@ -74,11 +74,6 @@ class Attention(nn.Module):
         self.value = 0
         self.avg_h = None
         self.cls_l2 = None
-        
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
 
     def forward(self, x):
         b, n, _, h = *x.shape, self.heads
@@ -138,13 +133,12 @@ class ViT(nn.Module):
         patch_dim = channels * patch_height * patch_width
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
-        self.linear_to_path = nn.Linear(patch_dim, dim)
-        self._init_weights(self.linear_to_path)
+
         self.to_patch_embedding = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            self.linear_to_path,
+            nn.Linear(patch_dim, dim),
         )
-
+        self.to_patch_embedding.apply(init_weights)
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -153,14 +147,13 @@ class ViT(nn.Module):
 
         self.pool = pool
         self.to_latent = nn.Identity()
-        
-        nn.linear_mlp_head = nn.Linear(dim, num_classes)
-        self._init_weights(nn.linear_mlp_head)
+
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.linear_mlp_head
+            nn.Linear(dim, num_classes)
         )
+        self.mlp_head.apply(init_weights)
         
         self.final_cls_token = None
 
