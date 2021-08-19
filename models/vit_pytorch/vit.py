@@ -4,6 +4,7 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
+from timm.models.layers import trunc_normal_
 
 # helpers
 
@@ -14,9 +15,12 @@ def pair(t):
 
 def init_weights(m):
     if isinstance(m, (nn.Linear, nn.Conv2d)):
-        nn.init.xavier_normal_(m.weight)
+        trunc_normal_(m.weight, std=.02)
         if m.bias is not None:
-            m.bias.data.fill_(0)
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
 
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
@@ -38,7 +42,6 @@ class FeedForward(nn.Module):
             nn.Dropout(dropout)
         )
   
-        self.net.apply(init_weights)
         
     def forward(self, x):
         return self.net(x)
@@ -65,7 +68,6 @@ class Attention(nn.Module):
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
         
-        self.to_out.apply(init_weights)
         
         self.mask = torch.eye(num_patches+1, num_patches+1)
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
@@ -130,7 +132,7 @@ class ViT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
-        patch_dim = channels * patch_height * patch_width
+        patch_dim = 3 * patch_height * patch_width
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
 
@@ -138,7 +140,6 @@ class ViT(nn.Module):
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             nn.Linear(patch_dim, dim),
         )
-        self.to_patch_embedding.apply(init_weights)
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -153,14 +154,11 @@ class ViT(nn.Module):
             nn.LayerNorm(dim),
             nn.Linear(dim, num_classes)
         )
-        self.mlp_head.apply(init_weights)
         
         self.final_cls_token = None
+        
+        self.apply(init_weights)
 
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
 
     def forward(self, img):
         # patch embedding
