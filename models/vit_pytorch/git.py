@@ -189,10 +189,12 @@ class PatchShifting(nn.Module):
         self.shift = int(patch_size * (1/2))
 
     def forward(self, x):
+        
+        x = x.mean(dim=1, keepdim = True)
 
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
-        x_pad = x_pad.mean(dim=1, keepdim = True)
+        # x_pad = x_pad.mean(dim=1, keepdim = True)
         
         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
@@ -200,7 +202,7 @@ class PatchShifting(nn.Module):
         x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
                
         # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
-        x_cat = torch.cat([x_pad, x_l2, x_r2, x_t2, x_b2], dim=1)
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         
         
         return x_cat
