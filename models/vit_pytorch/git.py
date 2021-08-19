@@ -186,7 +186,7 @@ class GiT(nn.Module):
 class PatchShifting(nn.Module):
     def __init__(self, patch_size):
         super().__init__()
-        self.shift = int(patch_size * (1/2)
+        self.shift = int(patch_size * (1/2))
 
     def forward(self, x):
 
