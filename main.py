@@ -479,19 +479,19 @@ def main(args):
         Training
     '''
     
-    all_params = set(model.parameters())
-    wd_params = set()
-    for m in list(model.modules()):
-        if isinstance(m, (nn.Linear, nn.Conv2d, nn.LayerNorm)):
-        # if isinstance(m, (nn.Parameter)):
-            wd_params.add(m.weight)
-    no_wd = all_params - wd_params
+    no_wd = list()
+    yes_wd = list()
     
-    # print(all_params)
+    all_params = set(model.parameters())
+    no_wd = set()
+    for m in list(model.parameters()):
+        if m.size(0) == args.heads:
+            no_wd.add(m)
+    yes_wd = all_params - no_wd
     
     
     # optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    optimizer = torch.optim.AdamW([{'params': list(no_wd), 'weight_decay': 0}, {'params': list(wd_params)}], lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.AdamW([{'params': list(no_wd), 'weight_decay': 0}, {'params': list(yes_wd)}], lr=args.lr, weight_decay=args.weight_decay)
     # scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
     scheduler = build_scheduler(args, optimizer, len(train_loader))
     
