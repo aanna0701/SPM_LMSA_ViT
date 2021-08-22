@@ -200,12 +200,21 @@ def main(args):
     
     elif args.model == 'g-vit':
         from models.vit_pytorch.git import GiT        
-        dim_head = args.channel // args.heads
+        dim_head = (args.channel // 2) // args.heads
         model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     
     elif args.model == 'g-vit2':
         from models.vit_pytorch.git_2 import GiT        
         dim_head = args.channel // args.heads
+        if img_size == 32:
+            patch_size = 2
+            args.depth = (6, 2)
+        elif img_size > 32:
+            patch_size = 4
+            args.depth = (6, 2)
+        
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+    
     
     elif args.model == 'cait':
         from models.vit_pytorch.cait import CaiT        

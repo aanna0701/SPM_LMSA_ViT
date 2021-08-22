@@ -4,7 +4,6 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
-from timm.models.layers import trunc_normal_
 
 # helpers
 
@@ -30,6 +29,15 @@ class PreNorm(nn.Module):
     def forward(self, x, **kwargs):
         return self.fn(self.norm(x), **kwargs)
 
+
+class PostNorm(nn.Module):
+    def __init__(self, dim, fn):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+        self.fn = fn
+    def forward(self, x, **kwargs):
+        return self.norm(self.fn(x, **kwargs))
+
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
@@ -54,7 +62,7 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5        
-        self.scale = nn.Parameter(self.scale *torch.ones(heads))
+        # self.scale = nn.Parameter(torch.rand(heads))
         # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
@@ -83,10 +91,10 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         
         # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
@@ -123,6 +131,31 @@ class Transformer(nn.Module):
             self.scale[str(i)] = attn.fn.scale
         return x
 
+class BottleneckTransformer(nn.Module):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        self.hidden_states = {}
+        self.scale = {}
+        self.activation = nn.GELU()
+
+        for i in range(depth):
+            self.layers.append(nn.ModuleList([
+                PreNorm(dim, nn.Linear(dim, dim // 2)),
+                PreNorm(dim // 2, Attention(dim // 2, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim // 2, nn.Linear(dim // 2, dim))
+            ]))            
+            
+        self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
+    def forward(self, x):
+        for i, (contr, attn, expand) in enumerate(self.layers):    
+            residuals = x
+            x = self.activation(self.drop_path(contr(x))) 
+            x = self.activation(self.drop_path(attn(x))) + x
+            x = self.activation(self.drop_path(expand(x))) + residuals
+            
+        return x
+
 class GiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
@@ -144,7 +177,7 @@ class GiT(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        self.transformer = BottleneckTransformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
 
         self.pool = pool
         self.to_latent = nn.Identity()
