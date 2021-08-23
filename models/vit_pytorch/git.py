@@ -216,15 +216,13 @@ class PatchMerging(nn.Module):
         super().__init__()
         
         self.is_pe = is_pe
+        patch_dim = in_dim * (merging_size**2)
   
         if not is_pe:
             self.class_linear = nn.Linear(in_dim, dim)
             self.patch_shifting = PatchShifting(merging_size, True)
             patch_dim = (in_dim+4) * (merging_size**2) 
-        
-        patch_dim = in_dim * (merging_size**2) 
-        
-        print(patch_dim)
+    
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
             nn.Linear(patch_dim, dim)
@@ -239,7 +237,6 @@ class PatchMerging(nn.Module):
             visual_tokens, class_token = x[:, 1:], x[:, (0,)]
             reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=h)
             out_visual = self.patch_shifting(reshaped)
-            print(out_visual.shape)
             out_visual = self.merging(out_visual)
             out_class = self.class_linear(class_token)
             out = torch.cat([out_class, out_visual], dim=1)
