@@ -166,7 +166,7 @@ class GiT(nn.Module):
                 num_patches //= 4
                 self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth)) 
                 self.transformer.append(PatchShifting(2, True))  
-                self.transformer.append(PatchMerging(dim + 5, dim*2, 2))  
+                self.transformer.append(PatchMerging(dim + 4, dim*2, 2))  
                 heads *= 2
                 dim *= 2 
             elif i+1 == len(depth) and i != 0:
@@ -254,7 +254,7 @@ class PatchShifting(nn.Module):
         
     def forward(self, x):
      
-        x = x.mean(dim=1, keepdim = True)
+        # x = x.mean(dim=1, keepdim = True)
 
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
