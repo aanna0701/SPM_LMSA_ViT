@@ -221,7 +221,7 @@ class PatchMerging(nn.Module):
     
         self.class_linear = nn.Linear(in_dim, dim)
         self.patch_shifting = PatchShifting(merging_size, True)
-        patch_dim = (in_dim+4) * (merging_size**2) 
+        patch_dim = (in_dim*5) * (merging_size**2) 
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
@@ -259,8 +259,8 @@ class PatchShifting(nn.Module):
         # x = x.mean(dim=1, keepdim = True)
 
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
-        if self.is_mean:
-            x_pad = x_pad.mean(dim=1, keepdim = True)
+        # if self.is_mean:
+        #     x_pad = x_pad.mean(dim=1, keepdim = True)
         
         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
