@@ -173,11 +173,12 @@ class GiT(nn.Module):
         self.to_patch_embedding = nn.Sequential(
             PatchShifting(patch_size),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            nn.Linear(patch_dim, 64),
-            Transformer(64, num_patches, 2, 1, 64, 64*2, 0),
-            PatchMerging(64, dim, 2, is_pe=True)
+            nn.Linear(patch_dim, dim),
+            Transformer(dim, num_patches, 2, 1, 64, 64*2, 0),
+            PatchMerging(dim, dim*2, 2, is_pe=True)
         )
 
+        dim *= 2
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
@@ -301,4 +302,27 @@ class PatchShifting(nn.Module):
         
         
         return x_cat
+    
+# class PatchShifting(nn.Module):
+#     def __init__(self, patch_size):
+#         super().__init__()
+#         self.shift = int(patch_size * (1/2))
+
+#     def forward(self, x):
+        
+#         # x = x.mean(dim=1, keepdim = True)
+
+#         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        
+#         # x_pad = x_pad.mean(dim=1, keepdim = True)
+        
+#         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+#         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+#         x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+#         x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+               
+#         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        
+        
+#         return x_cat
     

@@ -4,6 +4,7 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
+import math
 
 # helpers
 
@@ -165,20 +166,52 @@ class GiT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
-        patch_dim = (3) * patch_height * patch_width
+        patch_dim = 15 * patch_height * patch_width
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
 
         self.to_patch_embedding = nn.Sequential(
+            PatchShifting(patch_size),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             nn.Linear(patch_dim, dim),
+            Transformer(dim, num_patches, 2, 1, 64, 64*2, 0),
+            PatchMerging(dim, dim*2, 2, is_pe=True)
         )
 
+        dim *= 2
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = BottleneckTransformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth)
-
+        
+        # heads *= 2
+        # self.transformer0 = nn.Sequential(
+        #     PatchMerging(dim, 2),
+        #     Transformer(dim, num_patches, depth[0], heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        # )
+        # dim *= 2
+        # heads *= 2
+        # self.transformer1 = nn.Sequential(
+        #     PatchMerging(2),
+        #     Transformer(dim, num_patches, depth[1], heads, dim_head, mlp_dim, dropout, stochastic_depth)
+        # )
+        
+        self.transformer = []
+        for i in range(len(depth)):
+            if i+1 != len(depth):                
+                num_patches //= 4
+                self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim_head, dim*2, dropout, stochastic_depth))
+                self.transformer.append(PatchShifting(2))
+                self.transformer.append(PatchMerging(dim*5, dim*2, 2))  
+                heads *= 2
+                dim *= 2 
+            else:
+                num_patches //= 4
+                self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim_head, dim*2, dropout, stochastic_depth)) 
+                
+        
+        self.transformer = nn.Sequential(*self.transformer)
+        
+        
         self.pool = pool
         self.to_latent = nn.Identity()
 
@@ -203,6 +236,7 @@ class GiT(nn.Module):
         x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
+
         x = self.transformer(x)
 
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
@@ -213,6 +247,40 @@ class GiT(nn.Module):
         
         return self.mlp_head(x)
 
+class PatchMerging(nn.Module):
+    def __init__(self, in_dim, dim, merging_size=2, is_pe=False):
+        super().__init__()
+        
+        self.is_pe = is_pe
+        
+        patch_dim = in_dim * (merging_size**2)        
+        
+        self.merging = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
+            nn.Linear(patch_dim, dim)
+        )
+        
+        if not is_pe:
+            self.class_linear = nn.Linear(in_dim, dim)
+
+    def forward(self, x):
+        
+        _, n, _ = x.size()
+        h = int(math.sqrt(n))
+        
+        if not self.is_pe:
+            visual_tokens, class_token = x[:, 1:], x[:, (0,)]
+            reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=h)
+            out_visual = self.merging(reshaped)
+            out_class = self.class_linear(class_token)
+            out = torch.cat([out_class, out_visual], dim=1)
+        
+        else:
+            reshaped = rearrange(x, 'b (h w) d -> b d h w', h=h)
+            out = self.merging(reshaped)
+        
+        return out
+    
 class PatchShifting(nn.Module):
     def __init__(self, patch_size):
         super().__init__()
@@ -224,7 +292,7 @@ class PatchShifting(nn.Module):
 
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
-        x_pad = x_pad.mean(dim=1, keepdim = True)
+        # x_pad = x_pad.mean(dim=1, keepdim = True)
         
         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
@@ -235,3 +303,4 @@ class PatchShifting(nn.Module):
         
         
         return x_cat
+    

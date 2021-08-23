@@ -204,14 +204,17 @@ def main(args):
         model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     
     elif args.model == 'g-vit2':
-        from models.vit_pytorch.git_2 import GiT        
+        from models.vit_pytorch.git_2 import GiT
+        args.channel = 96        
         dim_head = args.channel // args.heads
         if img_size == 32:
             patch_size = 2
-            args.depth = (6, 2)
+            args.depth = (6, 4)
         elif img_size > 32:
             patch_size = 4
-            args.depth = (6, 2)
+            args.depth = (6, 4)
+        
+        
         
         model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     
