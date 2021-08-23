@@ -218,10 +218,10 @@ class PatchMerging(nn.Module):
         self.is_pe = is_pe
         patch_dim = in_dim * (merging_size**2)
   
-        if not is_pe:
-            self.class_linear = nn.Linear(in_dim, dim)
-            self.patch_shifting = PatchShifting(merging_size, True)
-            patch_dim = (in_dim+4) * (merging_size**2) 
+    
+        self.class_linear = nn.Linear(in_dim, dim)
+        self.patch_shifting = PatchShifting(merging_size, True)
+        patch_dim = (in_dim+4) * (merging_size**2) 
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
@@ -243,7 +243,8 @@ class PatchMerging(nn.Module):
         
         else:
             reshaped = rearrange(x, 'b (h w) d -> b d h w', h=h)
-            out = self.merging(reshaped)
+            out = self.patch_shifting(reshaped)
+            out = self.merging(out)
         
         return out
     
