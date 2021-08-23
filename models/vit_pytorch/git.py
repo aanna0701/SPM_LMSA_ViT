@@ -223,7 +223,8 @@ class PatchMerging(nn.Module):
             patch_dim = (in_dim+4) * (merging_size**2) 
         
         patch_dim = in_dim * (merging_size**2) 
-            
+        
+        print(patch_dim)
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
             nn.Linear(patch_dim, dim)
