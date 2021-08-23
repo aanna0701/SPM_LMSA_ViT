@@ -28,23 +28,16 @@ class PreNorm(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
-        self.linear1 = nn.Linear(dim, hidden_dim)
-        self._init_weights(self.linear1)
-        self.linear2 = nn.Linear(hidden_dim, dim)
-        self._init_weights(self.linear2)
+
         
         self.net = nn.Sequential(
-            self.linear1,
+            nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-            self.linear2,
+            nn.Linear(hidden_dim, dim),
             nn.Dropout(dropout)
         )
         
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)   
         
     def forward(self, x):
         return self.net(x)
@@ -62,13 +55,11 @@ class Attention(nn.Module):
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
-        self._init_weights(self.to_qkv) 
         
-        self.to_out = nn.Linear(inner_dim, dim)
-        self._init_weights(self.to_out)
+ 
         
         self.to_out = nn.Sequential(
-            self.to_out,
+            nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
         
@@ -77,10 +68,6 @@ class Attention(nn.Module):
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
         
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
 
     def forward(self, x):
         b, n, _, h = *x.shape, self.heads
@@ -122,24 +109,26 @@ class Transformer(nn.Module):
 
 # depthwise convolution, for pooling
 
+def init_weights(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+            
 class DepthWiseConv2d(nn.Module):
     def __init__(self, dim_in, dim_out, kernel_size, padding, stride, bias = True):
         super().__init__()
-        
-        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias)
-        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size = 1, bias = bias)
-        self._init_weights(self.conv1)
-        self._init_weights(self.conv2)
+  
         
         self.net = nn.Sequential(
-            self.conv1,
-            self.conv2
+            nn.Conv2d(dim_in, dim_out, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias),
+            nn.Conv2d(dim_out, dim_out, kernel_size = 1, bias = bias)
         ) 
-    
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
+        
+        
         
     def forward(self, x):
         return self.net(x)
@@ -151,12 +140,8 @@ class Pool(nn.Module):
         super().__init__()
         self.downsample = DepthWiseConv2d(dim, dim * 2, kernel_size = 3, stride = 2, padding = 1)
         self.cls_ff = nn.Linear(dim, dim * 2)
-        self._init_weights(self.cls_ff)
         
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
+
 
     def forward(self, x):
         cls_token, tokens = x[:, :1], x[:, 1:]
@@ -175,30 +160,17 @@ def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
 class PiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         heads = cast_tuple(heads, len(depth))
 
-     
 
-        # self.linear_to_path = nn.Linear(patch_dim, dim)
-        # self._init_weights(self.linear_to_path)
-        # self.to_patch_embedding = nn.Sequential(
-        #     PatchShifting(patch_size),
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-        #     self.linear_to_path
-        # )
-
-
-        self.conv_embedding = nn.Conv2d(3, dim, patch_size*2, patch_size)
-        self._init_weights(self.conv_embedding)
         
         output_size = conv_output_size(img_size, patch_size*2, patch_size)
         
-        self.conv_embedding = nn.Conv2d(3, dim, patch_size*2, patch_size)
-        self._init_weights(self.conv_embedding)
+        
         self.to_patch_embedding = nn.Sequential(
-            self.conv_embedding,
+            nn.Conv2d(3, dim, patch_size*2, patch_size),
             Rearrange('b c h w -> b (h w) c')
         )
         
@@ -224,19 +196,13 @@ class PiT(nn.Module):
 
         self.layers = nn.Sequential(*layers)
 
-        nn.linear_mlp_head = nn.Linear(dim, num_classes)
-        self._init_weights(nn.linear_mlp_head)
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.linear_mlp_head
+            nn.Linear(dim, num_classes)
         )
-
-
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
+        
+        self.apply(init_weights)
 
     def forward(self, img):
         x = self.to_patch_embedding(img)

@@ -23,6 +23,7 @@ from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
+
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
@@ -201,22 +202,23 @@ def main(args):
     elif args.model == 'g-vit':
         from models.vit_pytorch.git import GiT        
         dim_head = (args.channel // 2) // args.heads
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dropout=dropout, stochastic_depth=args.sd)
     
     elif args.model == 'g-vit2':
         from models.vit_pytorch.git_2 import GiT
-        args.channel = 96        
+        args.channel = 96              
+        args.heads = 2 
         dim_head = args.channel // args.heads
         if img_size == 32:
-            patch_size = 2
-            args.depth = (6, 4)
+            patch_size = 2            
+            args.depth = (2, 6, 4)
         elif img_size > 32:
             patch_size = 4
-            args.depth = (6, 4)
+            args.depth = (2, 6, 4)
         
         
         
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dropout=dropout, stochastic_depth=args.sd)
     
     
     elif args.model == 'cait':
@@ -235,21 +237,23 @@ def main(args):
             patch_size = 2
         elif img_size > 32:
             patch_size = 4
-        dim_head = args.channel // args.heads
-        if args.channel == 144:
-            args.channel = 64
-        else:
-            args.channel = 96
+        
+
+        args.channel = 96
         args.heads = (2, 4, 8)
         args.depth = (2, 6, 4)
-        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim=args.channel*2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        
+        dim_head = args.channel // args.heads[0]
+        
+        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=4, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
     elif args.model =='t2t-vit':
         from models.vit_pytorch.t2t import T2TViT
         if img_size == 32:
-            t2t_layers = ((3, 2), (3, 2))
+            t2t_layers = ((3, 2, 1), (3, 2, 1), (3, 2, 1))
         elif img_size > 32:
-            t2t_layers = ((7, 4), (3, 2))
+            t2t_layers = ((7, 4, 2), (3, 2, 1), (3, 2, 1))
+            
         model = T2TViT(image_size=img_size, t2t_layers = t2t_layers, num_classes=n_classes, stochastic_depth=args.sd)
         
     elif args.model =='cvt':
@@ -523,6 +527,7 @@ def main(args):
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler = checkpoint['scheduler']
         args.epochs = checkpoint['epoch'] + 1
+    
     
     for epoch in range(args.epochs):
         # adjust_learning_rate(optimizer, epoch, args)

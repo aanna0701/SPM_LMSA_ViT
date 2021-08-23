@@ -158,7 +158,7 @@ class BottleneckTransformer(nn.Module):
         return x
 
 class GiT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -166,7 +166,7 @@ class GiT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
-        patch_dim = 15 * patch_height * patch_width
+        patch_dim = channels*5 * patch_height * patch_width
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
 
@@ -174,7 +174,7 @@ class GiT(nn.Module):
             PatchShifting(patch_size),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             nn.Linear(patch_dim, dim),
-            Transformer(dim, num_patches, 2, 1, 64, 64*2, 0),
+            Transformer(dim, num_patches, depth[0], heads, dim // heads, dim*mlp_dim_ratio, 0),
             PatchMerging(dim, dim*2, 2, is_pe=True)
         )
 
@@ -199,14 +199,14 @@ class GiT(nn.Module):
         for i in range(len(depth)):
             if i+1 != len(depth):                
                 num_patches //= 4
-                self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim_head, dim*2, dropout, stochastic_depth))
+                self.transformer.append(Transformer(dim, num_patches, depth[i+1], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth))
                 self.transformer.append(PatchShifting(2))
                 self.transformer.append(PatchMerging(dim*5, dim*2, 2))  
                 heads *= 2
                 dim *= 2 
             else:
                 num_patches //= 4
-                self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim_head, dim*2, dropout, stochastic_depth)) 
+                self.transformer.append(Transformer(dim, num_patches, depth[i+1], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth)) 
                 
         
         self.transformer = nn.Sequential(*self.transformer)

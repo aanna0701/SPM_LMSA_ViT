@@ -22,24 +22,16 @@ class PreNorm(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
-        
-        self.linear1 = nn.Linear(dim, hidden_dim)
-        self._init_weights(self.linear1)
-        self.linear2 = nn.Linear(hidden_dim, dim)
-        self._init_weights(self.linear2)
+
         
         self.net = nn.Sequential(
-            self.linear1,
+            nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-            self.linear2,
+            nn.Linear(hidden_dim, dim),
             nn.Dropout(dropout)
         )
         
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)      
     
     def forward(self, x):
         return self.net(x)
@@ -52,45 +44,40 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5        
-        if not is_pe:
-            self.scale = nn.Parameter(self.scale*torch.ones(heads))
-        # self.scale = nn.Parameter(torch.rand(1))
+        # if not is_pe:
+        #     self.scale = nn.Parameter(self.scale*torch.ones(heads))
+ 
 
         self.attend = nn.Softmax(dim = -1)
-        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
-        self._init_weights(self.to_qkv)
-        
-        self.to_out = nn.Linear(inner_dim, dim)
-        self._init_weights(self.to_out)
+        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)        
 
         self.to_out = nn.Sequential(
-            self.to_out,
+            nn.Linear(inner_dim, inner_dim),
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
+        
         num_patches = num_patches -1 if is_pe else num_patches
         self.mask = torch.eye(num_patches+1, num_patches+1) 
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False) 
         self.inf = float('-inf')
         self.is_pe = is_pe
         
-        
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
 
     def forward(self, x):
         b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
-        if self.is_pe:
-            dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        else:
-            scale = self.scale
-            dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
-            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        # if self.is_pe:
+        #     dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        
+        # else:
+        #     scale = self.scale
+        #     dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        #     dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
@@ -98,7 +85,8 @@ class Attention(nn.Module):
         
         # self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
+        out = self.to_out(out) + v.squeeze() if self.is_pe else self.to_out(out) + x
+        return out
 
 from utils.drop_path import DropPath
 class Transformer(nn.Module):
@@ -107,20 +95,26 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([])
 
         for i in range(depth):
-            self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_pe=is_pe)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
-            ]))            
-            
+            transformer = nn.ModuleList([])
+            transformer.append(PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_pe=is_pe)))            
+            dim = dim_head * heads
+            transformer.append(PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)))   
+            self.layers.append(transformer)       
+        
+    
+        
+        self.layers = nn.ModuleList(self.layers)
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):       
-            x = self.drop_path(attn(x)) + x
+            x = self.drop_path(attn(x)) 
             x = self.drop_path(ff(x)) + x
         return x
 
+
 def exists(val):
     return val is not None
+
 
 def conv_output_size(image_size, kernel_size, stride, padding):
     return int(((image_size - kernel_size + (2 * padding)) / stride) + 1)
@@ -134,7 +128,7 @@ class RearrangeImage(nn.Module):
 # main class
 
 class T2TViT(nn.Module):
-    def __init__(self, *, image_size, num_classes, dim=256, depth = 8, heads = 4, mlp_dim = 512, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., transformer = None, t2t_layers = ((3, 2), (3, 2)), stochastic_depth=0.):
+    def __init__(self, *, image_size, num_classes, dim=256, depth = 12, heads = 4, mlp_dim_ratio = 2, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., transformer = None, t2t_layers = ((3, 2), (3, 2)), stochastic_depth=0.):
         super().__init__()
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
@@ -142,17 +136,21 @@ class T2TViT(nn.Module):
         layer_dim = channels
         output_image_size = image_size
 
-        for i, (kernel_size, stride) in enumerate(t2t_layers):
-            layer_dim *= kernel_size ** 2
+        for i, (kernel_size, stride, padding) in enumerate(t2t_layers):
+            if i == 0:
+                layer_dim *= kernel_size ** 2
+            else:
+                layer_dim = 64 * (kernel_size ** 2)
             is_first = i == 0
-            output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
+            is_last = i == (len(t2t_layers) - 1)
+            output_image_size = conv_output_size(output_image_size, kernel_size, stride, padding)
             num_patches = output_image_size ** 2
             
             layers.extend([
                 RearrangeImage() if not is_first else nn.Identity(),
-                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
+                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = padding),
                 Rearrange('b c n -> b n c'),
-                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True),
+                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
             ])
             
         num_patches = output_image_size ** 2
@@ -165,26 +163,20 @@ class T2TViT(nn.Module):
         self.dropout = nn.Dropout(emb_dropout)
 
         if not exists(transformer):
-            assert all([exists(depth), exists(heads), exists(mlp_dim)]), 'depth, heads, and mlp_dim must be supplied'
-            self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim, dropout, stochastic_depth=stochastic_depth)
+            assert all([exists(depth), exists(heads), exists(mlp_dim_ratio)]), 'depth, heads, and mlp_dim must be supplied'
+            self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, dim * mlp_dim_ratio, dropout, stochastic_depth=stochastic_depth)
         else:
             self.transformer = transformer
 
         self.pool = pool
         self.to_latent = nn.Identity()
-
-        self.linear_mlp_head = nn.Linear(dim, num_classes)
-        self._init_weights(self.linear_mlp_head)
         
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
-            self.linear_mlp_head
+            nn.Linear(dim, num_classes)
         )
-        
-    def _init_weights(self,layer):
-        nn.init.xavier_normal_(layer.weight)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)  
+
+        self.apply(init_weights)
 
     def forward(self, img):
         x = self.to_patch_embedding(img)
@@ -201,3 +193,13 @@ class T2TViT(nn.Module):
 
         x = self.to_latent(x)
         return self.mlp_head(x)
+
+
+def init_weights(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
