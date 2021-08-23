@@ -257,7 +257,7 @@ class PatchShifting(nn.Module):
         # x = x.mean(dim=1, keepdim = True)
         if self.is_mean:
             _, n, _ = x.size()
-            x = rearrange(x, 'b (h w) d -> b d h w', h = math.sqrt(n))
+            x = rearrange(x, 'b (h w) d -> b d h w', h = int(math.sqrt(n)))
 
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         if self.is_mean:
