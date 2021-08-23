@@ -132,30 +132,6 @@ class Transformer(nn.Module):
             self.scale[str(i)] = attn.fn.scale
         return x
 
-class BottleneckTransformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., stochastic_depth=0.):
-        super().__init__()
-        self.layers = nn.ModuleList([])
-        self.hidden_states = {}
-        self.scale = {}
-        self.activation = nn.GELU()
-
-        for i in range(depth):
-            self.layers.append(nn.ModuleList([
-                PreNorm(dim, nn.Linear(dim, dim // 2)),
-                PreNorm(dim // 2, Attention(dim // 2, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
-                PreNorm(dim // 2, nn.Linear(dim // 2, dim))
-            ]))            
-            
-        self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
-    def forward(self, x):
-        for i, (contr, attn, expand) in enumerate(self.layers):    
-            residuals = x
-            x = self.activation(self.drop_path(contr(x))) 
-            x = self.activation(self.drop_path(attn(x))) + x
-            x = self.activation(self.drop_path(expand(x))) + residuals
-            
-        return x
 
 class GiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
@@ -179,34 +155,23 @@ class GiT(nn.Module):
         )
 
         dim *= 2
+        heads *= 2
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         
-        # heads *= 2
-        # self.transformer0 = nn.Sequential(
-        #     PatchMerging(dim, 2),
-        #     Transformer(dim, num_patches, depth[0], heads, dim_head, mlp_dim, dropout, stochastic_depth)
-        # )
-        # dim *= 2
-        # heads *= 2
-        # self.transformer1 = nn.Sequential(
-        #     PatchMerging(2),
-        #     Transformer(dim, num_patches, depth[1], heads, dim_head, mlp_dim, dropout, stochastic_depth)
-        # )
-        
         self.transformer = []
         for i in range(len(depth)):
-            if i+1 != len(depth):                
+            if i+1 != len(depth) and i != 0:                
                 num_patches //= 4
-                self.transformer.append(Transformer(dim, num_patches, depth[i+1], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth))
-                self.transformer.append(PatchShifting(2))
-                self.transformer.append(PatchMerging(dim*5, dim*2, 2))  
+                self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth)) 
+                self.transformer.append(PatchShifting(2, True))  
+                self.transformer.append(PatchMerging(dim + 5, dim*2, 2))  
                 heads *= 2
                 dim *= 2 
-            else:
+            elif i+1 == len(depth) and i != 0:
                 num_patches //= 4
-                self.transformer.append(Transformer(dim, num_patches, depth[i+1], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth)) 
+                self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth)) 
                 
         
         self.transformer = nn.Sequential(*self.transformer)
@@ -282,17 +247,19 @@ class PatchMerging(nn.Module):
         return out
     
 class PatchShifting(nn.Module):
-    def __init__(self, patch_size):
+    def __init__(self, patch_size, is_mean=False):
         super().__init__()
         self.shift = int(patch_size * (1/2))
-
-    def forward(self, x):
+        self.is_mean = is_mean
         
-        # x = x.mean(dim=1, keepdim = True)
+    def forward(self, x):
+     
+        x = x.mean(dim=1, keepdim = True)
 
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
-        # x_pad = x_pad.mean(dim=1, keepdim = True)
+        if self.is_mean:
+            x_pad = x_pad.mean(dim=1, keepdim = True)
         
         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
@@ -303,4 +270,27 @@ class PatchShifting(nn.Module):
         
         
         return x_cat
+    
+# class PatchShifting(nn.Module):
+#     def __init__(self, patch_size):
+#         super().__init__()
+#         self.shift = int(patch_size * (1/2))
+
+#     def forward(self, x):
+        
+#         # x = x.mean(dim=1, keepdim = True)
+
+#         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        
+#         # x_pad = x_pad.mean(dim=1, keepdim = True)
+        
+#         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+#         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+#         x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+#         x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+               
+#         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        
+        
+#         return x_cat
     
