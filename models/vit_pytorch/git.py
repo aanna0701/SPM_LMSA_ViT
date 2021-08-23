@@ -165,8 +165,7 @@ class GiT(nn.Module):
             if i+1 != len(depth) and i != 0:                
                 num_patches //= 4
                 self.transformer.append(Transformer(dim, num_patches, depth[i], heads, dim // heads, dim*mlp_dim_ratio, dropout, stochastic_depth)) 
-                self.transformer.append(PatchShifting(2, True))  
-                self.transformer.append(PatchMerging(dim + 4, dim*2, 2))  
+                self.transformer.append(PatchMerging(dim, dim*2, 2))  
                 heads *= 2
                 dim *= 2 
             elif i+1 == len(depth) and i != 0:
@@ -217,16 +216,18 @@ class PatchMerging(nn.Module):
         super().__init__()
         
         self.is_pe = is_pe
+  
+        if not is_pe:
+            self.class_linear = nn.Linear(in_dim, dim)
+            self.patch_shifting = PatchShifting(merging_size, True)
+            patch_dim = (in_dim+4) * (merging_size**2) 
         
-        patch_dim = in_dim * (merging_size**2)        
-        
+        patch_dim = in_dim * (merging_size**2) 
+            
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
             nn.Linear(patch_dim, dim)
         )
-        
-        if not is_pe:
-            self.class_linear = nn.Linear(in_dim, dim)
 
     def forward(self, x):
         
@@ -236,7 +237,8 @@ class PatchMerging(nn.Module):
         if not self.is_pe:
             visual_tokens, class_token = x[:, 1:], x[:, (0,)]
             reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=h)
-            out_visual = self.merging(reshaped)
+            out_visual = self.patch_shifting(reshaped)
+            out_visual = self.merging(out_visual)
             out_class = self.class_linear(class_token)
             out = torch.cat([out_class, out_visual], dim=1)
         
