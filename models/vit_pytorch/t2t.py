@@ -85,7 +85,7 @@ class Attention(nn.Module):
         
         # self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        out = self.to_out(out) + v.squeeze() if self.is_pe else self.to_out(out) + x
+        out = self.to_out(out) + v.squeeze() if self.is_pe else self.to_out(out)
         return out
 
 from utils.drop_path import DropPath
@@ -101,13 +101,13 @@ class Transformer(nn.Module):
             transformer.append(PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)))   
             self.layers.append(transformer)       
         
-    
+        self.is_pe = is_pe
         
         self.layers = nn.ModuleList(self.layers)
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):       
-            x = self.drop_path(attn(x)) 
+            x = self.drop_path(attn(x)) if self.is_pe else self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
         return x
 
