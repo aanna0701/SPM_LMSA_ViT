@@ -238,7 +238,7 @@ class PatchMerging(nn.Module):
             visual_tokens, class_token = x[:, 1:], x[:, (0,)]
             reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=h)
             out_visual = self.patch_shifting(reshaped)
-            print(out_visual)
+            print(out_visual.shape)
             out_visual = self.merging(out_visual)
             out_class = self.class_linear(class_token)
             out = torch.cat([out_class, out_visual], dim=1)
