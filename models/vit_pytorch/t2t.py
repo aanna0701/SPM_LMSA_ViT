@@ -85,7 +85,8 @@ class Attention(nn.Module):
         
         # self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        out = self.to_out(out) + v.squeeze() if self.is_pe else self.to_out(out)
+        # out = self.to_out(out) + v.squeeze() if self.is_pe else self.to_out(out)
+        out = self.to_out(out)
         return out
 
 from utils.drop_path import DropPath
@@ -107,7 +108,8 @@ class Transformer(nn.Module):
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):       
-            x = self.drop_path(attn(x)) if self.is_pe else self.drop_path(attn(x)) + x
+            # x = self.drop_path(attn(x)) if self.is_pe else self.drop_path(attn(x)) + x
+            x = self.drop_path(attn(x)) + x
             x = self.drop_path(ff(x)) + x
         return x
 
@@ -136,26 +138,37 @@ class T2TViT(nn.Module):
         layer_dim = channels
         output_image_size = image_size
 
+
         for i, (kernel_size, stride, padding) in enumerate(t2t_layers):
             if i == 0:
                 layer_dim *= kernel_size ** 2
+                in_dim = channels
             else:
                 layer_dim = 64 * (kernel_size ** 2)
+                in_dim = 64
+            
             is_first = i == 0
             is_last = i == (len(t2t_layers) - 1)
             output_image_size = conv_output_size(output_image_size, kernel_size, stride, padding)
             num_patches = output_image_size ** 2
             
+            # layers.extend([
+            #     RearrangeImage() if not is_first else nn.Identity(),
+            #     nn.Unfold(kernel_size = kernel_size, stride = stride, padding = padding),
+            #     Rearrange('b c n -> b n c'),
+            #     Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
+            # ])
+            
             layers.extend([
                 RearrangeImage() if not is_first else nn.Identity(),
-                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = padding),
-                Rearrange('b c n -> b n c'),
-                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
+                PatchMerging(in_dim, 64, stride, True),
+                Transformer(dim = 64, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
             ])
             
         num_patches = output_image_size ** 2
 
-        layers.append(nn.Linear(layer_dim, dim))
+        # layers.append(nn.Linear(layer_dim, dim))
+        layers.append(nn.Linear(64, dim))
         self.to_patch_embedding = nn.Sequential(*layers)
 
         self.pos_embedding = nn.Parameter(torch.randn(1, output_image_size ** 2 + 1, dim))
@@ -203,3 +216,53 @@ def init_weights(m):
     elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+            
+
+class PatchMerging(nn.Module):
+    def __init__(self, in_dim, dim, merging_size=2, is_pe=False):
+        super().__init__()
+        
+        self.is_pe = is_pe
+        patch_dim = in_dim * (merging_size**2)
+  
+    
+        self.patch_shifting = PatchShifting(merging_size, in_dim, in_dim*2, True)
+        patch_dim = (in_dim*2) * (merging_size**2) 
+    
+        self.merging = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
+            nn.Linear(patch_dim, dim)
+        )
+
+    def forward(self, x):
+        
+        out = self.patch_shifting(x)
+        out = self.merging(out)
+        return out
+    
+class PatchShifting(nn.Module):
+    def __init__(self, patch_size, in_dim, out_dim, is_mean=False):
+        super().__init__()
+        self.shift = int(patch_size * (1/2))
+        self.is_mean = is_mean
+        self.out = nn.Conv2d(in_dim*5, out_dim, 1)
+        
+    def forward(self, x):
+     
+        # x = x.mean(dim=1, keepdim = True)
+
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        # if self.is_mean:
+        #     x_pad = x_pad.mean(dim=1, keepdim = True)
+        
+        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+               
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        
+        out = self.out(x_cat)
+        
+        return out
+    
