@@ -20,6 +20,14 @@ def group_by_key_prefix_and_remove_prefix(prefix, d):
     kwargs_without_prefix = dict(map(lambda x: (x[0][len(prefix):], x[1]), tuple(kwargs_with_prefix.items())))
     return kwargs_without_prefix, kwargs
 
+def init_weights(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
 # classes
 
 class LayerNorm(nn.Module): # layernorm, but done in the channel dimension #1
@@ -201,6 +209,8 @@ class CvT(nn.Module):
             Rearrange('... () () -> ...'),
             nn.Linear(dim, num_classes)
         )
+        
+        self.apply(init_weights)
 
     def forward(self, x):
         return self.layers(x)

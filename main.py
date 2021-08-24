@@ -211,7 +211,7 @@ def main(args):
             patch_size = 4
             args.depth = (2, 6, 4) 
             
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dropout=dropout, stochastic_depth=args.sd)
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=4, depth=args.depth, heads=args.heads, dropout=dropout, stochastic_depth=args.sd)
         
     elif args.model == 'g-vit2':
         from models.vit_pytorch.git_2 import GiT

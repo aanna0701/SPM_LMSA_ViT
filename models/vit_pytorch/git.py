@@ -64,7 +64,6 @@ class Attention(nn.Module):
         self.heads = heads
         self.scale = dim_head ** -0.5        
         # self.scale = nn.Parameter(torch.rand(heads))
-        # self.scale = nn.Parameter(torch.rand(1))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -91,7 +90,6 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
-
         dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
         # scale = self.scale
@@ -142,12 +140,12 @@ class GiT(nn.Module):
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)
-        patch_dim = channels*5 * patch_height * patch_width
+        patch_dim = channels*2 * patch_height * patch_width
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
 
         self.to_patch_embedding = nn.Sequential(
-            PatchShifting(patch_size),
+            PatchShifting(patch_size, channels, channels*2),
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             nn.Linear(patch_dim, dim),
             Transformer(dim, num_patches, depth[0], heads, dim // heads, dim*mlp_dim_ratio, 0),
@@ -220,8 +218,8 @@ class PatchMerging(nn.Module):
   
     
         self.class_linear = nn.Linear(in_dim, dim)
-        self.patch_shifting = PatchShifting(merging_size, True)
-        patch_dim = (in_dim*5) * (merging_size**2) 
+        self.patch_shifting = PatchShifting(merging_size, in_dim, in_dim*2, True)
+        patch_dim = (in_dim*2) * (merging_size**2) 
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
@@ -249,10 +247,11 @@ class PatchMerging(nn.Module):
         return out
     
 class PatchShifting(nn.Module):
-    def __init__(self, patch_size, is_mean=False):
+    def __init__(self, patch_size, in_dim, out_dim, is_mean=False):
         super().__init__()
         self.shift = int(patch_size * (1/2))
         self.is_mean = is_mean
+        self.out = nn.Conv2d(in_dim*5, out_dim, 1)
         
     def forward(self, x):
      
@@ -269,8 +268,9 @@ class PatchShifting(nn.Module):
                
         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         
+        out = self.out(x_cat)
         
-        return x_cat
+        return out
     
 # class PatchShifting(nn.Module):
 #     def __init__(self, patch_size):
