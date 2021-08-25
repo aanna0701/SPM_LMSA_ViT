@@ -209,11 +209,12 @@ class GiT(nn.Module):
         
         return self.mlp_head(x)
 
-class PatchMerging(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, is_pe=False):
+
+class ShiftedPatchMerging(nn.Module):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False):
         super().__init__()
         
-        self.is_pe = is_pe
+        self.exist_class_t = exist_class_t
         patch_dim = in_dim * (merging_size**2)
   
     
@@ -231,7 +232,7 @@ class PatchMerging(nn.Module):
         _, n, _ = x.size()
         h = int(math.sqrt(n))
         
-        if not self.is_pe:
+        if not self.exist_class_t:
             visual_tokens, class_token = x[:, 1:], x[:, (0,)]
             reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=h)
             out_visual = self.patch_shifting(reshaped)

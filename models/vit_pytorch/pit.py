@@ -164,15 +164,27 @@ class PiT(nn.Module):
         super().__init__()
         heads = cast_tuple(heads, len(depth))
 
-
+        #############################################
+        " Base "
+        # output_size = conv_output_size(img_size, patch_size*2, patch_size)
         
-        output_size = conv_output_size(img_size, patch_size*2, patch_size)
         
+        # self.to_patch_embedding = nn.Sequential(
+        #     nn.Conv2d(3, dim, patch_size*2, patch_size),
+        #     Rearrange('b c h w -> b (h w) c')
+        # )
+        #############################################
+        
+        
+        #######################################
+        " SPE "
         
         self.to_patch_embedding = nn.Sequential(
-            nn.Conv2d(3, dim, patch_size*2, patch_size),
-            Rearrange('b c h w -> b (h w) c')
+            ShiftedPatchMerging(3, dim, patch_size, is_first=True)
         )
+        
+        output_size = img_size // patch_size
+        #######################################
         
         num_patches = output_size ** 2
 
@@ -189,7 +201,15 @@ class PiT(nn.Module):
             layers.append(Transformer(dim, output_size, layer_depth, layer_heads, dim_head, dim*2, dropout, stochastic_depth))
 
             if not_last:
-                layers.append(Pool(dim))
+                #######################################
+                " Base "
+                # layers.append(Pool(dim))
+                #######################################
+                
+                ##########################################
+                "SPE"
+                layers.append(ShiftedPatchMerging(dim, dim*2, 2, True))
+                ##########################################
                 dim *= 2
                 output_size = conv_output_size(output_size, 3, 2, 1)
                 
@@ -216,3 +236,77 @@ class PiT(nn.Module):
         x = self.layers(x)
 
         return self.mlp_head(x[:, 0])
+class RearrangeImage(nn.Module):
+    def forward(self, x):
+        return rearrange(x, 'b (h w) c -> b c h w', h = int(math.sqrt(x.shape[1])))
+
+import math
+
+class ShiftedPatchMerging(nn.Module):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_first=False):
+        super().__init__()
+        
+        self.exist_class_t = exist_class_t
+        patch_dim = in_dim * (merging_size**2)
+        self.is_first = is_first
+
+        self.class_linear = nn.Linear(in_dim, dim)
+        self.patch_shifting = PatchShifting(merging_size, in_dim, in_dim*2, True)
+        patch_dim = (in_dim*2) * (merging_size**2) 
+    
+        self.merging = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
+            nn.Linear(patch_dim, dim)
+        )
+
+    def forward(self, x):
+        
+        if not self.is_first:
+            _, n, _ = x.size()
+            h = int(math.sqrt(n))
+            
+            if self.exist_class_t:
+                visual_tokens, class_token = x[:, 1:], x[:, (0,)]
+                reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=h)
+                out_visual = self.patch_shifting(reshaped)
+                out_visual = self.merging(out_visual)
+                out_class = self.class_linear(class_token)
+                out = torch.cat([out_class, out_visual], dim=1)
+            
+            else:
+                reshaped = rearrange(x, 'b (h w) d -> b d h w', h=h)
+                out = self.patch_shifting(reshaped)
+                out = self.merging(out)
+        
+        else:
+            out = self.patch_shifting(x)
+            out = self.merging(out)
+        
+        return out
+    
+class PatchShifting(nn.Module):
+    def __init__(self, patch_size, in_dim, out_dim, is_mean=False):
+        super().__init__()
+        self.shift = int(patch_size * (1/2))
+        self.is_mean = is_mean
+        self.out = nn.Conv2d(in_dim*5, out_dim, 1)
+        
+    def forward(self, x):
+     
+        # x = x.mean(dim=1, keepdim = True)
+
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        # if self.is_mean:
+        #     x_pad = x_pad.mean(dim=1, keepdim = True)
+        
+        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+               
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
+        
+        out = self.out(x_cat)
+        
+        return out
+    
