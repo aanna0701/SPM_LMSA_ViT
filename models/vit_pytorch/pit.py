@@ -51,7 +51,7 @@ class Attention(nn.Module):
         self.heads = heads
         self.scale = dim_head ** -0.5
         
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        # self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -74,11 +74,11 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         attn = self.attend(dots)
 
@@ -180,7 +180,7 @@ class PiT(nn.Module):
         " SPE "
         
         self.to_patch_embedding = nn.Sequential(
-            ShiftedPatchMerging(3, dim, patch_size, is_first=True)
+            ShiftedPatchMerging(3, dim)
         )
         
         output_size = img_size // patch_size
@@ -241,17 +241,21 @@ class RearrangeImage(nn.Module):
         return rearrange(x, 'b (h w) c -> b c h w', h = int(math.sqrt(x.shape[1])))
 
 import math
-
+    
+class RearrangeImage(nn.Module):
+    def forward(self, x):
+        return rearrange(x, 'b (h w) c -> b c h w', h = int(math.sqrt(x.shape[1])))
+    
 class ShiftedPatchMerging(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_first=False):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False):
         super().__init__()
         
         self.exist_class_t = exist_class_t
-        self.is_first = is_first
-
-        self.class_linear = nn.Linear(in_dim, dim)
-        self.patch_shifting = PatchShifting(merging_size, in_dim, in_dim*3, True)
+        
+        self.patch_shifting = PatchShifting(merging_size)
+        
         patch_dim = (in_dim*5) * (merging_size**2) 
+        self.class_linear = nn.Linear(in_dim, dim)
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
@@ -260,40 +264,29 @@ class ShiftedPatchMerging(nn.Module):
 
     def forward(self, x):
         
-        if not self.is_first:
-            _, n, _ = x.size()
-            h = int(math.sqrt(n))
-            
-            if self.exist_class_t:
-                visual_tokens, class_token = x[:, 1:], x[:, (0,)]
-                reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=h)
-                out_visual = self.patch_shifting(reshaped)
-                out_visual = self.merging(out_visual)
-                out_class = self.class_linear(class_token)
-                out = torch.cat([out_class, out_visual], dim=1)
-            
-            else:
-                reshaped = rearrange(x, 'b (h w) d -> b d h w', h=h)
-                out = self.patch_shifting(reshaped)
-                out = self.merging(out)
+        if self.exist_class_t:
+            visual_tokens, class_token = x[:, 1:], x[:, (0,)]
+            reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+            out_visual = self.patch_shifting(reshaped)
+            out_visual = self.merging(out_visual)
+            out_class = self.class_linear(class_token)
+            out = torch.cat([out_class, out_visual], dim=1)
         
         else:
             out = self.patch_shifting(x)
             out = self.merging(out)
+    
         
         return out
+
     
 class PatchShifting(nn.Module):
-    def __init__(self, patch_size, in_dim, out_dim, is_mean=False):
+    def __init__(self, patch_size):
         super().__init__()
         self.shift = int(patch_size * (1/2))
-        self.is_mean = is_mean
-        # self.out = nn.Conv2d(in_dim*5, out_dim, 1)
         
     def forward(self, x):
      
-        # x = x.mean(dim=1, keepdim = True)
-
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         # if self.is_mean:
         #     x_pad = x_pad.mean(dim=1, keepdim = True)
