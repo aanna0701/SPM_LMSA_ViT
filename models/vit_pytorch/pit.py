@@ -166,24 +166,24 @@ class PiT(nn.Module):
 
         #############################################
         " Base "
-        # output_size = conv_output_size(img_size, patch_size*2, patch_size)
+        output_size = conv_output_size(img_size, patch_size*2, patch_size)
         
         
-        # self.to_patch_embedding = nn.Sequential(
-        #     nn.Conv2d(3, dim, patch_size*2, patch_size),
-        #     Rearrange('b c h w -> b (h w) c')
-        # )
+        self.to_patch_embedding = nn.Sequential(
+            nn.Conv2d(3, dim, patch_size*2, patch_size),
+            Rearrange('b c h w -> b (h w) c')
+        )
         #############################################
         
         
         #######################################
         " SPE "
         
-        self.to_patch_embedding = nn.Sequential(
-            ShiftedPatchMerging(3, dim, patch_size)
-        )
+        # self.to_patch_embedding = nn.Sequential(
+        #     ShiftedPatchMerging(3, dim, patch_size)
+        # )
         
-        output_size = img_size // patch_size
+        # output_size = img_size // patch_size
         #######################################
         
         num_patches = output_size ** 2
@@ -203,12 +203,12 @@ class PiT(nn.Module):
             if not_last:
                 #######################################
                 " Base "
-                # layers.append(Pool(dim))
+                layers.append(Pool(dim))
                 #######################################
                 
                 ##########################################
                 "SPE"
-                layers.append(ShiftedPatchMerging(dim, dim*2, 2, True))
+                # layers.append(ShiftedPatchMerging(dim, dim*2, 2, True))
                 ##########################################
                 dim *= 2
                 output_size = conv_output_size(output_size, 3, 2, 1)

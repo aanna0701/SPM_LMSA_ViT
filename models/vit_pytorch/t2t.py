@@ -53,7 +53,7 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5        
-        self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -81,13 +81,13 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
@@ -146,36 +146,36 @@ class T2TViT(nn.Module):
 
         ''' Base '''
         
-        # for i, (kernel_size, stride) in enumerate(t2t_layers):
-        #     layer_dim *= kernel_size ** 2
-        #     is_first = i == 0
-        #     is_last = i == (len(t2t_layers) - 1)
-        #     output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
-        #     num_patches= output_image_size ** 2
+        for i, (kernel_size, stride) in enumerate(t2t_layers):
+            layer_dim *= kernel_size ** 2
+            is_first = i == 0
+            is_last = i == (len(t2t_layers) - 1)
+            output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
+            num_patches= output_image_size ** 2
 
-        #     layers.extend([
-        #         RearrangeImage() if not is_first else nn.Identity(),
-        #         nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
-        #         Rearrange('b c n -> b n c'),
-        #         Transformer(dim = layer_dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = 64, mlp_dim_ratio = 1, dropout = dropout) if not is_last else nn.Identity(),
-        #     ])
+            layers.extend([
+                RearrangeImage() if not is_first else nn.Identity(),
+                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
+                Rearrange('b c n -> b n c'),
+                Transformer(dim = layer_dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = 64, mlp_dim_ratio = 1, dropout = dropout) if not is_last else nn.Identity(),
+            ])
         
         ''' SPM '''
         
-        for i, (kernel_size, stride) in enumerate(t2t_layers):
-            in_dim = 3 if i == 0 else dim
-            layer_dim = 3 * (kernel_size ** 2) if i == 0 else 64 * 2
-            is_first = i == 0
-            is_last = i == (len(t2t_layers) - 1)
-            output_image_size = output_image_size // stride
-            num_patches= output_image_size ** 2
-            layers.extend([
-                RearrangeImage() if not is_first else nn.Identity(),
-                ShiftedPatchMerging(in_dim, dim, stride),
-                Transformer(dim = dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = 64, mlp_dim_ratio = 1, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
-            ])
+        # for i, (kernel_size, stride) in enumerate(t2t_layers):
+        #     in_dim = 3 if i == 0 else dim
+        #     layer_dim = 3 * (kernel_size ** 2) if i == 0 else 64 * 2
+        #     is_first = i == 0
+        #     is_last = i == (len(t2t_layers) - 1)
+        #     output_image_size = output_image_size // stride
+        #     num_patches= output_image_size ** 2
+        #     layers.extend([
+        #         RearrangeImage() if not is_first else nn.Identity(),
+        #         ShiftedPatchMerging(in_dim, dim, stride),
+        #         Transformer(dim = dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = 64, mlp_dim_ratio = 1, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
+        #     ])
 
-        # layers.append(nn.Linear(layer_dim, dim))
+        layers.append(nn.Linear(layer_dim, dim))
         self.to_patch_embedding = nn.Sequential(*layers)
 
         self.pos_embedding = nn.Parameter(torch.randn(1, output_image_size ** 2 + 1, dim))
