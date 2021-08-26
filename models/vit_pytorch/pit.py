@@ -180,7 +180,7 @@ class PiT(nn.Module):
         " SPE "
         
         self.to_patch_embedding = nn.Sequential(
-            ShiftedPatchMerging(3, dim)
+            ShiftedPatchMerging(3, dim, patch_size)
         )
         
         output_size = img_size // patch_size
