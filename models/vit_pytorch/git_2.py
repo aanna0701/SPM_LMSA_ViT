@@ -1,4 +1,3 @@
-from models.vit_pytorch.git_2 import PatchMerging
 import torch
 from torch import nn, einsum
 from utils.drop_path import DropPath
