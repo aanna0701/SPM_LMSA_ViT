@@ -46,20 +46,20 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_pe=False):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
         self.scale = dim_head ** -0.5        
-        # self.scale = nn.Parameter(torch.rand(heads))
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
         init_weights(self.to_qkv)
         
- 
+        print(num_patches)
 
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
@@ -67,8 +67,8 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
         
         
-        self.mask = torch.eye(num_patches+1, num_patches+1)
-        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        self.mask = torch.eye(num_patches+1, num_patches+1) if not is_pe else torch.eye(num_patches, num_patches)
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False) 
         self.inf = float('-inf')
         
         self.value = 0
@@ -81,25 +81,24 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
     
         
-        self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim_ratio=2, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim_ratio=2, dropout = 0., stochastic_depth=0., is_pe=False):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
@@ -107,7 +106,7 @@ class Transformer(nn.Module):
 
         for i in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_pe=is_pe)),
                 PreNorm(dim, FeedForward(dim, dim * mlp_dim_ratio, dropout = dropout))
             ]))            
             
@@ -168,12 +167,12 @@ class T2TViT(nn.Module):
             layer_dim = 3 * (kernel_size ** 2) if i == 0 else 64 * 2
             is_first = i == 0
             is_last = i == (len(t2t_layers) - 1)
-            output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
+            output_image_size = output_image_size // stride
             num_patches= output_image_size ** 2
             layers.extend([
                 RearrangeImage() if not is_first else nn.Identity(),
                 ShiftedPatchMerging(in_dim, dim, stride),
-                Transformer(dim = dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = 64, mlp_dim_ratio = 1, dropout = dropout) if not is_last else nn.Identity(),
+                Transformer(dim = dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = 64, mlp_dim_ratio = 1, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
             ])
 
         # layers.append(nn.Linear(layer_dim, dim))
