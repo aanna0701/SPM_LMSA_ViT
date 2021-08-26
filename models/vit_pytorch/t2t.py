@@ -85,9 +85,48 @@ class Attention(nn.Module):
         
         # self.value = compute_relative_norm_residuals(v, out)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        # out = self.to_out(out) + v.squeeze() if self.is_pe else self.to_out(out)
-        out = self.to_out(out)
+        print(self.to_out(out).shape)
+        print(v.shape)
+        print()
+        out = self.to_out(out) + v.squeeze() 
+        # out = self.to_out(out)
         return out
+    
+class Attention(nn.Module):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_pe=False, is_last=False):
+        super().__init__()
+        self.num_heads = heads
+        inner_dim = dim_head *  heads
+        self.in_dim = inner_dim
+        self.dim_head = dim_head
+        self.scale = dim_head ** -0.5  
+
+        self.qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+        self.proj = nn.Linear(inner_dim, inner_dim)
+        
+        num_patches = num_patches -1 if is_pe else num_patches
+        self.mask = torch.eye(num_patches+1, num_patches+1) 
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False) 
+        self.inf = float('-inf')
+        self.is_pe = is_pe
+
+    def forward(self, x):
+        B, N, C = x.shape
+
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.dim_head).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        attn = (q * self.scale) @ k.transpose(-2, -1)
+        attn = attn.softmax(dim=-1)
+
+        x = (attn @ v).transpose(1, 2).reshape(B, N, self.in_dim)
+        x = self.proj(x)
+
+  
+        # skip connection
+        x = v.squeeze(1) + x if self.is_pe else x  # because the original x has different size with current x, use v to do skip connection
+        
+        return x
 
 from utils.drop_path import DropPath
 class Transformer(nn.Module):
@@ -107,11 +146,10 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList(self.layers)
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     def forward(self, x):
-        for i, (attn, ff) in enumerate(self.layers):       
-            # x = attn(x) if self.is_pe else self.drop_path(attn(x)) + x
-            x = attn(x) + x if self.is_pe else self.drop_path(attn(x)) + x
-            # x = self.drop_path(attn(x)) + x
-            x = ff(x) + x if self.is_pe else self.drop_path(ff(x)) + x
+        for i, (attn, ff) in enumerate(self.layers):     
+            x = self.drop_path(attn(x)) + x if not self.is_pe else attn(x)
+            x = self.drop_path(ff(x)) + x
+            
         return x
 
 
@@ -140,36 +178,38 @@ class T2TViT(nn.Module):
         output_image_size = image_size
 
 
-        for i, (kernel_size, stride, padding) in enumerate(t2t_layers):
+        for i, (kernel_size, stride) in enumerate(t2t_layers):
             if i == 0:
+                # layer_dim *= kernel_size ** 2
                 layer_dim *= kernel_size ** 2
                 in_dim = channels
             else:
+                # layer_dim *= (kernel_size ** 2)
                 layer_dim = 64 * (kernel_size ** 2)
                 in_dim = 64
             
             is_first = i == 0
             is_last = i == (len(t2t_layers) - 1)
-            output_image_size = conv_output_size(output_image_size, kernel_size, stride, padding)
+            output_image_size = conv_output_size(output_image_size, kernel_size, stride, stride // 2)
             num_patches = output_image_size ** 2
-            
-            # layers.extend([
-            #     RearrangeImage() if not is_first else nn.Identity(),
-            #     nn.Unfold(kernel_size = kernel_size, stride = stride, padding = padding),
-            #     Rearrange('b c n -> b n c'),
-            #     Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
-            # ])
             
             layers.extend([
                 RearrangeImage() if not is_first else nn.Identity(),
-                PatchMerging(in_dim, 64, stride, True),
-                Transformer(dim = 64, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
+                nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
+                Rearrange('b c n -> b n c'),
+                Transformer(dim = layer_dim, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
             ])
+            
+            # layers.extend([
+            #     RearrangeImage() if not is_first else nn.Identity(),
+            #     PatchMerging(in_dim, 64, stride, True),
+            #     Transformer(dim = 64, num_patches=num_patches, heads = 1, depth = 1, dim_head = 64, mlp_dim = 64, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
+            # ])
             
         num_patches = output_image_size ** 2
 
-        # layers.append(nn.Linear(layer_dim, dim))
-        layers.append(nn.Linear(64, dim))
+        layers.append(nn.Linear(layer_dim, dim))
+        # layers.append(nn.Linear(64, dim))
         self.to_patch_embedding = nn.Sequential(*layers)
 
         self.pos_embedding = nn.Parameter(torch.randn(1, output_image_size ** 2 + 1, dim))
@@ -200,7 +240,6 @@ class T2TViT(nn.Module):
         x = torch.cat((cls_tokens, x), dim=1)
         x += self.pos_embedding
         x = self.dropout(x)
-
         x = self.transformer(x)
 
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
