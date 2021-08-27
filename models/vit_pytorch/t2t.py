@@ -103,6 +103,7 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
         self.scale = {}
+        self.is_pe = is_pe
 
         for i in range(depth):
             self.layers.append(nn.ModuleList([
@@ -111,11 +112,12 @@ class Transformer(nn.Module):
             ]))            
             
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
+        
     def forward(self, x):
         for i, (attn, ff) in enumerate(self.layers):       
-            x = self.drop_path(attn(x)) + x
+            x = self.drop_path(attn(x)) + x if not self.is_pe else attn(x) + x
             self.hidden_states[str(i)] = attn.fn.value
-            x = self.drop_path(ff(x)) + x
+            x = self.drop_path(ff(x)) + x if not self.is_pe else ff(x) + x
             
             self.scale[str(i)] = attn.fn.scale
         return x
@@ -136,7 +138,7 @@ class RearrangeImage(nn.Module):
 # main class
 
 class T2TViT(nn.Module):
-    def __init__(self, *, image_size, num_classes, dim=256, depth = 12, heads = 4, mlp_dim_ratio = 2, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., t2t_layers = ((7, 4), (3, 2), (3, 2)), stochastic_depth=0.):
+    def __init__(self, *, image_size, num_classes, dim=256, depth = 8, heads = 4, mlp_dim_ratio = 2, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., t2t_layers = ((7, 4), (3, 2), (3, 2)), stochastic_depth=0.):
         super().__init__()
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
@@ -157,7 +159,7 @@ class T2TViT(nn.Module):
                 RearrangeImage() if not is_first else nn.Identity(),
                 nn.Unfold(kernel_size = kernel_size, stride = stride, padding = stride // 2),
                 Rearrange('b c n -> b n c'),
-                Transformer(dim = layer_dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = 64, mlp_dim_ratio = 1, dropout = dropout) if not is_last else nn.Identity(),
+                Transformer(dim = layer_dim, num_patches=num_patches ,heads = 1, depth = 1, dim_head = layer_dim, mlp_dim_ratio = 1, dropout = dropout, is_pe=True) if not is_last else nn.Identity(),
             ])
         
         ''' SPM '''
