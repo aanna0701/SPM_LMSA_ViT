@@ -387,17 +387,13 @@ class BasicLayer(nn.Module):
 
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_first=False, patch_size=4):
+                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False):
 
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
         self.depth = depth
         self.use_checkpoint = use_checkpoint
-        if is_first:
-            patch_size = patch_size
-        else:
-            patch_size = 2
 
         # build blocks
         self.blocks = nn.ModuleList([
@@ -421,7 +417,7 @@ class BasicLayer(nn.Module):
             
             """ SPM """
             #########################
-            self.downsample = ShiftedPatchMerging(dim, dim*2, patch_size)
+            self.downsample = ShiftedPatchMerging(dim, dim*2)
             #########################
         else:
             self.downsample = None
@@ -581,7 +577,7 @@ class SwinTransformer(nn.Module):
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer,
                                downsample=True if (i_layer < self.num_layers - 1) else False,
-                               use_checkpoint=use_checkpoint, is_first=is_first, patch_size=patch_size)
+                               use_checkpoint=use_checkpoint)
             self.layers.append(layer)
 
         self.norm = norm_layer(self.num_features)
