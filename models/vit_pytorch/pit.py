@@ -258,6 +258,7 @@ class ShiftedPatchMerging(nn.Module):
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
+            nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, dim)
         )
 
