@@ -267,7 +267,7 @@ def main(args):
             mlp_ratio = 2
             window_size = 4
             
-        model = SwinTransformer(dim=3, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+        model = SwinTransformer(input_resolution=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
         
     elif args.model =='deepvit':
         from models.vit_pytorch.deepvit import DeepViT
