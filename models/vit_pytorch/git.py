@@ -185,13 +185,13 @@ class ShiftedPatchMerging(nn.Module):
         self.exist_class_t = exist_class_t
                 
         self.patch_shifting = PatchShifting(merging_size)
-        
         patch_dim = (in_dim*5) * (merging_size**2) 
         if exist_class_t:
             self.class_linear = nn.Linear(in_dim, dim)
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
+            nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, dim)
         )
 

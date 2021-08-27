@@ -4,7 +4,7 @@
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Ze Liu
 # --------------------------------------------------------
-
+import math
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
@@ -88,10 +88,13 @@ class WindowAttention(nn.Module):
         self.num_heads = num_heads
         head_dim = dim // num_heads
         # self.scale = qk_scale or head_dim ** -0.5
+        """ LMSA """
+        #########################
         self.scale = nn.Parameter(torch.rand(num_heads))
         self.mask = torch.eye((window_size[0]**2), (window_size[0]**2))
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
+        #########################
 
         # define a parameter table of relative position bias
         self.relative_position_bias_table = nn.Parameter(
@@ -384,13 +387,17 @@ class BasicLayer(nn.Module):
 
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=nn.LayerNorm, downsample=None, use_checkpoint=False):
+                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_first=False, patch_size=4):
 
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
         self.depth = depth
         self.use_checkpoint = use_checkpoint
+        if is_first:
+            patch_size = patch_size
+        else:
+            patch_size = 2
 
         # build blocks
         self.blocks = nn.ModuleList([
@@ -405,8 +412,17 @@ class BasicLayer(nn.Module):
             for i in range(depth)])
 
         # patch merging layer
-        if downsample is not None:
-            self.downsample = downsample(input_resolution, dim=dim, norm_layer=norm_layer)
+        if downsample:
+            """ BASE """
+            #########################
+            # self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
+            #########################
+            
+            
+            """ SPM """
+            #########################
+            self.downsample = ShiftedPatchMerging(dim, dim*2, patch_size)
+            #########################
         else:
             self.downsample = None
 
@@ -520,13 +536,23 @@ class SwinTransformer(nn.Module):
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
 
+        """ Base """
+        ################################
         # split image into non-overlapping patches
-        self.patch_embed = PatchEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
-            norm_layer=norm_layer if self.patch_norm else None)
-        num_patches = self.patch_embed.num_patches
-        patches_resolution = self.patch_embed.patches_resolution
-        self.patches_resolution = patches_resolution
+        # self.patch_embed = PatchEmbed(
+        #     img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
+        #     norm_layer=norm_layer if self.patch_norm else None)
+        # num_patches = self.patch_embed.num_patches
+        # patches_resolution = self.patch_embed.patches_resolution
+        # self.patches_resolution = patches_resolution
+        #################################
+        
+        """ SPM patches """
+        ########################################################
+        self.patch_embed = ShiftedPatchMerging(3, embed_dim, patch_size, is_pe=True)
+        self.patches_resolution = [img_size // patch_size, img_size // patch_size]
+        num_patches = self.patches_resolution[0] * self.patches_resolution[1]        
+        ########################################################
 
         # absolute position embedding
         if self.ape:
@@ -541,9 +567,11 @@ class SwinTransformer(nn.Module):
         # build layers
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
-            layer = BasicLayer(dim=int(embed_dim * 2 ** i_layer),
-                               input_resolution=(patches_resolution[0] // (2 ** i_layer),
-                                                 patches_resolution[1] // (2 ** i_layer)),
+            is_first = i_layer == 0
+            layer = BasicLayer(
+                               dim=int(embed_dim * 2 ** i_layer),
+                               input_resolution=(self.patches_resolution[0] // (2 ** i_layer),
+                                                 self.patches_resolution[1] // (2 ** i_layer)),
                                depth=depths[i_layer],
                                num_heads=num_heads[i_layer],
                                window_size=window_size,
@@ -552,8 +580,8 @@ class SwinTransformer(nn.Module):
                                drop=drop_rate, attn_drop=attn_drop_rate,
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer,
-                               downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
-                               use_checkpoint=use_checkpoint)
+                               downsample=True if (i_layer < self.num_layers - 1) else False,
+                               use_checkpoint=use_checkpoint, is_first=is_first, patch_size=patch_size)
             self.layers.append(layer)
 
         self.norm = norm_layer(self.num_features)
@@ -608,7 +636,7 @@ class SwinTransformer(nn.Module):
         return flops
     
 class ShiftedPatchMerging(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_pe=False):
         super().__init__()
         
         self.exist_class_t = exist_class_t
@@ -617,9 +645,13 @@ class ShiftedPatchMerging(nn.Module):
         
         patch_dim = (in_dim*5) * (merging_size**2) 
         self.class_linear = nn.Linear(in_dim, dim)
-    
+
+        
+        self.is_pe = is_pe
+        
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
+            nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, dim)
         )
 
@@ -634,7 +666,8 @@ class ShiftedPatchMerging(nn.Module):
             out = torch.cat([out_class, out_visual], dim=1)
         
         else:
-            out = self.patch_shifting(x)
+            out = x if self.is_pe else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+            out = self.patch_shifting(out)
             out = self.merging(out)
     
         
