@@ -80,14 +80,18 @@ class WindowAttention(nn.Module):
         proj_drop (float, optional): Dropout ratio of output. Default: 0.0
     """
 
-    def __init__(self, dim, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, input_resolution, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
 
         super().__init__()
         self.dim = dim
         self.window_size = window_size  # Wh, Ww
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        # self.scale = qk_scale or head_dim ** -0.5
+        self.scale = nn.Parameter(torch.rand(num_heads))
+        self.mask = torch.eye((window_size[0]**2), (window_size[0]**2))
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        self.inf = float('-inf')
 
         # define a parameter table of relative position bias
         self.relative_position_bias_table = nn.Parameter(
@@ -124,7 +128,18 @@ class WindowAttention(nn.Module):
         qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        q = q * self.scale
+        """ Base """
+        #########################
+        # q = q * self.scale
+        #########################
+        
+        
+        """ LMSA """
+        #########################
+        scale = self.scale
+        q = torch.mul(q, scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((B_, self.num_heads, 1, 1)))
+        #########################
+        
         attn = (q @ k.transpose(-2, -1))
 
         relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
@@ -136,8 +151,16 @@ class WindowAttention(nn.Module):
             nW = mask.shape[0]
             attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
+            """ LMSA """
+            #########################
+            attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+            #########################
             attn = self.softmax(attn)
         else:
+            """ LMSA """
+            #########################
+            attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+            #########################
             attn = self.softmax(attn)
 
         attn = self.attn_drop(attn)
@@ -145,6 +168,7 @@ class WindowAttention(nn.Module):
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
+        
         return x
 
     def extra_repr(self) -> str:
@@ -200,7 +224,7 @@ class SwinTransformerBlock(nn.Module):
 
         self.norm1 = norm_layer(dim)
         self.attn = WindowAttention(
-            dim, window_size=to_2tuple(self.window_size), num_heads=num_heads,
+            dim, input_resolution, window_size=to_2tuple(self.window_size), num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
