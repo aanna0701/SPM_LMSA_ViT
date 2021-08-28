@@ -49,9 +49,9 @@ class Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        # self.scale = dim_head ** -0.5
+        self.scale = dim_head ** -0.5
         
-        self.scale = nn.Parameter(torch.rand(heads))
+        # self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -73,11 +73,11 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
         attn = self.attend(dots)
 
@@ -165,24 +165,24 @@ class PiT(nn.Module):
 
         #############################################
         " Base "
-        output_size = conv_output_size(img_size, patch_size*2, patch_size)
+        # output_size = conv_output_size(img_size, patch_size*2, patch_size)
         
         
-        self.to_patch_embedding = nn.Sequential(
-            nn.Conv2d(3, dim, patch_size*2, patch_size),
-            Rearrange('b c h w -> b (h w) c')
-        )
+        # self.to_patch_embedding = nn.Sequential(
+        #     nn.Conv2d(3, dim, patch_size*2, patch_size),
+        #     Rearrange('b c h w -> b (h w) c')
+        # )
         #############################################
         
         
         #######################################
         " SPE "
         
-        # self.to_patch_embedding = nn.Sequential(
-        #     ShiftedPatchMerging(3, dim, patch_size)
-        # )
+        self.to_patch_embedding = nn.Sequential(
+            ShiftedPatchMerging(3, dim, patch_size)
+        )
         
-        # output_size = img_size // patch_size
+        output_size = img_size // patch_size
         #######################################
         
         num_patches = output_size ** 2
@@ -202,12 +202,12 @@ class PiT(nn.Module):
             if not_last:
                 #######################################
                 " Base "
-                layers.append(Pool(dim))
+                # l0ayers.append(Pool(dim))
                 #######################################
                 
                 ##########################################
                 "SPE"
-                # layers.append(ShiftedPatchMerging(dim, dim*2, 2, True))
+                layers.append(ShiftedPatchMerging(dim, dim*2, 2, True))
                 ##########################################
                 dim *= 2
                 output_size = conv_output_size(output_size, 3, 2, 1)

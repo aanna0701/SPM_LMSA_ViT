@@ -213,6 +213,13 @@ def main(args):
     elif args.model == 'cait':
         from models.vit_pytorch.cait import CaiT        
         dim_head = args.channel // args.heads
+        if img_size == 64:
+            patch_size = 8
+        elif img_size == 32:
+            patch_size = 4
+        else:
+            patch_size = 16
+            
         model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
     
     elif args.model == 'lovit':

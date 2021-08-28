@@ -71,7 +71,7 @@ class Attention(nn.Module):
         inner_dim = dim_head *  heads
         self.heads = heads
         self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
@@ -99,12 +99,21 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
         # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        """ LMSA """
+        #############################
         scale = self.scale
         dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
-    
+        #############################
+        
         dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
+        """ LMSA """
+        #############################
         if self.if_patch_attn:
             dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        else:
+            dots[:, :, 0] = self.inf
+        #############################
+        
         attn = self.attend(dots)        
         attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
 
@@ -155,20 +164,22 @@ class CaiT(nn.Module):
     ):
         super().__init__()
         num_patches = (img_size // patch_size) ** 2
+        """ Base """
+        #########################
         # patch_dim = 3 * patch_size ** 2
         
         # self.to_patch_embedding = nn.Sequential(
         #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
         #     nn.Linear(patch_dim, dim),
         # )
-
-        patch_dim = 7 * patch_size ** 2
-
+        #########################
+        
+        """ SPM """
+        #########################
         self.to_patch_embedding = nn.Sequential(
-            PatchShifting(patch_size),
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-            nn.Linear(patch_dim, dim),
+            ShiftedPatchMerging(3, dim, patch_size, is_pe=True),
         )
+        #########################
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
         num_patches = (image_height // patch_height) * (image_width // patch_width)
@@ -199,16 +210,56 @@ class CaiT(nn.Module):
         x = self.cls_transformer(cls_tokens, context = x)
 
         return self.mlp_head(x[:, 0])
+import math
+class ShiftedPatchMerging(nn.Module):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_pe=False):
+        super().__init__()
+        
+        self.exist_class_t = exist_class_t
+        
+        self.patch_shifting = PatchShifting(merging_size)
+        
+        patch_dim = (in_dim*5) * (merging_size**2) 
+        self.class_linear = nn.Linear(in_dim, dim)
 
+        
+        self.is_pe = is_pe
+        
+        self.merging = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
+            nn.LayerNorm(patch_dim),
+            nn.Linear(patch_dim, dim)
+        )
+
+    def forward(self, x):
+        
+        if self.exist_class_t:
+            visual_tokens, class_token = x[:, 1:], x[:, (0,)]
+            reshaped = rearrange(visual_tokens, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+            out_visual = self.patch_shifting(reshaped)
+            out_visual = self.merging(out_visual)
+            out_class = self.class_linear(class_token)
+            out = torch.cat([out_class, out_visual], dim=1)
+        
+        else:
+            out = x if self.is_pe else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+            out = self.patch_shifting(out)
+            out = self.merging(out)
+    
+        
+        return out
+
+    
 class PatchShifting(nn.Module):
     def __init__(self, patch_size):
         super().__init__()
-        self.shift = patch_size // 2
-
-    def forward(self, x):
-        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        self.shift = int(patch_size * (1/2))
         
-        x_pad = x_pad.mean(dim=1, keepdim = True)
+    def forward(self, x):
+     
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        # if self.is_mean:
+        #     x_pad = x_pad.mean(dim=1, keepdim = True)
         
         x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
         x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
@@ -217,8 +268,10 @@ class PatchShifting(nn.Module):
                
         x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1)
         
+        # out = self.out(x_cat)
+        out = x_cat
         
-        return x_cat
+        return out
 
 def pair(t):
     return t if isinstance(t, tuple) else (t, t)
