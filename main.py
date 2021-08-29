@@ -274,7 +274,7 @@ def main(args):
             num_heads = [3, 6, 12]
             mlp_ratio = 2
             window_size = 4
-            patch_size = 4
+            patch_size //= 2
             
         model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
         
@@ -509,19 +509,19 @@ def main(args):
         Training
     '''
     
-    no_wd = list()
-    yes_wd = list()
+    # no_wd = list()
+    # yes_wd = list()
     
-    all_params = set(model.parameters())
-    no_wd = set()
-    for m in list(model.parameters()):
-        if m.size(0) == args.heads:
-            no_wd.add(m)
-    yes_wd = all_params - no_wd
+    # all_params = set(model.parameters())
+    # no_wd = set()
+    # for m in list(model.parameters()):
+    #     if m.size(0) == args.heads:
+    #         no_wd.add(m)
+    # yes_wd = all_params - no_wd
     
     
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    optimizer = torch.optim.AdamW([{'params': list(no_wd), 'weight_decay': 0}, {'params': list(yes_wd)}], lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.AdamW([{'params': list(no_wd), 'weight_decay': 0}, {'params': list(yes_wd)}], lr=args.lr, weight_decay=args.weight_decay)
     # scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
     scheduler = build_scheduler(args, optimizer, len(train_loader))
     
