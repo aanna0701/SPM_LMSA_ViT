@@ -107,7 +107,6 @@ class Attention(nn.Module):
         if self.if_patch_attn:
             dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         else:
-            print(dots.shape)
             dots[:, :, :, 0] = self.inf
         #############################
         
