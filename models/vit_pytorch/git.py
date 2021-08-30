@@ -185,7 +185,7 @@ class ShiftedPatchMerging(nn.Module):
         self.exist_class_t = exist_class_t
                 
         self.patch_shifting = PatchShifting(merging_size)
-        patch_dim = (in_dim*5) * (merging_size**2) 
+        patch_dim = (in_dim*9) * (merging_size**2) 
         if exist_class_t:
             self.class_linear = nn.Linear(in_dim, dim)
     
@@ -226,11 +226,11 @@ class PatchShifting(nn.Module):
         
         """ 4 cardinal directions """
         #############################
-        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1) 
+        # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1) 
         #############################
         
         """ 4 diagonal directions """
@@ -244,15 +244,15 @@ class PatchShifting(nn.Module):
         
         """ 8 cardinal directions """
         #############################
-        # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-        # x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
-        # x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
-        # x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
-        # x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lu, x_ru, x_lb, x_rb], dim=1) 
+        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+        x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
+        x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
+        x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
+        x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
+        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lu, x_ru, x_lb, x_rb], dim=1) 
         #############################
         
         # out = self.out(x_cat)
