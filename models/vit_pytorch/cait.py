@@ -7,6 +7,14 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
 # helpers
+def init_weights(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
 
 def exists(val):
     return val is not None
@@ -70,8 +78,8 @@ class Attention(nn.Module):
         super().__init__()
         inner_dim = dim_head *  heads
         self.heads = heads
-        # self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(torch.rand(heads))
+        self.scale = dim_head ** -0.5
+        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
@@ -87,7 +95,7 @@ class Attention(nn.Module):
         )
         self.mask = torch.eye(num_patches, num_patches)
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
-        self.inf = float('-inf')
+        # self.inf = float('-inf')
         self.if_patch_attn = if_patch_attn
 
     def forward(self, x, context = None):
@@ -98,20 +106,22 @@ class Attention(nn.Module):
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         """ LMSA """
-        #############################
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        ############################
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
 
-        if self.if_patch_attn:
-            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        # else:
-        #     print(dots.shape)
-        #     dots[:, :, :, 0] = self.inf
-        #############################
         
-        dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax        
+        # if self.if_patch_attn:
+        #     dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -1e-9
+        # else:
+        #     dots[:, :,:, 0] = -1e-9
+        ###########################
+        
+        
+        
+        dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
         attn = self.attend(dots)        
         attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
 
@@ -164,19 +174,19 @@ class CaiT(nn.Module):
         num_patches = (img_size // patch_size) ** 2
         """ Base """
         #########################
-        # patch_dim = 3 * patch_size ** 2
+        patch_dim = 3 * patch_size ** 2
         
-        # self.to_patch_embedding = nn.Sequential(
-        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-        #     nn.Linear(patch_dim, dim),
-        # )
+        self.to_patch_embedding = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+            nn.Linear(patch_dim, dim),
+        )
         #########################
         
         """ SPM """
         #########################
-        self.to_patch_embedding = nn.Sequential(
-            ShiftedPatchMerging(3, dim, patch_size, is_pe=True),
-        )
+        # self.to_patch_embedding = nn.Sequential(
+        #     ShiftedPatchMerging(3, dim, patch_size, is_pe=True),
+        # )
         #########################
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -194,6 +204,8 @@ class CaiT(nn.Module):
             nn.LayerNorm(dim),
             nn.Linear(dim, num_classes)
         )
+        
+        self.apply(init_weights)
 
     def forward(self, img):
         x = self.to_patch_embedding(img)
