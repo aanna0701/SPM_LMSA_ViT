@@ -90,7 +90,7 @@ class WindowAttention(nn.Module):
         self.scale = qk_scale or head_dim ** -0.5
         """ LMSA """
         #########################
-        self.scale = nn.Parameter(self.scale*torch.ones(num_heads))
+        self.scale = nn.Parameter(self.scale*torch.ones(self.num_heads))
         self.mask = torch.eye((window_size[0]**2), (window_size[0]**2))
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         self.inf = float('-inf')
@@ -639,7 +639,7 @@ class ShiftedPatchMerging(nn.Module):
         
         self.patch_shifting = PatchShifting(merging_size)
         
-        patch_dim = (in_dim*9) * (merging_size**2) 
+        patch_dim = (in_dim*5) * (merging_size**2) 
         self.class_linear = nn.Linear(in_dim, dim)
 
         
