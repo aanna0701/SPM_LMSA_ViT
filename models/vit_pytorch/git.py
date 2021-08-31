@@ -52,9 +52,9 @@ class Attention(nn.Module):
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5        
+        # self.scale = dim_head ** -0.5        
         # self.scale = nn.Parameter(self.scale *torch.ones(heads))
-        # self.scale = nn.Parameter(torch.rand(1))
+        self.scale = nn.Parameter(torch.rand(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -82,13 +82,13 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
@@ -185,7 +185,7 @@ class ShiftedPatchMerging(nn.Module):
         self.exist_class_t = exist_class_t
                 
         self.patch_shifting = PatchShifting(merging_size)
-        patch_dim = (in_dim*9) * (merging_size**2) 
+        patch_dim = (in_dim*5) * (merging_size**2) 
         if exist_class_t:
             self.class_linear = nn.Linear(in_dim, dim)
     
@@ -235,24 +235,24 @@ class PatchShifting(nn.Module):
         
         """ 4 diagonal directions """
         # #############################
-        # x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
-        # x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
-        # x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
-        # x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-        # x_cat = torch.cat([x, x_lu, x_ru, x_lb, x_rb], dim=1) 
-        # #############################
-        
-        """ 8 cardinal directions """
-        #############################
-        x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
         x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
         x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
         x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
         x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-        x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lu, x_ru, x_lb, x_rb], dim=1) 
+        x_cat = torch.cat([x, x_lu, x_ru, x_lb, x_rb], dim=1) 
+        # #############################
+        
+        """ 8 cardinal directions """
+        #############################
+        # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
+        # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
+        # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
+        # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
+        # x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
+        # x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
+        # x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
+        # x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
+        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lu, x_ru, x_lb, x_rb], dim=1) 
         #############################
         
         # out = self.out(x_cat)

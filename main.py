@@ -205,10 +205,22 @@ def main(args):
         model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
    
     elif args.model == 'g-vit2':
-        from models.vit_pytorch.git_2 import GiT       
-        dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=4, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
-   
+        from models.vit_pytorch.git_2 import SwinTransformer       
+        if img_size > 64:
+            depths = [2, 2, 6, 2]
+            num_heads = [3, 6, 12, 24]
+            mlp_ratio = 4
+            window_size = 7
+            patch_size = 4
+        else:
+            depths = [2, 6, 4]
+            num_heads = [3, 6, 12]
+            mlp_ratio = 2
+            window_size = 4
+            patch_size //= 2
+            
+        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+       
     
     elif args.model == 'cait':
         from models.vit_pytorch.cait import CaiT        
