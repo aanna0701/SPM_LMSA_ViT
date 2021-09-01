@@ -106,7 +106,6 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.in_dim = in_dim
         head_dim = dim // num_heads
-        self.head_dim = head_dim
         self.scale = qk_scale or head_dim ** -0.5
 
         self.qkv = nn.Linear(dim, in_dim * 3, bias=qkv_bias)
@@ -116,9 +115,9 @@ class Attention(nn.Module):
 
     def forward(self, x):
         B, N, C = x.shape
-        print(self.qkv(x).shape)
+        residual = x
 
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.in_dim).permute(2, 0, 3, 1, 4)
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.in_dim // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         attn = (q * self.scale) @ k.transpose(-2, -1)
@@ -130,7 +129,7 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
 
         # skip connection
-        x = v.squeeze(1) + x   # because the original x has different size with current x, use v to do skip connection
+        x = v.squeeze(1) + x if self.num_heads == 1 else x + residual   # because the original x has different size with current x, use v to do skip connection
 
         return x
 
@@ -203,7 +202,7 @@ class T2T_module(nn.Module):
             self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
             self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
             self.attention1 = Token_transformer(dim=in_chans * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0)
-            self.num_patches = (img_size // (2 * 2 * 2)) * (img_size // (2 * 2 * 2))
+            self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
             self.attention2 = None
 
         
@@ -222,9 +221,12 @@ class T2T_module(nn.Module):
         x = x.transpose(1,2).reshape(B, C, int(np.sqrt(new_HW)), int(np.sqrt(new_HW)))
         # iteration1: soft split
         x = self.soft_split1(x).transpose(1, 2)
+        if self.attention2 is None:
+            x = self.project(x)
+            return x
 
         # iteration2: re-structurization/reconstruction
-        x = self.attention2(x)
+        x = self.attention2(x)  
         B, new_HW, C = x.shape
         x = x.transpose(1, 2).reshape(B, C, int(np.sqrt(new_HW)), int(np.sqrt(new_HW)))
         # iteration2: soft split
@@ -304,48 +306,3 @@ class T2T_ViT(nn.Module):
         x = self.forward_features(x)
         x = self.head(x)
         return x
-
-@register_model
-def t2t_vit_7(pretrained=False, **kwargs): # adopt performer for tokens to token
-    if pretrained:
-        kwargs.setdefault('qk_scale', 256 ** -0.5)
-    model = T2T_ViT(embed_dim=256, depth=7, num_heads=4, mlp_ratio=2., **kwargs)
-    model.default_cfg = default_cfgs['T2t_vit_7']
-    if pretrained:
-        load_pretrained(
-            model, num_classes=model.num_classes, in_chans=kwargs.get('in_chans', 3))
-    return model
-
-@register_model
-def t2t_vit_10(pretrained=False, **kwargs): # adopt performer for tokens to token
-    if pretrained:
-        kwargs.setdefault('qk_scale', 256 ** -0.5)
-    model = T2T_ViT(embed_dim=256, depth=10, num_heads=4, mlp_ratio=2., **kwargs)
-    model.default_cfg = default_cfgs['T2t_vit_10']
-    if pretrained:
-        load_pretrained(
-            model, num_classes=model.num_classes, in_chans=kwargs.get('in_chans', 3))
-    return model
-
-@register_model
-def t2t_vit_12(pretrained=False, **kwargs): # adopt performer for tokens to token
-    if pretrained:
-        kwargs.setdefault('qk_scale', 256 ** -0.5)
-    model = T2T_ViT(embed_dim=256, depth=12, num_heads=4, mlp_ratio=2., **kwargs)
-    model.default_cfg = default_cfgs['T2t_vit_12']
-    if pretrained:
-        load_pretrained(
-            model, num_classes=model.num_classes, in_chans=kwargs.get('in_chans', 3))
-    return model
-
-
-@register_model
-def t2t_vit_14(pretrained=False, **kwargs):  # adopt performer for tokens to token
-    if pretrained:
-        kwargs.setdefault('qk_scale', 384 ** -0.5)
-    model = T2T_ViT(embed_dim=384, depth=14, num_heads=6, mlp_ratio=3., **kwargs)
-    model.default_cfg = default_cfgs['T2t_vit_14']
-    if pretrained:
-        load_pretrained(
-            model, num_classes=model.num_classes, in_chans=kwargs.get('in_chans', 3))
-    return model
