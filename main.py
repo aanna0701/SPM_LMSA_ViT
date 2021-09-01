@@ -27,7 +27,7 @@ from torch.utils.tensorboard import SummaryWriter
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
-MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2', 'pit', 'cait', 't2t-vit', 'cvt', 'deepvit', 'res56', 'res56_linear']
+MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2', 'pit', 'cait', 't2t', 'cvt', 'deepvit', 'res56', 'res56_linear']
 
 
 def init_parser():
@@ -255,14 +255,10 @@ def main(args):
         
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
 
-    elif args.model =='t2t-vit':
-        from models.vit_pytorch.t2t import T2TViT
-        if img_size == 32:
-            t2t_layers = ((3, 2), (3, 2), (3, 2))
-        elif img_size > 32:
-            t2t_layers = ((7, 4), (3, 2), (3, 2))
+    elif args.model =='t2t':
+        from models.vit_pytorch.t2t import T2T_ViT
             
-        model = T2TViT(image_size=img_size, t2t_layers = t2t_layers, mlp_dim_ratio=2, num_classes=n_classes, stochastic_depth=args.sd)
+        model = T2T_ViT(img_size=img_size, num_classes=n_classes, drop_path_rate=args.sd)
         
     elif args.model =='cvt':
         from models.vit_pytorch.cvt import CvT
