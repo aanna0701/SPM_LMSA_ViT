@@ -73,11 +73,11 @@ class Attention(nn.Module):
 class Block(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, num_patches=0):
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, num_patches=num_patches)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
@@ -108,16 +108,16 @@ class Attention(nn.Module):
         self.in_dim = in_dim
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5        
-        # self.scale = nn.Parameter(self.scale*torch.ones(num_heads))
+        self.scale = nn.Parameter(self.scale*torch.ones(num_heads))
 
         self.qkv = nn.Linear(dim, in_dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(in_dim, in_dim)
         self.proj_drop = nn.Dropout(proj_drop)
         
-        # self.mask = torch.eye(num_patches, num_patches)
-        # self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
-        # self.inf = float('-inf')
+        self.mask = torch.eye(num_patches, num_patches)
+        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        self.inf = float('-inf')
 
     def forward(self, x):
         B, N, C = x.shape
@@ -126,14 +126,14 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.in_dim // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        attn = (q * self.scale) @ k.transpose(-2, -1)
+        # attn = (q * self.scale) @ k.transpose(-2, -1)
         
         """ LMSA """
         ############################
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        scale = self.scale
+        attn = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((B, self.num_heads, 1, 1)))
     
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
         ############################
         
         
@@ -246,22 +246,20 @@ class T2T_module(nn.Module):
         elif img_size == 32:
             """ SPM """
             ############################
-            # self.soft_split0 = ShiftedPatchMerging(in_chans, in_chans * 3 * 3, 2)
-            # self.soft_split2 = ShiftedPatchMerging(token_dim, embed_dim)
+            self.soft_split0 = ShiftedPatchMerging(in_chans, in_chans * 3 * 3, 2)
+            self.soft_split1 = ShiftedPatchMerging(token_dim, embed_dim)
             ############################
             
             """ BASE """
             ############################
-            self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
+            # self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+            # self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+            # self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
             ############################
             self.num_patches = (img_size // (2)) * (img_size // (2))
             self.attention1 = Token_transformer(dim=in_chans * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
             self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
-            self.attention2 = None
-
-        
+            self.attention2 = None    
         
 
     
@@ -269,27 +267,53 @@ class T2T_module(nn.Module):
 
     def forward(self, x):
         # step0: soft split
-        x = self.soft_split0(x).transpose(1, 2)
+        """ base """
+        ############################
+        # x = self.soft_split0(x).transpose(1, 2)
+        ############################
+        
+        """ SPM """
+        ############################
+        x = self.soft_split0(x)
+        ############################
 
         # iteration1: re-structurization/reconstruction
         x = self.attention1(x)
         B, new_HW, C = x.shape
         x = x.transpose(1,2).reshape(B, C, int(np.sqrt(new_HW)), int(np.sqrt(new_HW)))
         # iteration1: soft split
-        x = self.soft_split1(x).transpose(1, 2)
+        """ base """
+        ############################
+        # x = self.soft_split1(x).transpose(1, 2)
+        # if self.attention2 is None:
+        #     x = self.project(x)
+        #     return x
+        ############################
+        
+        """ SPM """
+        ############################        
+        x = self.soft_split1(x)
         if self.attention2 is None:
-            x = self.project(x)
             return x
+        ############################
 
         # iteration2: re-structurization/reconstruction
         x = self.attention2(x)  
+        
         B, new_HW, C = x.shape
         x = x.transpose(1, 2).reshape(B, C, int(np.sqrt(new_HW)), int(np.sqrt(new_HW)))
         # iteration2: soft split
-        x = self.soft_split2(x).transpose(1, 2)
-
-        # final tokens
-        x = self.project(x)
+        """ base """
+        ############################
+        # x = self.soft_split2(x).transpose(1, 2)
+        # # final tokens
+        # x = self.project(x)
+        ########################
+        
+        """ SPM """
+        ############################
+        x = self.soft_split2(x)
+        ###########################
 
         return x
 
@@ -308,12 +332,13 @@ class T2T_ViT(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(data=get_sinusoid_encoding(n_position=num_patches + 1, d_hid=embed_dim), requires_grad=False)
         self.pos_drop = nn.Dropout(p=drop_rate)
+        
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         self.blocks = nn.ModuleList([
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
+                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, num_patches=num_patches+1)
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
 
