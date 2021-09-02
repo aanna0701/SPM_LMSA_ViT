@@ -27,7 +27,7 @@ from torch.utils.tensorboard import SummaryWriter
 best_acc1 = 0
 best_acc5 = 0
 input_size = 32
-MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2', 'pit', 'cait', 't2t', 'cvt', 'deepvit', 'res56', 'res56_linear']
+MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit', 'res56', 'res56_linear']
 
 
 def init_parser():
@@ -206,6 +206,24 @@ def main(args):
    
     elif args.model == 'g-vit2':
         from models.vit_pytorch.git_2 import SwinTransformer       
+        if img_size > 64:
+            depths = [2, 2, 6, 2]
+            num_heads = [3, 6, 12, 24]
+            mlp_ratio = 4
+            window_size = 7
+            patch_size = 4
+        else:
+            depths = [2, 6, 4]
+            num_heads = [3, 6, 12]
+            mlp_ratio = 2
+            window_size = 4
+            patch_size //= 2
+            
+        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+       
+   
+    elif args.model == 'g-vit3':
+        from models.vit_pytorch.git3 import SwinTransformer       
         if img_size > 64:
             depths = [2, 2, 6, 2]
             num_heads = [3, 6, 12, 24]
