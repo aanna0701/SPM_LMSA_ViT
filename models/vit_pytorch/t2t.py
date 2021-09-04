@@ -107,7 +107,7 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.in_dim = in_dim
         head_dim = dim // num_heads
-        # self.scale = qk_scale or head_dim ** -0.5        
+        self.scale = qk_scale or head_dim ** -0.5        
         self.scale = nn.Parameter(self.scale*torch.ones(num_heads))
 
         self.qkv = nn.Linear(dim, in_dim * 3, bias=qkv_bias)
@@ -238,9 +238,9 @@ class T2T_module(nn.Module):
             ############################
             
             self.num_patches = (img_size // (2)) * (img_size // (2))
-            self.attention1 = Token_transformer(dim=in_chans * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
+            self.attention1 = Token_transformer(dim=token_dim, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
             self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
-            self.attention2 = Token_transformer(dim=token_dim * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)            
+            self.attention2 = Token_transformer(dim=token_dim, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)            
             self.num_patches = (img_size // (2 * 2 * 2)) * (img_size // (2 * 2 * 2))
 
         elif img_size == 32:
@@ -257,7 +257,7 @@ class T2T_module(nn.Module):
             # self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
             ############################
             self.num_patches = (img_size // (2)) * (img_size // (2))
-            self.attention1 = Token_transformer(dim=in_chans * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
+            self.attention1 = Token_transformer(dim=token_dim, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
             self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
             self.attention2 = None    
         
