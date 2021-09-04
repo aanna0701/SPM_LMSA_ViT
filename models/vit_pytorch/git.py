@@ -53,7 +53,7 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -81,13 +81,13 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
@@ -184,12 +184,12 @@ class GiT(nn.Module):
         return self.mlp_head(x)
 
 class ShiftedPatchMerging(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False ,is_pe=True):
         super().__init__()
         
         self.exist_class_t = exist_class_t
         
-        self.patch_shifting = PatchShifting(merging_size)
+        self.patch_shifting = PatchShifting(merging_size) if not is_pe else PatchShifting(merging_size, 0.25)
         
         patch_dim = (in_dim*5) * (merging_size**2) 
         self.class_linear = nn.Linear(in_dim, dim)
@@ -219,9 +219,9 @@ class ShiftedPatchMerging(nn.Module):
 
     
 class PatchShifting(nn.Module):
-    def __init__(self, patch_size):
+    def __init__(self, patch_size, shift_ratio=0.25):
         super().__init__()
-        self.shift = int(patch_size * (3/4))
+        self.shift = int(patch_size * shift_ratio)
         
     def forward(self, x):
      
