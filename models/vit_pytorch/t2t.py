@@ -391,6 +391,7 @@ class T2T_ViT(nn.Module):
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 import math
+
     
 class ShiftedPatchMerging(nn.Module):
     def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False):
