@@ -192,7 +192,7 @@ class ShiftedPatchMerging(nn.Module):
         self.patch_shifting = PatchShifting(merging_size) if not is_pe else PatchShifting(merging_size, 0.25)
         
         patch_dim = (in_dim*5) * (merging_size**2) 
-        self.class_linear = nn.Linear(in_dim, dim)
+        # self.class_linear = nn.Linear(in_dim, dim)
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
@@ -219,7 +219,7 @@ class ShiftedPatchMerging(nn.Module):
 
     
 class PatchShifting(nn.Module):
-    def __init__(self, patch_size, shift_ratio=0.25):
+    def __init__(self, patch_size, shift_ratio=0.5):
         super().__init__()
         self.shift = int(patch_size * shift_ratio)
         

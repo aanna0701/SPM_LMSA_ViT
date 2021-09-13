@@ -193,6 +193,7 @@ def main(args, save_path):
     plt.tick_params(axis='both', which='major', labelsize=18)
     plt.locator_params(axis="y", nbins=5)
     plt.grid(axis='y')
+    plt.rc('font', family='serif')
     
     plt.savefig(os.path.join(save_path, 'AVG_KLDivergence.png'))
     
