@@ -411,13 +411,13 @@ class BasicLayer(nn.Module):
         if downsample:
             """ BASE """
             #########################
-            # self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
+            self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
             #########################
             
             
             """ SPM """
             #########################
-            self.downsample = ShiftedPatchMerging(dim, dim*2)
+            # self.downsample = ShiftedPatchMerging(dim, dim*2)
             #########################
         else:
             self.downsample = None
@@ -542,7 +542,6 @@ class SwinTransformer(nn.Module):
         # patches_resolution = self.patch_embed.patches_resolution
         # self.patches_resolution = patches_resolution
         #################################
-        
         """ SPM patches """
         ########################################################
         self.patch_embed = ShiftedPatchMerging(3, embed_dim, patch_size, is_pe=True)
@@ -673,7 +672,8 @@ class ShiftedPatchMerging(nn.Module):
 class PatchShifting(nn.Module):
     def __init__(self, patch_size, shift_ratio=0.5):
         super().__init__()
-        self.shift = int(patch_size * shift_ratio)
+        
+        self.shift = patch_size // 2
         
     def forward(self, x):
      

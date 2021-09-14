@@ -201,12 +201,12 @@ class PiT(nn.Module):
             if not_last:
                 #######################################
                 " Base "
-                # l0ayers.append(Pool(dim))
+                l0ayers.append(Pool(dim))
                 #######################################
                 
                 ##########################################
                 "SPE"
-                layers.append(ShiftedPatchMerging(dim, dim*2, 2, exist_class_t=True, is_pe=False))
+                # layers.append(ShiftedPatchMerging(dim, dim*2, 2, exist_class_t=True, is_pe=False))
                 ##########################################
                 dim *= 2
                 output_size = conv_output_size(output_size, 3, 2, 1)
@@ -286,7 +286,8 @@ class ShiftedPatchMerging(nn.Module):
 class PatchShifting(nn.Module):
     def __init__(self, patch_size, shift_ratio=0.5):
         super().__init__()
-        self.shift = int(patch_size * shift_ratio)
+        # self.shift = int(patch_size * shift_ratio)
+        self.shift = patch_size // 2
         
     def forward(self, x):
      
