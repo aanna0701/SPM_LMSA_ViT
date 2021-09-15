@@ -22,9 +22,28 @@ def main():
 
     GPU = 1
     
-    from models.vit_pytorch.t2t import T2T_ViT
+    # from models.vit_pytorch.swin import SwinTransformer
 
-    model = T2T_ViT(img_size=img_size, num_classes=200)
+    # depths = [2, 6, 4]
+    # num_heads = [3, 6, 12]
+    # mlp_ratio = 2
+    # window_size = 4
+    # patch_size //= 2
+        
+    # model = SwinTransformer(img_size=img_size, window_size=window_size, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=200)
+     
+    from models.vit_pytorch.pit import PiT
+
+    patch_size = 4        
+
+    channel = 96
+    heads = (2, 4, 8)
+    depth = (2, 6, 4)
+    
+    dim_head = channel // heads[0]
+    
+    model = PiT(img_size=img_size, patch_size = patch_size, num_classes=200, dim=channel, mlp_dim_ratio=2, depth=depth, heads=heads, dim_head=dim_head)
+
         
 
     torch.cuda.set_device(GPU)

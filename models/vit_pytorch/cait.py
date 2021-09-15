@@ -79,7 +79,7 @@ class Attention(nn.Module):
         inner_dim = dim_head *  heads
         self.heads = heads
         self.scale = dim_head ** -0.5
-        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
@@ -106,17 +106,17 @@ class Attention(nn.Module):
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         """ LMSA """
         ############################
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
 
         
-        # if self.if_patch_attn:
-        #     dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -1e-9
-        # else:
-        #     dots[:, :,:, 0] = -1e-9
+        if self.if_patch_attn:
+            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -1e-9
+        else:
+            dots[:, :,:, 0] = -1e-9
         ###########################
         
         
@@ -174,19 +174,19 @@ class CaiT(nn.Module):
         num_patches = (img_size // patch_size) ** 2
         """ Base """
         #########################
-        patch_dim = 3 * patch_size ** 2
+        # patch_dim = 3 * patch_size ** 2
         
-        self.to_patch_embedding = nn.Sequential(
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-            nn.Linear(patch_dim, dim),
-        )
+        # self.to_patch_embedding = nn.Sequential(
+        #     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+        #     nn.Linear(patch_dim, dim),
+        # )
         #########################
         
         """ SPM """
         #########################
-        # self.to_patch_embedding = nn.Sequential(
-        #     ShiftedPatchMerging(3, dim, patch_size, is_pe=True),
-        # )
+        self.to_patch_embedding = nn.Sequential(
+            ShiftedPatchMerging(3, dim, patch_size, is_pe=True),
+        )
         #########################
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
