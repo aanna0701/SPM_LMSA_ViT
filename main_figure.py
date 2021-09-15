@@ -14,8 +14,8 @@ import pandas as pd
 
 
 Markers = ['o', 'X', 'D', 's']
-F_size = 8
-plt.rcParams["figure.figsize"] = (4,3.5)
+F_size = 7
+plt.rcParams["figure.figsize"] = (4,3.2)
 plt.rcParams["axes.axisbelow"] = True
 colors = sns.color_palette('Paired', 20)
 # colors = ['r', 'g', 'b', 'k', 'y']
@@ -31,87 +31,125 @@ colors = sns.color_palette('Paired', 20)
 
 def main(save_path):
     
-    data_ViT = {'name': ['ViT', 'T2T', 'PiT', 'Swin', 'CaiT'],
-            'acc': [57.07, 60.57, 60.25, 60.87, 64.37],
-            'params': [2.8, 6.7, 7.06, 7.13, 9.1]}
-    data_ours = {'name': ['SL-ViT', 'SL-T2T', 'SL-PiT', 'SL-Swin', 'SL-CaiT'],
-            'acc': [61.07, 61.83, 62.91, 64.95, 67.18],
-            'params': [2.9, 7.1, 8.7, 10.2, 9.2]}
     
     data_ViT = {'name': ['ViT', 'SL-ViT'],
             'acc': [57.07,61.07],
-            'params': [2.8, 2.9]}
+            'params': [2.8, 2.9],
+            'cost': [8593, 7697]}
     data_PiT = {'name': ['PiT', 'SL-PiT'],
             'acc': [60.25,62.91],
-            'params': [7.06, 8.7]}
+            'params': [7.06, 8.7],
+            'cost': [7583, 5981]}
     data_T2T = {'name': ['T2T', 'SL-T2T'],
             'acc': [60.57,61.83],
-            'params': [6.7, 7.1]}
+            'params': [6.7, 7.1],
+            'cost': [3388, 2943]}
     data_Swin = {'name': ['Swin', 'SL-Swin'],
             'acc': [60.87,64.95],
-            'params': [7.13, 10.2]}
+            'params': [7.13, 10.2],
+            'cost': [6804, 5711]}
     data_CaiT = {'name': ['CaiT', 'SL-CaiT'],
             'acc': [64.37, 67.18],
-            'params': [9.1, 9.2]}
+            'params': [9.1, 9.2],
+            'cost': [3138, 2967]}
     
-    # df_base = pd.DataFrame(data_base)
-    # df_ours = pd.DataFrame(data_ours)
+    
 
+    
+    ##### Params vs. acc
+#     plt.rc('font', family='serif')    
+#     plt.grid()
+#     i = 1
+#     scatter(data_ViT, i)
+    
+#     # plt.text(data_ViT['params'][1]+0.2, data_ViT['acc'][1]+0.4, data_ViT['name'][1], ha='center', fontsize=F_size+2)
+#     plt.text(data_ViT['params'][1]+1.3, data_ViT['acc'][1], data_ViT['name'][1], ha='center', fontsize=F_size+2)
+    
+#     i += 2   
+#     scatter(data_PiT, i)
+    
+#     plt.text(data_PiT['params'][1]+1.2, data_PiT['acc'][1]-0.2, data_PiT['name'][1], ha='center', fontsize=F_size+2)
+    
+#     i += 2 
+#     scatter(data_T2T, i)
+    
+#     plt.text(data_T2T['params'][1], data_T2T['acc'][1]+0.5, data_T2T['name'][1], ha='center', fontsize=F_size+2)
+    
+#     # # plt.savefig(os.path.join(save_path, 'No_pool.png'))
+#     # # plt.clf()
+#     i += 2
+#     scatter(data_Swin, i)
+    
+#     plt.text(data_Swin['params'][1]+0.45, data_Swin['acc'][1]+0.5, data_Swin['name'][1], ha='center', fontsize=F_size+2)
 
-    # scatter_plot=df_base.plot.scatter(x='params',y='acc')
-    # scatter_plot.plot()
+#     i += 2 
+#     scatter(data_CaiT, i)
+    
+#     plt.text(data_CaiT['params'][1], data_CaiT['acc'][1]+0.5, data_CaiT['name'][1], ha='center', fontsize=F_size+2)
+    
+#     plt.legend(loc=2, fontsize=F_size+1)
+#     plt.ylim([56.5, 68.5])
+#     plt.xlim([2, 12])
+#     # plt.rcParams.update({'font.size': 22})
+#     plt.xlabel('The Number of Parameters (M)', fontsize=F_size+1)
+#     plt.ylabel('Tiny-ImageNet Top-1 Accuracy (%)', fontsize=F_size+1)
+#     plt.xticks(fontsize=F_size)
+#     plt.yticks(fontsize=F_size)
+#     plt.savefig(os.path.join(save_path, 'params_acc.png'))
+    
+    ##### Cost vs. acc
+    plt.clf()
+    plt.rc('font', family='serif')    
+    plt.grid()
     
     i = 1
-    plt.rc('font', family='serif')
-    
-    plt.grid()
-    scatter(data_ViT, i)
+    scatter(data_ViT, i, 'cost')
     
     # plt.text(data_ViT['params'][1]+0.2, data_ViT['acc'][1]+0.4, data_ViT['name'][1], ha='center', fontsize=F_size+2)
-    plt.text(data_ViT['params'][1]+1.3, data_ViT['acc'][1], data_ViT['name'][1], ha='center', fontsize=F_size+2)
+    plt.text(data_ViT['cost'][1]+1.3, data_ViT['acc'][1]+0.6, data_ViT['name'][1], ha='center', fontsize=F_size+2)
     
     i += 2   
-    scatter(data_PiT, i)
+    scatter(data_PiT, i, 'cost')
     
-    plt.text(data_PiT['params'][1]+1.2, data_PiT['acc'][1]-0.2, data_PiT['name'][1], ha='center', fontsize=F_size+2)
+    plt.text(data_PiT['cost'][1]-700, data_PiT['acc'][1]-0.2, data_PiT['name'][1], ha='center', fontsize=F_size+2)
     
     i += 2 
-    scatter(data_T2T, i)
+    scatter(data_T2T, i, 'cost')
     
-    plt.text(data_T2T['params'][1], data_T2T['acc'][1]+0.5, data_T2T['name'][1], ha='center', fontsize=F_size+2)
+    plt.text(data_T2T['cost'][1], data_T2T['acc'][1]+0.6, data_T2T['name'][1], ha='center', fontsize=F_size+2)
     
     # # plt.savefig(os.path.join(save_path, 'No_pool.png'))
     # # plt.clf()
     i += 2
-    scatter(data_Swin, i)
+    scatter(data_Swin, i, 'cost')
     
-    plt.text(data_Swin['params'][1]+0.45, data_Swin['acc'][1]+0.5, data_Swin['name'][1], ha='center', fontsize=F_size+2)
+    plt.text(data_Swin['cost'][1]+0.45, data_Swin['acc'][1]+0.6, data_Swin['name'][1], ha='center', fontsize=F_size+2)
 
     i += 2 
-    scatter(data_CaiT, i)
+    scatter(data_CaiT, i, 'cost')
     
-    plt.text(data_CaiT['params'][1], data_CaiT['acc'][1]+0.5, data_CaiT['name'][1], ha='center', fontsize=F_size+2)
+    plt.text(data_CaiT['cost'][1], data_CaiT['acc'][1]+0.6, data_CaiT['name'][1], ha='center', fontsize=F_size+2)
     
-    plt.legend(loc=2, fontsize=F_size+1)
-    plt.ylim([56.5, 68.5])
-    plt.xlim([2, 12])
+    plt.legend(loc=1, fontsize=F_size+1)
+    plt.ylim([56.8, 68.4])
+    plt.xlim([2000, 9000])
     # plt.rcParams.update({'font.size': 22})
-    plt.xlabel('The Number of Parameters (M)', fontsize=F_size+1)
+    plt.xlabel('Throughput (imgs/sec)', fontsize=F_size+1)
     plt.ylabel('Tiny-ImageNet Top-1 Accuracy (%)', fontsize=F_size+1)
     plt.xticks(fontsize=F_size)
     plt.yticks(fontsize=F_size)
-    plt.savefig(os.path.join(save_path, 'pool.png'))
+    plt.savefig(os.path.join(save_path, 'cost_acc.png'))
         
     
     
-def scatter(data, i):
+def scatter(data, i, ver='params'):
     # base plot
-    x = data['params']
+    x = data['params'] if ver == 'params' else data['cost']
     y = data['acc']
     plt.scatter(x, y, color=colors[i], s=20)
     plt.plot(x, y, color=colors[i], label=data['name'][0], linestyle='dashed')
     # ours plot
-    x = data['params'][1]
+    x = data['params'][1] if ver == 'params' else data['cost'][1]
     y = data['acc'][1]
     plt.scatter(x, y, color=colors[i], marker='*',s=80)
     plt.plot(x, y)

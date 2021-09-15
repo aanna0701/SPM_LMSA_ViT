@@ -27,25 +27,25 @@ def init_parser():
 
 def main(args, save_path):
   
-    if args.dataset == 'cifar100':        
-        data_path = './dataset/cifar100_img'
-        img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)
-        img_paths = glob.glob(os.path.join(data_path, '*.png'))  
-        img_size = 32
-        patch_size = 4
-        num_classes = 100
+    # if args.dataset == 'cifar100':        
+    #     data_path = './dataset/cifar100_img'
+    #     img_mean, img_std  = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762)
+    #     img_paths = glob.glob(os.path.join(data_path, '*.png'))  
+    #     img_size = 32
+    #     patch_size = 4
+    #     num_classes = 100
         
-    elif args.dataset == 't-imgnet':
-        data_path = './dataset/tiny_imagenet/val'
-        # data_path = './dataset/tiny_imagenet/train'
-        img_mean, img_std = (0.4802, 0.4481, 0.3975), (0.2770, 0.2691, 0.2821)
-        folder_paths = glob.glob(os.path.join(data_path, '*'))  
-        img_paths = []
-        for path in folder_paths:
-            img_paths = img_paths + glob.glob(os.path.join(path, '*'))
-        img_size = 64
-        patch_size = 8
-        num_classes = 200
+    # elif args.dataset == 't-imgnet':
+    data_path = './dataset/tiny_imagenet/val'
+    # data_path = './dataset/tiny_imagenet/train'
+    img_mean, img_std = (0.4802, 0.4481, 0.3975), (0.2770, 0.2691, 0.2821)
+    folder_paths = glob.glob(os.path.join(data_path, '*'))  
+    img_paths = []
+    for path in folder_paths:
+        img_paths = img_paths + glob.glob(os.path.join(path, '*'))
+    img_size = 64
+    patch_size = 8
+    num_classes = 200
         
     print(Fore.GREEN+'*'*80)
     print(f"Creating model")    
@@ -53,9 +53,6 @@ def main(args, save_path):
     
     from visualization.ViT.model import Model
     model_vit = Model(img_size=img_size, patch_size=patch_size, num_classes=num_classes)
-    
-    from visualization.ViT_SP_T_M.model import Model
-    model_vit_ours = Model(img_size=img_size, patch_size=patch_size, num_classes=num_classes)
     
     '''
     GPU
@@ -65,7 +62,6 @@ def main(args, save_path):
     model_vit_ours.cuda(args.gpu)
     # model.load_state_dict(torch.load(os.path.join('./visualization/ViT_Masking', 'best.pth')))
     model_vit.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
-    model_vit_ours.load_state_dict(torch.load(os.path.join('./visualization/ViT_SP_T_M', 'best.pth')))
     
     
          
@@ -91,7 +87,6 @@ def main(args, save_path):
         img = Image.open(img_path)
         img = img.convert('RGB')
         score_vit = inference(transform(img).unsqueeze(dim=0), model_vit, args) 
-        score_vit_ours = inference(transform(img).unsqueeze(dim=0), model_vit_ours, args) 
 
         cls_viz_vit = rearrange(score_vit, 'b c (h w) -> b c h w', h=int(math.sqrt(score_vit.size(-1))))
         cls_viz_vit_ours = rearrange(score_vit_ours, 'b c (h w) -> b c h w', h=int(math.sqrt(score_vit_ours.size(-1))))
