@@ -34,23 +34,23 @@ def main(save_path):
     data_ViT = {'name': ['ViT', 'T2T', 'PiT', 'Swin', 'CaiT'],
             'acc': [57.07, 60.57, 60.25, 60.87, 64.37],
             'params': [2.8, 6.7, 7.06, 7.13, 9.1]}
-    data_ours = {'name': ['ViT-S-L', 'T2T-S-L', 'PiT-S-L', 'Swin-S-L', 'CaiT-S-L'],
+    data_ours = {'name': ['SL-ViT', 'SL-T2T', 'SL-PiT', 'SL-Swin', 'SL-CaiT'],
             'acc': [61.07, 61.83, 62.91, 64.95, 67.18],
             'params': [2.9, 7.1, 8.7, 10.2, 9.2]}
     
-    data_ViT = {'name': ['ViT', 'ViT-S-L'],
+    data_ViT = {'name': ['ViT', 'SL-ViT'],
             'acc': [57.07,61.07],
             'params': [2.8, 2.9]}
-    data_PiT = {'name': ['PiT', 'PiT-S-L'],
+    data_PiT = {'name': ['PiT', 'SL-PiT'],
             'acc': [60.25,62.91],
             'params': [7.06, 8.7]}
-    data_T2T = {'name': ['T2T', 'T2T-S-L'],
+    data_T2T = {'name': ['T2T', 'SL-T2T'],
             'acc': [60.57,61.83],
             'params': [6.7, 7.1]}
-    data_Swin = {'name': ['Swin', 'Swin-S-L'],
+    data_Swin = {'name': ['Swin', 'SL-Swin'],
             'acc': [60.87,64.95],
             'params': [7.13, 10.2]}
-    data_CaiT = {'name': ['CaiT', 'CaiT-S-L'],
+    data_CaiT = {'name': ['CaiT', 'SL-CaiT'],
             'acc': [64.37, 67.18],
             'params': [9.1, 9.2]}
     

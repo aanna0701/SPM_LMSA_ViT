@@ -53,7 +53,7 @@ class Attention(nn.Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -81,13 +81,13 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
     
         
-        dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
 
         attn = self.attend(dots)
 
@@ -122,7 +122,7 @@ class Transformer(nn.Module):
         return x
 
 class ViT(nn.Module):
-    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
+    def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)

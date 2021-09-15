@@ -117,7 +117,8 @@ def main(args, save_path):
     plt.ylim([0, 6])    
     plt.tick_params(axis='both', which='major', labelsize=18)
     plt.locator_params(axis="y", nbins=6)
-    plt.grid(axis='y')
+    plt.grid(axis='y')    
+    plt.rc('font', family='serif')
 
     # '''
     #     SVHN

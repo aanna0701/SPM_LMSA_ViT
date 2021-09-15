@@ -224,44 +224,47 @@ class T2T_module(nn.Module):
         elif img_size == 64:
             """ SPM """
             ############################
-            self.soft_split0 = ShiftedPatchMerging(in_chans, token_dim)
-            self.soft_split1 = ShiftedPatchMerging(token_dim, token_dim)
-            self.soft_split2 = ShiftedPatchMerging(token_dim, embed_dim)
+            # self.soft_split0 = ShiftedPatchMerging(in_chans, token_dim)
+            # self.soft_split1 = ShiftedPatchMerging(token_dim, token_dim)
+            # self.soft_split2 = ShiftedPatchMerging(token_dim, embed_dim)
             ############################
+            
+            
             
             """ BASE """
             ############################
-            # self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            # self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            # self.soft_split2 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            # self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
+            self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+            self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+            self.soft_split2 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+            self.project = nn.Linear(token_dim* 5 * 3 * 3, embed_dim)
             ############################
             
             self.num_patches = (img_size // (2)) * (img_size // (2))
-            self.attention1 = Token_transformer(dim=token_dim, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
+            self.attention1 = Token_transformer(dim=in_chans * 5 * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
             self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
-            self.attention2 = Token_transformer(dim=token_dim, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)            
+            self.attention2 = Token_transformer(dim=token_dim * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)            
             self.num_patches = (img_size // (2 * 2 * 2)) * (img_size // (2 * 2 * 2))
 
         elif img_size == 32:
             """ SPM """
             ############################
-            self.soft_split0 = ShiftedPatchMerging(in_chans, token_dim)
-            self.soft_split1 = ShiftedPatchMerging(token_dim, embed_dim)
+            # self.soft_split0 = ShiftedPatchMerging(in_chans, token_dim)
+            # self.soft_split1 = ShiftedPatchMerging(token_dim, embed_dim)
             ############################
             
             """ BASE """
             ############################
-            # self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            # self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            # self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
+            self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+            self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+            self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
             ############################
             self.num_patches = (img_size // (2)) * (img_size // (2))
-            self.attention1 = Token_transformer(dim=token_dim, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
+            self.attention1 = Token_transformer(dim=token_dim * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
             self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
             self.attention2 = None    
-        
-
+            
+        self.spm = PatchShifting(2)
+        self.norm = nn.LayerNorm(token_dim * 5 * 3 * 3)
     
           # there are 3 sfot split, stride are 4,2,2 seperately
 
@@ -269,12 +272,13 @@ class T2T_module(nn.Module):
         # step0: soft split
         """ base """
         ############################
-        # x = self.soft_split0(x).transpose(1, 2)
+        x = self.spm(x)
+        x = self.soft_split0(x).transpose(1, 2)
         ############################
         
         """ SPM """
         ############################
-        x = self.soft_split0(x)
+        # x = self.soft_split0(x)
         ############################
 
         # iteration1: re-structurization/reconstruction
@@ -284,17 +288,17 @@ class T2T_module(nn.Module):
         # iteration1: soft split
         """ base """
         ############################
-        # x = self.soft_split1(x).transpose(1, 2)
-        # if self.attention2 is None:
-        #     x = self.project(x)
-        #     return x
+        x = self.soft_split1(x).transpose(1, 2)
+        if self.attention2 is None:
+            x = self.project(x)
+            return x
         ############################
         
         """ SPM """
         ############################        
-        x = self.soft_split1(x)
-        if self.attention2 is None:
-            return x
+        # x = self.soft_split1(x)
+        # if self.attention2 is None:
+        #     return x
         ############################
 
         # iteration2: re-structurization/reconstruction
@@ -305,14 +309,15 @@ class T2T_module(nn.Module):
         # iteration2: soft split
         """ base """
         ############################
-        # x = self.soft_split2(x).transpose(1, 2)
-        # # final tokens
-        # x = self.project(x)
+        x = self.spm(x)
+        x = self.soft_split2(x).transpose(1, 2)
+        # final tokens
+        x = self.project(x)
         ########################
         
         """ SPM """
         ############################
-        x = self.soft_split2(x)
+        # x = self.soft_split2(x)
         ###########################
 
         return x
