@@ -53,24 +53,71 @@ def main(args, save_path):
     print(f"Creating model")    
     print('*'*80+Style.RESET_ALL)
     
-    from visualization.ViT.model import Model
-    model_vit = Model(img_size=img_size, patch_size=patch_size, num_classes=num_classes)
+    # """ Model """
+    # from visualization.ViT.model import Model
+    # model_vit = Model(img_size=img_size, patch_size=patch_size, num_classes=num_classes)    
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)       
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
     
-    '''
-    GPU
-    '''
+    # from visualization.LS_ViT.model import Model
+    # model_vit = Model(img_size=img_size, patch_size=patch_size, num_classes=num_classes)
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)   
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/LS_ViT', 'best.pth')))
+    
+    
+    # from visualization.PiT.model import Model
+    # model_vit = Model(img_size=img_size, patch_size=patch_size//2, num_classes=num_classes)
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)   
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/PiT', 'best.pth')))
+    
+    # from visualization.LS_PiT.model import Model
+    # model_vit = Model(img_size=img_size, patch_size=patch_size//2, num_classes=num_classes)
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)   
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/LS_PiT', 'best.pth')))
+    
+    
+    # from visualization.T2T.model import Model
+    # model_vit = Model(img_size=img_size, num_classes=num_classes)
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)   
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/T2T', 'best.pth')))
+    
+    # from visualization.LS_T2T.model import Model
+    # model_vit = Model(img_size=img_size, num_classes=num_classes)
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)   
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/LS_T2T', 'best.pth')))
+    
+    
+    # from visualization.Swin.model import Model
+    # model_vit = Model(img_size=img_size, patch_size= patch_size//2, num_classes=num_classes)
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)   
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/Swin', 'best.pth')))
+    
+    """ Model """
+    from visualization.CaiT.model import Model
+    model_vit = Model(img_size=img_size, patch_size=patch_size, num_classes=num_classes)    
     torch.cuda.set_device(args.gpu)
-    model_vit.cuda(args.gpu)   
-    model_vit.load_state_dict(torch.load(os.path.join('./visualization/ViT', 'best.pth')))
+    model_vit.cuda(args.gpu)       
+    model_vit.load_state_dict(torch.load(os.path.join('./visualization/CaiT', 'best.pth')))
     
+    # from visualization.LS_CaiT.model import Model
+    # model_vit = Model(img_size=img_size, patch_size=patch_size, num_classes=num_classes)
+    # torch.cuda.set_device(args.gpu)
+    # model_vit.cuda(args.gpu)   
+    # model_vit.load_state_dict(torch.load(os.path.join('./visualization/LS_CaiT', 'best.pth')))
     
          
     normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
-
       
-    random.seed(2)
-    img_paths = random.sample(img_paths, 1000)    
+    random.seed(1)
+    img_paths = random.sample(img_paths, 100)    
     
     
     # img = Image.open(os.path.join('./visualization', 'input.png'))
@@ -96,19 +143,9 @@ def main(args, save_path):
         
         plt.rcParams["figure.figsize"] = (5,5)
         plt.axis('off')
-        # ax1 = plt.subplot(1, 5, 1)
-        # ax1.imshow(img)
-        # ax1.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
         plt.imshow(img)
         plt.savefig(os.path.join(save_path, f'{i}_input.png'), format='png', dpi=400, bbox_inches='tight', pad_inches = 0)
-        
-        # ax2 = plt.subplot(1, 5, 2)
-        # cls_viz = transforms.Resize(img_size)(cls_viz_vit)
-        # tmp = cls_viz.squeeze()
-        # cls_viz = (tmp - torch.min(tmp)) / (torch.max(tmp)-torch.min(tmp))
-        # cls_viz = cls_viz.detach().cpu()
-        # ax2.imshow(cls_viz, cmap='rainbow', vmin=0, vmax=1)
-        # ax2.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+
         
         cls_viz = transforms.Resize(img_size)(cls_viz_vit)
         tmp = cls_viz.squeeze()
@@ -122,30 +159,7 @@ def main(args, save_path):
         plt.clf()
 
         
-        
-        # ax3 = plt.subplot(1, 5, 3)
-        # ax3.imshow(img)    
-        # ax3.imshow(cls_viz, cmap='rainbow', vmin=0, vmax=1, alpha=0.5)
-        # ax3.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-        
-        # ax4 = plt.subplot(1, 5, 4)
-        # cls_viz = transforms.Resize(img_size)(cls_viz_vit_ours)
-        # tmp = cls_viz.squeeze()
-        # cls_viz = (tmp - torch.min(tmp)) / (torch.max(tmp)-torch.min(tmp))
-        # cls_viz = cls_viz.detach().cpu()
-        # ax4.imshow(cls_viz, cmap='rainbow', vmin=0, vmax=1)
-        # ax4.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-        
-        # ax5 = plt.subplot(1, 5, 5)
-        # ax5.imshow(img)    
-        # ax5.imshow(cls_viz, cmap='rainbow', vmin=0, vmax=1, alpha=0.45)
-        # ax5.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-                        
-        # plt.savefig(os.path.join(save_path, f'Class_Viz{i}.png'), format='png', dpi=400)
-        
-
-        # plt.cla()
-        # plt.clf()
+       
 
 def inference(img, model, args):
     print('inferencing')
@@ -156,8 +170,25 @@ def inference(img, model, args):
         
         _ = model(images)
     
+    """ ViT """
+    # cls = model.transformer.score[:, :, 0, 1:]
     
-    cls = model.transformer.score[:, :, 0, 1:]
+    """ PiT """
+    # cls = model.layers[4].score[:, :, 0, 1:]
+    
+    """ T2T """
+    # cls = model.blocks[11].score[:, :, 0, 1:]
+    
+    """ CaiT """
+    cls = model.cls_transformer.score[:, :, 0, 1:]
+    # print(cls.shape)
+    
+    """ Swin """
+    # print(model.layers[2].blocks[3].score)
+    # cls = model.layers[2].blocks[3].score
+    # cls = rearrange(cls, 'b c h w -> b c (h w)')
+    
+    
     mean_cls = cls.mean(dim=1, keepdim = True)
 
     return mean_cls              
