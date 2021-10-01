@@ -22,7 +22,7 @@ import argparse
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
 from torch.utils.tensorboard import SummaryWriter
-
+from tqdm import tqdm
 
 best_acc1 = 0
 best_acc5 = 0
@@ -570,7 +570,7 @@ def main(args):
         args.epochs = final_epoch - (checkpoint['epoch'] + 1)
     
     
-    for epoch in range(args.epochs):
+    for epoch in tqdm(range(args.epochs)):
         # adjust_learning_rate(optimizer, epoch, args)
         lr = train(train_loader, model, criterion, optimizer, epoch, scheduler, args)
         acc1, acc5 = validate(val_loader, model, criterion, lr, args, epoch=epoch)

@@ -15,7 +15,7 @@ import pandas as pd
 
 Markers = ['o', 'X', 'D', 's']
 F_size = 7
-plt.rcParams["figure.figsize"] = (4,3.2)
+plt.rcParams["figure.figsize"] = (4,3.3)
 plt.rcParams["axes.axisbelow"] = True
 colors = sns.color_palette('Paired', 20)
 # colors = ['r', 'g', 'b', 'k', 'y']
@@ -134,11 +134,11 @@ def main(save_path):
     plt.ylim([56.8, 68.4])
     plt.xlim([2000, 9000])
     # plt.rcParams.update({'font.size': 22})
-    plt.xlabel('Throughput (imgs/sec)', fontsize=F_size+1)
-    plt.ylabel('Tiny-ImageNet Top-1 Accuracy (%)', fontsize=F_size+1)
+    plt.xlabel('Throughput (images/sec)', fontsize=F_size+1)
+    plt.ylabel('Top-1 Accuracy (%)', fontsize=F_size+1)
     plt.xticks(fontsize=F_size)
     plt.yticks(fontsize=F_size)
-    plt.savefig(os.path.join(save_path, 'cost_acc.png'))
+    plt.savefig(os.path.join(save_path, 'cost_acc.png'), dpi=1200)
         
     
     

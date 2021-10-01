@@ -29,8 +29,8 @@ def init_parser():
 
 def main(args, save_path):
   
-    # data_path = '../dataset/tiny_imagenet/val'
-    data_path = '../dataset/tiny_imagenet/train'
+    data_path = '../dataset/tiny_imagenet/val'
+    # data_path = '../dataset/tiny_imagenet/train'
     img_mean, img_std = (0.4802, 0.4481, 0.3975), (0.2770, 0.2691, 0.2821)
     folder_paths = glob.glob(os.path.join(data_path, '*'))  
     img_paths = []
