@@ -816,9 +816,11 @@ class ShiftedPatchMerging(nn.Module):
         
         self.exist_class_t = exist_class_t
         
-        self.transformation = SpatialTransformation()
+        # self.transformation = SpatialTransformation()
+        self.transformation = SpatialTransformation(merging_size)
         
         patch_dim = (5*in_dim) * (merging_size**2) 
+        # patch_dim = (in_dim) * (merging_size**2) 
         self.class_linear = nn.Linear(in_dim, dim)
 
         self.is_pe = is_pe
@@ -835,10 +837,10 @@ class ShiftedPatchMerging(nn.Module):
                 nn.Linear(patch_dim, dim)
             )
             
-            self.channel_mix = nn.Sequential(
-                nn.Conv2d(5*in_dim, 5*in_dim, 1, bias=False),
-                nn.BatchNorm2d(5*in_dim)            
-            )
+            # self.channel_mix = nn.Sequential(
+            #     nn.Conv2d(5*in_dim, 5*in_dim, 1, bias=False),
+            #     nn.BatchNorm2d(5*in_dim)            
+            # )
             
         else:
             self.merging = nn.Sequential(
@@ -855,15 +857,16 @@ class ShiftedPatchMerging(nn.Module):
         num_patches = x.size(1) if len(x.size()) == 3 else x.size(-1)**2
         
         
-        out = x if self.is_pe else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+        # out = x if self.is_pe else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         out = self.conv1(x) if self.is_pe else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
 
         # out = self.transformation(out, num_patches, theta, num_trans, pe=True) if self.is_pe else self.channel_mix(self.transformation(out, num_patches, theta, num_trans)) + out
         
         # out = self.channel_mix(self.transformation(out, num_patches, theta, num_trans, pe=True)) if self.is_pe else self.channel_mix(self.transformation(out, num_patches, theta, num_trans)) + out
-        out = self.channel_mix(self.transformation(out, num_patches, theta, num_trans, pe=self.is_pe)) + out 
-        
+        # out = self.channel_mix(self.transformation(out, num_patches, theta, num_trans, pe=self.is_pe))
         # out = self.channel_mix(self.transformation(out)) 
+        out = self.transformation(out)
+        # out = self.transformation(out, num_patches, theta, num_trans, pe=self.is_pe)
         
         out = self.merging(out)
         
@@ -873,73 +876,73 @@ class ShiftedPatchMerging(nn.Module):
     
     
     
-class SpatialTransformation(nn.Module):
-    def __init__(self):
-        super().__init__()
-        
-        self.transformation = Translation()
-                
-    def forward(self, x, num_patches, theta, num_transform, pe=False):   
-        
-            
-        chunks = torch.chunk(x, num_transform+1, dim=1)
-        out = [chunks[-1]]
-        theta_list = torch.chunk(theta, num_transform, dim=1)
-        
-        for i in range(num_transform):
-            out.append(self.transformation(chunks[i], theta_list[i]))
-            
-        out = torch.cat(out, dim=1)
-    
-                
-        # if pe:
-        #     out = [x]
-        #     theta_list = torch.chunk(theta, num_transform, dim=1)
-            
-            
-        #     for i in range(num_transform):
-        #         out.append(self.transformation(x, theta_list[i]))
-        #     out = torch.cat(out, dim=1)
-                    
-        # else:
-        #     chunks = torch.chunk(x, num_transform+1, dim=1)
-        #     out = [chunks[-1]]
-        #     theta_list = torch.chunk(theta, num_transform, dim=1)
-            
-        #     for i in range(num_transform):
-        #         out.append(self.transformation(chunks[i], theta_list[i]))
-                
-        #     out = torch.cat(out, dim=1)
-        
-       
-       
-        return out
-
-    
 # class SpatialTransformation(nn.Module):
-#     def __init__(self, patch_size):
+#     def __init__(self):
 #         super().__init__()
-#         # self.shift = int(patch_size * shift_ratio)
-#         self.shift = patch_size // 2
         
-#     def forward(self, x, pe=False):
-     
-#         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+#         self.transformation = Translation()
+                
+#     def forward(self, x, num_patches, theta, num_transform, pe=False):   
         
-
-#         """ 4 diagonal directions """
-#         # #############################
-#         _, C, _, _ = x_pad.size()
-
-#         # x[:, :C//4] = x_pad[:, :C//4, :-self.shift*2, :-self.shift*2]
-#         # x[:, C//4:C//2] = x_pad[:, C//4:C//2, :-self.shift*2, self.shift*2:]
-#         # x[:, C//2:(C//4)*3] = x_pad[:, C//2:(C//4)*3, self.shift*2:, :-self.shift*2]
-#         # x[:, (C//4)*3:] = x_pad[:, (C//4)*3:, self.shift*2:, self.shift*2:]
-#         x[:, :C//5] = x_pad[:, :C//5, :-self.shift*2, :-self.shift*2]
-#         x[:, C//5:(C//5)*2] = x_pad[:, C//5:(C//5)*2, :-self.shift*2, self.shift*2:]
-#         x[:, (C//5)*2:(C//5)*3] = x_pad[:, (C//5)*2:(C//5)*3, self.shift*2:, :-self.shift*2]
-#         x[:, (C//5)*3:(C//5)*4] = x_pad[:, (C//5)*3:(C//5)*4:, self.shift*2:, self.shift*2:]
-#         # #############################
-#         out = x
+            
+#         chunks = torch.chunk(x, num_transform+1, dim=1)
+#         out = [chunks[-1]]
+#         theta_list = torch.chunk(theta, num_transform, dim=1)
         
+#         for i in range(num_transform):
+#             out.append(self.transformation(chunks[i], theta_list[i]))
+            
+#         out = torch.cat(out, dim=1)
+    
+                
+#         # if pe:
+#         #     out = [x]
+#         #     theta_list = torch.chunk(theta, num_transform, dim=1)
+            
+            
+#         #     for i in range(num_transform):
+#         #         out.append(self.transformation(x, theta_list[i]))
+#         #     out = torch.cat(out, dim=1)
+                    
+#         # else:
+#         #     chunks = torch.chunk(x, num_transform+1, dim=1)
+#         #     out = [chunks[-1]]
+#         #     theta_list = torch.chunk(theta, num_transform, dim=1)
+            
+#         #     for i in range(num_transform):
+#         #         out.append(self.transformation(chunks[i], theta_list[i]))
+                
+#         #     out = torch.cat(out, dim=1)
+        
+       
+       
 #         return out
+
+    
+class SpatialTransformation(nn.Module):
+    def __init__(self, patch_size):
+        super().__init__()
+        # self.shift = int(patch_size * shift_ratio)
+        self.shift = patch_size // 2
+        
+    def forward(self, x, pe=False):
+     
+        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
+        
+
+        """ 4 diagonal directions """
+        # #############################
+        _, C, _, _ = x_pad.size()
+
+        # x[:, :C//4] = x_pad[:, :C//4, :-self.shift*2, :-self.shift*2]
+        # x[:, C//4:C//2] = x_pad[:, C//4:C//2, :-self.shift*2, self.shift*2:]
+        # x[:, C//2:(C//4)*3] = x_pad[:, C//2:(C//4)*3, self.shift*2:, :-self.shift*2]
+        # x[:, (C//4)*3:] = x_pad[:, (C//4)*3:, self.shift*2:, self.shift*2:]
+        x[:, :C//5] = x_pad[:, :C//5, :-self.shift*2, :-self.shift*2]
+        x[:, C//5:(C//5)*2] = x_pad[:, C//5:(C//5)*2, :-self.shift*2, self.shift*2:]
+        x[:, (C//5)*2:(C//5)*3] = x_pad[:, (C//5)*2:(C//5)*3, self.shift*2:, :-self.shift*2]
+        x[:, (C//5)*3:(C//5)*4] = x_pad[:, (C//5)*3:(C//5)*4:, self.shift*2:, self.shift*2:]
+        # #############################
+        out = x
+        
+        return out
