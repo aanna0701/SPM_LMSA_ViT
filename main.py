@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from utils.autoaug import SVHNPolicy
 from utils.mix import cutmix_data, mixup_data, mixup_criterion
 import numpy as np
@@ -21,8 +20,11 @@ from utils.training_functions import accuracy
 import argparse
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
+from utils.throughput import throughput
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 best_acc1 = 0
 best_acc5 = 0
@@ -118,6 +120,8 @@ def init_parser():
 def main(args):
     global best_acc1    
     global best_acc5    
+    
+    torch.cuda.set_device(args.gpu)
 
     '''
         Dataset
@@ -271,7 +275,7 @@ def main(args):
         
         dim_head = args.channel // args.heads[0]
         
-        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, is_base=False)
 
     elif args.model =='t2t':
         from models.vit_pytorch.t2t import T2T_ViT
@@ -302,7 +306,8 @@ def main(args):
             window_size = 4
             patch_size //= 2
             
-        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+            
+        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, num_trans=4)
         
     elif args.model =='deepvit':
         from models.vit_pytorch.deepvit import DeepViT
@@ -336,6 +341,10 @@ def main(args):
     
     # elif args.model == 'g-pit':
     #     model = m.P_GiT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
+    
+    
+    model.cuda(args.gpu)  
+    cost = throughput(model, img_size, args)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
@@ -343,6 +352,7 @@ def main(args):
     logger.debug(f'Number of params: {n_parameters}')
     logger.debug(f'Initial learning rate: {args.lr:.6f}')
     logger.debug(f"Start training for {args.epochs} epochs")
+    logger.debug(f"Throughput {cost} images/sec")
     print('*'*80+Style.RESET_ALL)
     
     
@@ -359,6 +369,8 @@ def main(args):
     
     else:
         criterion = nn.CrossEntropyLoss()
+    
+    criterion_theta = nn.MSELoss()
         
     if args.sd > 0.:
         print(Fore.YELLOW + '*'*80)
@@ -369,10 +381,9 @@ def main(args):
         GPU
     '''
 
-    if (not args.no_cuda) and torch.cuda.is_available():
-        torch.cuda.set_device(args.gpu)
-        model.cuda(args.gpu)
-        criterion = criterion.cuda(args.gpu)
+
+
+    criterion = criterion.cuda(args.gpu)
 
     
     '''
@@ -528,7 +539,7 @@ def main(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,  num_workers=args.workers, pin_memory=True,
-        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, 3, shuffle=True, drop_last=False))
+        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, 3, shuffle=True, drop_last=True))
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
     '''
