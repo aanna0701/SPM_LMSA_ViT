@@ -30,6 +30,8 @@ class Localisation(nn.Module):
             n_output = 2*n_trans
         elif type_trans=='affine':
             n_output = 6*n_trans
+        elif type_trans=='rigid':
+            n_output = 3*n_trans
             
         self.mlp_head = nn.Sequential(
             nn.Linear(self.in_dim * (img_size**2), 64, bias=False),
@@ -109,41 +111,45 @@ class Affine(nn.Module):
     
     
 
-class Rotation(nn.Module):
-    def __init__(self, angle=0.):
+class Rigid(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.angle = nn.Parameter(torch.tensor([angle], dtype=torch.float))
+        self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
+        self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
+        self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
         
-    def forward(self, x):
+    def forward(self, x, theta):
         
-        cos = torch.cos(self.angle)
-        sin = torch.sin(self.angle)
+        angle = theta[:, (0,)]
+        trans = theta[:, 1:]
+        cos = torch.cos(angle)
+        sin = torch.sin(angle)
         
-        mat_cos = torch.mul(cos, torch.tensor([[1, 0, 0],
-                          [0, 1, 0]]))
-        mat_sin = torch.mul(sin, torch.tensor([[0, -1, 0],
-                                [1, 0, 0]]))
-        theta = mat_cos + mat_sin
+        mat_cos = torch.mul(cos, self.tmp2)
+        mat_sin = torch.mul(sin, self.tmp3)
+        mat_trans = torch.mul(trans, self.tmp1)
+        
+        theta = mat_cos + mat_sin + mat_trans
         
         grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size(), align_corners=True)
         return F.grid_sample(x, grid, align_corners=True)
     
 
-class Rigid(nn.Module):
-    def __init__(self, angle=0.):
-        super().__init__()
-        self.angle = nn.Parameter(torch.tensor([angle], dtype=torch.float))
+# class Rigid(nn.Module):
+#     def __init__(self, angle=0.):
+#         super().__init__()
+#         self.angle = nn.Parameter(torch.tensor([angle], dtype=torch.float))
         
-    def forward(self, x):
+#     def forward(self, x):
         
-        cos = torch.cos(self.angle)
-        sin = torch.sin(self.angle)
+#         cos = torch.cos(self.angle)
+#         sin = torch.sin(self.angle)
         
-        mat_cos = torch.mul(cos, torch.tensor([[1, 0, 0],
-                          [0, 1, 0]]))
-        mat_sin = torch.mul(sin, torch.tensor([[0, -1, 0],
-                                [1, 0, 0]]))
-        theta = mat_cos + mat_sin
+#         mat_cos = torch.mul(cos, torch.tensor([[1, 0, 0],
+#                           [0, 1, 0]]))
+#         mat_sin = torch.mul(sin, torch.tensor([[0, -1, 0],
+#                                 [1, 0, 0]]))
+#         theta = mat_cos + mat_sin
         
-        grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size(), align_corners=True)
-        return F.grid_sample(x, grid, align_corners=True)
+#         grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size(), align_corners=True)
+#         return F.grid_sample(x, grid, align_corners=True)

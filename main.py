@@ -89,7 +89,7 @@ def init_parser():
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
-    parser.add_argument('--type_trans', default='trans',choices=['trans', 'affine'] , help='Tpye of trans')
+    parser.add_argument('--type_trans', default='trans',choices=['trans', 'affine', 'rigid'] , help='Tpye of trans')
 
     # Mixup params
   

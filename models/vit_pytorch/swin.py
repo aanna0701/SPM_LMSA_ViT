@@ -14,7 +14,7 @@ from utils.drop_path import DropPath
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
-from .SpatialTransformation import Translation, Localisation, Affine
+from .SpatialTransformation import Translation, Localisation, Affine, Rigid
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
@@ -532,7 +532,7 @@ class SwinTransformer(nn.Module):
                  use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, type_trans= 'trans' ,**kwargs):
         super().__init__()
         
-        assert type_trans in ['trans', 'affine'], 'Invalid type of transformation'
+        assert type_trans in ['trans', 'affine', 'rigid'], 'Invalid type of transformation'
 
         self.num_classes = num_classes
         self.num_layers = len(depths)
@@ -767,6 +767,8 @@ class SpatialTransformation_learn(nn.Module):
             self.transformation = Translation()
         elif self.type=='affine':
             self.transformation = Affine()
+        elif self.type=='rigid':
+            self.transformation = Rigid()
                 
     def forward(self, x, theta, n_transform):   
         
