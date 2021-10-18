@@ -1,26 +1,19 @@
 #!/usr/bin/env python
 
-import logging as log
 import torch
-import torch.nn as nn
 import torch.optim
 import torch.utils.data
 import torch
-from torch import nn, einsum
-from utils.drop_path import DropPath
-from einops import rearrange, repeat
-from einops.layers.torch import Rearrange
-import math
 
     
 
 def main():
 
-    img_size = 64
+    img_size = 32
     patch_size = 8
     in_channels = 3
 
-    GPU = 1
+    GPU = 0
     
     # from models.vit_pytorch.swin import SwinTransformer
 
@@ -32,17 +25,19 @@ def main():
         
     # model = SwinTransformer(img_size=img_size, window_size=window_size, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=200)
      
-    from models.vit_pytorch.pit import PiT
+    from models.vit_pytorch.swin import SwinTransformer
 
     patch_size = 4        
 
-    channel = 96
-    heads = (2, 4, 8)
-    depth = (2, 6, 4)
+    depths = [2, 6, 4]
+    num_heads = [3, 6, 12]
+    mlp_ratio = 2
+    window_size = 4
+    patch_size //= 2
     
-    dim_head = channel // heads[0]
-    
-    model = PiT(img_size=img_size, patch_size = patch_size, num_classes=200, dim=channel, mlp_dim_ratio=2, depth=depth, heads=heads, dim_head=dim_head)
+        
+    model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=0, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=100, is_base=False, num_trans=4)
+      
 
         
 
@@ -51,7 +46,7 @@ def main():
     model.cuda(GPU)
     summary(model, (3, img_size, img_size))
 
-    inputs = torch.randn(128, 3, img_size, img_size).cuda(GPU)
+    
     # INIT LOGGERS
 
     # # Inference Time
@@ -77,6 +72,8 @@ def main():
     # print(mean_syn)
     
     # Throughput
+    
+    inputs = torch.randn(128, 3, img_size, img_size).cuda(GPU)
     repetitions=100
     total_time = 0
     with torch.no_grad():
