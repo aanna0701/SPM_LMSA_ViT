@@ -88,6 +88,7 @@ def init_parser():
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
+    parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
 
     # Mixup params
   
@@ -307,7 +308,7 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, num_trans=4)
+        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False)
         
     elif args.model =='deepvit':
         from models.vit_pytorch.deepvit import DeepViT
@@ -344,7 +345,7 @@ def main(args):
     
     
     model.cuda(args.gpu)  
-    cost = throughput(model, img_size, args)
+    # cost = throughput(model, img_size, args)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
@@ -352,7 +353,7 @@ def main(args):
     logger.debug(f'Number of params: {n_parameters}')
     logger.debug(f'Initial learning rate: {args.lr:.6f}')
     logger.debug(f"Start training for {args.epochs} epochs")
-    logger.debug(f"Throughput {cost} images/sec")
+    # logger.debug(f"Throughput {cost} images/sec")
     print('*'*80+Style.RESET_ALL)
     
     

@@ -6,7 +6,7 @@ from timm.models.layers import trunc_normal_
 
 
 class Localisation(nn.Module):
-    def __init__(self, img_size, in_dim=16, num_transform=4):
+    def __init__(self, img_size, in_dim=16, n_trans=4):
         super().__init__()
         self.in_dim = in_dim
         
@@ -33,9 +33,9 @@ class Localisation(nn.Module):
             nn.Linear(64, 32, bias=False),
             nn.LayerNorm(32),
             nn.GELU(),
-            nn.Linear(32, 2*num_transform)
+            nn.Linear(32, 2*n_trans)
         )
-        self.num_transform = num_transform
+        self.num_transform = n_trans
         
         self.apply(self._init_weights)
 
