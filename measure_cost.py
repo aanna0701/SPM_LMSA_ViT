@@ -9,11 +9,11 @@ import torch
 
 def main():
 
-    img_size = 32
+    img_size = 64
     patch_size = 8
     in_channels = 3
 
-    GPU = 0
+    GPU = 1
     
     # from models.vit_pytorch.swin import SwinTransformer
 
@@ -25,9 +25,10 @@ def main():
         
     # model = SwinTransformer(img_size=img_size, window_size=window_size, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=200)
      
-    from models.vit_pytorch.swin import SwinTransformer
+    # from models.vit_pytorch.swin_cost import SwinTransformer
+    from models.vit_pytorch.swin_cost import SwinTransformer
 
-    patch_size = 4        
+    patch_size = 8        
 
     depths = [2, 6, 4]
     num_heads = [3, 6, 12]
@@ -36,7 +37,7 @@ def main():
     patch_size //= 2
     
         
-    model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=0, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=100, is_base=False, num_trans=4)
+    model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=0, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=200, is_base=False, num_trans=4)
       
 
         
@@ -74,14 +75,14 @@ def main():
     # Throughput
     
     inputs = torch.randn(128, 3, img_size, img_size).cuda(GPU)
-    repetitions=100
+    repetitions=1000
     warmup = 200
-    
+
     total_time = 0
     with torch.no_grad():
-        for rep in range(repetitions+warmup):
+        for rep in range(repetitions + warmup):
             if not rep < warmup:
-                starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+                starter, ender = torch.cuda.Event(enable_timing=True),   torch.cuda.Event(enable_timing=True)
                 starter.record()
                 _ = model(inputs)
                 ender.record()

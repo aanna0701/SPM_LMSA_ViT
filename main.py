@@ -24,7 +24,7 @@ from utils.throughput import throughput
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=Warning)
 
 best_acc1 = 0
 best_acc5 = 0
