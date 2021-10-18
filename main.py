@@ -89,6 +89,7 @@ def init_parser():
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
+    parser.add_argument('--type_trans', default='trans',choices=['trans', 'affine'] , help='Tpye of trans')
 
     # Mixup params
   
@@ -242,7 +243,7 @@ def main(args):
             window_size = 4
             patch_size //= 2
             
-        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+        model = SwinTransformer(type_trans=args.type_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
        
     
     elif args.model == 'cait':
@@ -308,7 +309,7 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False)
+        model = SwinTransformer(type_trans=args.type_trans, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False)
         
     elif args.model =='deepvit':
         from models.vit_pytorch.deepvit import DeepViT

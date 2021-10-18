@@ -14,7 +14,7 @@ from utils.drop_path import DropPath
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
-from .SpatialTransformation import Translation, Localisation
+from .SpatialTransformation import Translation, Localisation, Affine
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
@@ -389,7 +389,7 @@ class BasicLayer(nn.Module):
 
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, is_learn=True, n_trans=4):
+                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, is_learn=True, n_trans=4, type_trans='trans'):
 
         super().__init__()
         self.dim = dim
@@ -421,7 +421,7 @@ class BasicLayer(nn.Module):
                 # self.localisation = SwinTransformer(img_size=input_resolution[0], window_size=2, drop_path_rate=0, patch_size=input_resolution[0]//4, mlp_ratio=2, depths=[1, 3], num_heads=[2, 4], num_classes=8, embed_dim=24, in_chans=dim)
 #                self.downsample = ShiftedPatchMerging(dim, dim*2, input_resolution[0])
 
-                self.downsample = ShiftedPatchTokenization(dim, dim*2, 2, is_learn=is_learn, n_trans=n_trans)
+                self.downsample = ShiftedPatchTokenization(dim, dim*2, 2, is_learn=is_learn, n_trans=n_trans, type=type_trans)
 
 
 
@@ -529,8 +529,10 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, **kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, type_trans= 'trans' ,**kwargs):
         super().__init__()
+        
+        assert type_trans in ['trans', 'affine'], 'Invalid type of transformation'
 
         self.num_classes = num_classes
         self.num_layers = len(depths)
@@ -552,7 +554,7 @@ class SwinTransformer(nn.Module):
         else:
             
             #self.patch_embed = ShiftedPatchMerging(3, embed_dim, img_size, patch_size, is_pe=True)
-            self.patch_embed = ShiftedPatchTokenization(3, embed_dim, patch_size, is_learn=is_learn, n_trans=n_trans)
+            self.patch_embed = ShiftedPatchTokenization(3, embed_dim, patch_size, is_learn=is_learn, n_trans=n_trans, type=type_trans)
             
             
             self.patches_resolution = [img_size // patch_size, img_size // patch_size]
@@ -585,7 +587,7 @@ class SwinTransformer(nn.Module):
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer,
                                downsample=True if (i_layer < self.num_layers - 1) else False,
-                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans)
+                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans, type_trans=type_trans)
             self.layers.append(layer)
 
         self.norm = norm_layer(self.num_features)
@@ -595,7 +597,7 @@ class SwinTransformer(nn.Module):
         self.n_trans = n_trans
         self.is_SPT = False
         if not is_base:
-            self.localisation = Localisation(img_size=img_size, n_trans=n_trans)
+            self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
             self.is_SPT = True
 
         self.theta = None
@@ -670,14 +672,14 @@ class SwinTransformer(nn.Module):
     
     
 class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=True, n_trans=4):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=True, n_trans=4, type='trans'):
         super().__init__()
         self.exist_class_t = exist_class_t
         
         self.is_learn = is_learn
         
         if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn()
+            self.patch_shifting = SpatialTransformation_learn(type=type)
             
         else:           
             self.patch_shifting = SpatialTransformation_fix(merging_size) 
@@ -757,10 +759,14 @@ class SpatialTransformation_fix(nn.Module):
     
     
 class SpatialTransformation_learn(nn.Module):
-    def __init__(self):
+    def __init__(self, type='trans'):
         super().__init__()
+        self.type = type
         
-        self.transformation = Translation()
+        if self.type=='trans':
+            self.transformation = Translation()
+        elif self.type=='affine':
+            self.transformation = Affine()
                 
     def forward(self, x, theta, n_transform):   
         
