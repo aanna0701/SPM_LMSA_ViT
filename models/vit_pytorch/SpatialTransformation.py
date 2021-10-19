@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
+import math
 
 
 
 class Localisation(nn.Module):
-    def __init__(self, img_size, in_dim=16, n_trans=4, type_trans='trans'):
+    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
         super().__init__()
         self.in_dim = in_dim
         
@@ -32,6 +33,9 @@ class Localisation(nn.Module):
             n_output = 6*n_trans
         elif type_trans=='rigid':
             n_output = 3*n_trans
+        
+        self.n_tokenize = n_tokenize 
+        n_output *= n_tokenize
             
         self.mlp_head = nn.Sequential(
             nn.Linear(self.in_dim * (img_size**2), 64, bias=False),
@@ -73,18 +77,41 @@ class Localisation(nn.Module):
         out = feature2.view(feature2.size(0), -1)
         out = self.mlp_head(out)
         
+        out = torch.chunk(out, self.n_tokenize, -1)
+
+        
         return out
         
 
 class Translation(nn.Module):
-    def __init__(self):
+    def __init__(self, constant=5e1, adaptive=False):
         super(Translation, self).__init__()
         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
         
-      
+        self.constant = constant
+        self.theta = None
+        self.constant_tmp = 1
+        self.is_adaptive = adaptive
         
-    def forward(self, x,  theta):
+    def forward(self, x, theta, epoch=None, train=True):
+        
+        if not train or not self.is_adaptive:
+            constant = 1
+                
+        else:
+            if epoch is not None:
+                constant = self.constant * epoch         
+                constant = 1 - math.exp(-constant)
+                self.constant_tmp = constant
+                
+            else:
+                constant = self.constant_tmp 
+        
+        
+        
+        theta = theta * constant 
+        theta = theta.unsqueeze(-1)
         theta = torch.mul(theta, self.tmp1)
         theta = theta + self.tmp2.expand(x.size(0), 2, 3)
         
@@ -96,12 +123,30 @@ class Translation(nn.Module):
     
 
 class Affine(nn.Module):
-    def __init__(self):
+    def __init__(self, constant=5e1, adaptive=False):
         super().__init__()
+        
+        self.constant = constant
+        self.theta = None
+        self.constant_tmp = 1
+        self.is_adaptive = adaptive
               
         
-    def forward(self, x,  theta):
+    def forward(self, x, theta, epoch=None, train=True):
+        
+        if not train or not self.is_adaptive:
+            constant = 1
                 
+        else:
+            if epoch is not None:
+                constant = self.constant * epoch         
+                constant = 1 - math.exp(-constant)
+                self.constant_tmp = constant
+                
+            else:
+                constant = self.constant_tmp 
+            
+        theta = theta * constant     
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))
         
@@ -112,44 +157,54 @@ class Affine(nn.Module):
     
 
 class Rigid(nn.Module):
-    def __init__(self):
+    def __init__(self, constant=5e1, adaptive=False):
         super().__init__()
         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
         self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
         
-    def forward(self, x, theta):
+    
+            
+        self.constant = constant
+        self.theta = None
+        self.constant_tmp = 1
+        self.is_adaptive = adaptive
         
+    def forward(self, x, theta, epoch=None, train=True):
+        
+        if not train or not self.is_adaptive:
+            constant = 1
+                
+        else:
+            if epoch is not None:
+                constant = self.constant * epoch         
+                constant = 1 - math.exp(-constant)
+                self.constant_tmp = constant
+                
+            else:
+                constant = self.constant_tmp 
+
+        # print(constant)
+        
+        theta = theta * constant 
+        theta = theta.unsqueeze(-1)
+                
         angle = theta[:, (0,)]
+        angle = F.tanh(angle) * math.pi
         trans = theta[:, 1:]
+        
         cos = torch.cos(angle)
         sin = torch.sin(angle)
-        
-        mat_cos = torch.mul(cos, self.tmp2)
-        mat_sin = torch.mul(sin, self.tmp3)
-        mat_trans = torch.mul(trans, self.tmp1)
+     
+        mat_cos = torch.mul(cos, self.tmp2.expand(x.size(0), 2, 3))
+        mat_sin = torch.mul(sin, self.tmp3.expand(x.size(0), 2, 3))
+        mat_trans = torch.mul(trans, self.tmp1.expand(x.size(0), 2, 3))
         
         theta = mat_cos + mat_sin + mat_trans
+        self.theta = theta
+        
         
         grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size(), align_corners=True)
+        
         return F.grid_sample(x, grid, align_corners=True)
     
-
-# class Rigid(nn.Module):
-#     def __init__(self, angle=0.):
-#         super().__init__()
-#         self.angle = nn.Parameter(torch.tensor([angle], dtype=torch.float))
-        
-#     def forward(self, x):
-        
-#         cos = torch.cos(self.angle)
-#         sin = torch.sin(self.angle)
-        
-#         mat_cos = torch.mul(cos, torch.tensor([[1, 0, 0],
-#                           [0, 1, 0]]))
-#         mat_sin = torch.mul(sin, torch.tensor([[0, -1, 0],
-#                                 [1, 0, 0]]))
-#         theta = mat_cos + mat_sin
-        
-#         grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size(), align_corners=True)
-#         return F.grid_sample(x, grid, align_corners=True)

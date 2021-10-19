@@ -34,7 +34,53 @@ class Translation(nn.Module):
         grid = F.affine_grid(theta, x.size(), align_corners=True)
         
         return F.grid_sample(x, grid, align_corners=True)
+    
 
+class Affine(nn.Module):
+    def __init__(self):
+        super().__init__()
+              
+        
+    def forward(self, x,  theta):
+                
+        
+        theta = torch.reshape(theta, (theta.size(0), 2, 3))
+        
+        grid = F.affine_grid(theta, x.size(), align_corners=True)
+        
+        return F.grid_sample(x, grid, align_corners=True)
+
+class Rigid(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
+        self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
+        self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
+        
+    def forward(self, x, theta):
+        
+    
+        theta = theta 
+        
+        # print(theta[0])
+        # print(epoch)
+        # print(resolution)
+        
+        angle = theta[:, (0,)]
+        trans = theta[:, 1:]
+        cos = torch.cos(angle)
+        sin = torch.sin(angle)
+        
+        mat_cos = torch.mul(cos, self.tmp2)
+        mat_sin = torch.mul(sin, self.tmp3)
+        mat_trans = torch.mul(trans, self.tmp1)
+        
+        theta = mat_cos + mat_sin + mat_trans
+        
+        grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size(), align_corners=True)
+        return F.grid_sample(x, grid, align_corners=True)
+    
+    
 
 def init_parser():
     parser = argparse.ArgumentParser()
@@ -93,7 +139,9 @@ def main(args, save_path):
     
     plt.rcParams["figure.figsize"] = (5,5)
     
-    trans = Translation()
+    # trans = Affine()
+    trans = Rigid()
+    # trans = Translation()
     
     for i, (images, _) in enumerate(val_dataset):
         
@@ -112,56 +160,7 @@ def main(args, save_path):
             img_trans = trans(img_raw.unsqueeze(0), theta)    
             plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
             plt.savefig(os.path.join(fig_save_path, f'{i}_{j}_trans.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
-        
-        # plt.savefig(os.path.join(fig_save_path, fig_name+'.png'), format='png', dpi=400)
-        
-        # dist_dict, x_size = inference(img, model, args) 
-        # x_ticks = list(range(1, x_size+1))
-        
-        # sample_x = 8
-        # x_ticks = list(range(1, sample_x+1))
-        
-        # sample = list(range(0, x_size-1, x_size // sample_x))
-        
-        
-        # plt.rcParams["figure.figsize"] = (4,2)
-        # # plt.rcParams['axes.axisbelow'] = True
-        
-        # color_idx = 0
-        # max_flag = 0
-        
-        
-        # for key in dist_dict:            
-        #     dists = dist_dict[key]
-        #     type_name = key
-        #     color = colors[4*color_idx+1]            
-        #     color_idx += 1
-        #     if not key == 'none':
-        #         max_flag = 1
-            
-        #     for key in dists:
-        #         # dist = F.softmax(dists[sample])
-        #         dist = dists[key].squeeze().detach().cpu().numpy()[sample]
-        #         dist = softmax(dist)
-        #         fig_name = type_name + f'_{key}'
-                
-                
-        #         plt.plot(x_ticks, dist, color=color)
-        #         # if max_flag:
-        #         #     f = lambda i: dist[i]
-        #         #     max_idx = max(range(len(dist)), key=f)
-        #         #     plt.text(max_idx, dist[max_idx]+0.001, f'{dist[max_idx]:.4f}', fontsize='xx-large', ha='center')
-        #         plt.fill_between(x_ticks, dist, alpha=0.6, color=color)
-        #         plt.ylim([0, 0.25])
-        #         plt.xlim([1, sample_x])    
-        #         plt.locator_params(axis="y", nbins=5)
-        
-        #         # plt.grid(axis='y')
-                
-        #         plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-                
-        #         plt.savefig(os.path.join(fig_save_path, fig_name+'.png'), format='png', dpi=400)
-        #         plt.clf()
+       
 
 
 def inference(img, model, args):

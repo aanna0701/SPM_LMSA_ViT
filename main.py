@@ -90,6 +90,7 @@ def init_parser():
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
     parser.add_argument('--type_trans', default='trans',choices=['trans', 'affine', 'rigid'] , help='Tpye of trans')
+    parser.add_argument('--adaptive', action='store_true' , help='adaptive version')
 
     # Mixup params
   
@@ -225,26 +226,9 @@ def main(args):
             window_size = 4
             patch_size //= 2
             
-        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+        model = SwinTransformer(adaptive=args.adaptive, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
        
    
-    elif args.model == 'g-vit3':
-        from models.vit_pytorch.git3 import SwinTransformer       
-        if img_size > 64:
-            depths = [2, 2, 6, 2]
-            num_heads = [3, 6, 12, 24]
-            mlp_ratio = 4
-            window_size = 7
-            patch_size = 4
-        else:
-            depths = [2, 6, 4]
-            num_heads = [3, 6, 12]
-            mlp_ratio = 2
-            window_size = 4
-            patch_size //= 2
-            
-        model = SwinTransformer(type_trans=args.type_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
-       
     
     elif args.model == 'cait':
         from models.vit_pytorch.cait import CaiT        
@@ -309,44 +293,15 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(type_trans=args.type_trans, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False)
+        model = SwinTransformer(adaptive=args.adaptive, type_trans=args.type_trans, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False)
         
     elif args.model =='deepvit':
         from models.vit_pytorch.deepvit import DeepViT
         model = DeepViT(img_size=img_size, num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
         
-    # Convnets
-
-    elif args.model == 'vgg16':
-        from models.conv_cifar_pytoch.vgg import VGG
-        model = VGG('VGG16')
-
-    elif args.model == 'res56':
-        from models.conv_cifar_pytoch.resnet import resnet56
-        model = resnet56()
-
-    elif args.model == 'res56_linear':
-        from models.conv_cifar_pytoch.resnet_linear import resnet56
-        model = resnet56()
-
-    elif args.model == 'resxt29':
-        from models.conv_cifar_pytoch.resnext import ResNeXt29_32x4d
-        model = ResNeXt29_32x4d()
-
-    elif args.model == 'mobile2':            
-        from models.conv_cifar_pytoch.mobilenetv2 import MobileNetV2
-        model = MobileNetV2()
-
-    elif args.model == 'dense121':
-        from models.conv_cifar_pytoch.densenet import DenseNet121
-        model = DenseNet121()
-    
-    # elif args.model == 'g-pit':
-    #     model = m.P_GiT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
-    
+   
     
     model.cuda(args.gpu)  
-    # cost = throughput(model, img_size, args)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
@@ -640,12 +595,12 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix_paramter = args.beta        
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                output = model(images)
+                output = model(images, (epoch+1)/args.epochs)
                 loss = mixup_criterion(criterion, output, y_a, y_b, lam)                
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images)
+                output = model(images, (epoch+1)/args.epochs)
                 loss = criterion(output, target)
         
         # Mixup only
@@ -655,13 +610,13 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix = 'mixup'
                 mix_paramter = args.alpha
                 images, y_a, y_b, lam = mixup_data(images, target, args)
-                output = model(images)
+                output = model(images, (epoch+1)/args.epochs)
                 loss = mixup_criterion(criterion, output, y_a, y_b, lam)
             
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images)
+                output = model(images, (epoch+1)/args.epochs)
                 loss = criterion(output, target)
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
@@ -675,7 +630,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix_paramter = args.beta
                     slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                    output = model(images)
+                    output = model(images, (epoch+1)/args.epochs)
                     loss = mixup_criterion(criterion, output, y_a, y_b, lam)         
                 
                 # Mixup
@@ -683,20 +638,20 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix = 'mixup'
                     mix_paramter = args.alpha
                     images, y_a, y_b, lam = mixup_data(images, target, args)
-                    output = model(images)
+                    output = model(images, (epoch+1)/args.epochs)
                     loss = mixup_criterion(criterion, output, y_a, y_b, lam)                               
             
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images)
+                output = model(images, (epoch+1)/args.epochs)
                 loss = criterion(output, target)     
         
         # No Mix
         else:
             mix = 'none'
             mix_paramter = 0
-            output = model(images)
+            output = model(images, (epoch+1)/args.epochs)
             loss = criterion(output, target)
 
         acc = accuracy(output, target, (1,))

@@ -15,7 +15,7 @@ import torch
 from torch import nn, einsum
 import torch.nn.functional as F
 from .SpatialTransformation import Translation, Localisation, Affine, Rigid
-
+from collections import deque
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
@@ -387,9 +387,9 @@ class BasicLayer(nn.Module):
         use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False.
     """
 
-    def __init__(self, dim, input_resolution, depth, num_heads, window_size,
+    def __init__(self, dim, input_resolution, depth, num_heads, window_size, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, is_learn=True, n_trans=4, type_trans='trans'):
+                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, is_learn=True, n_trans=4, type_trans='trans', adaptive=False):
 
         super().__init__()
         self.dim = dim
@@ -421,14 +421,12 @@ class BasicLayer(nn.Module):
                 # self.localisation = SwinTransformer(img_size=input_resolution[0], window_size=2, drop_path_rate=0, patch_size=input_resolution[0]//4, mlp_ratio=2, depths=[1, 3], num_heads=[2, 4], num_classes=8, embed_dim=24, in_chans=dim)
 #                self.downsample = ShiftedPatchMerging(dim, dim*2, input_resolution[0])
 
-                self.downsample = ShiftedPatchTokenization(dim, dim*2, 2, is_learn=is_learn, n_trans=n_trans, type=type_trans)
-
-
+                self.downsample = ShiftedPatchTokenization(dim, dim*2, 2, is_learn=is_learn, n_trans=n_trans, type=type_trans, adaptive=adaptive)
 
         else:
             self.downsample = None
 
-    def forward(self, x, theta=None, n_trans=4):
+    def forward(self, x, theta=None, n_trans=4, epoch=None, train=True):
         for blk in self.blocks:
             if self.use_checkpoint:
                 x = checkpoint.checkpoint(blk, x)
@@ -437,7 +435,7 @@ class BasicLayer(nn.Module):
                 x = blk(x)
         if self.downsample is not None:
             # theta = self.localisation(rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))) if self.is_theta else None
-            x = self.downsample(x, theta, n_trans) if theta is not None else self.downsample(x)
+            x = self.downsample(x, theta, n_trans, epoch=epoch, train=train) if theta is not None else self.downsample(x)
         return x
 
     def extra_repr(self) -> str:
@@ -529,7 +527,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, type_trans= 'trans' ,**kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, type_trans= 'rigid', adaptive=False ,**kwargs):
         super().__init__()
         
         assert type_trans in ['trans', 'affine', 'rigid'], 'Invalid type of transformation'
@@ -541,6 +539,7 @@ class SwinTransformer(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
+        self.n_tokenize = len(depths)
 
         """ Base """
         if is_base:
@@ -552,9 +551,8 @@ class SwinTransformer(nn.Module):
             self.patches_resolution = patches_resolution
             
         else:
-            
             #self.patch_embed = ShiftedPatchMerging(3, embed_dim, img_size, patch_size, is_pe=True)
-            self.patch_embed = ShiftedPatchTokenization(3, embed_dim, patch_size, is_learn=is_learn, n_trans=n_trans, type=type_trans)
+            self.patch_embed = ShiftedPatchTokenization(3, embed_dim, patch_size, is_learn=is_learn, n_trans=n_trans, type=type_trans, adaptive=adaptive)
             
             
             self.patches_resolution = [img_size // patch_size, img_size // patch_size]
@@ -569,6 +567,14 @@ class SwinTransformer(nn.Module):
 
         # stochastic depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
+
+        self.pool_idx = list()
+        idx = 0
+        
+        for i in range(self.n_tokenize-1):
+            idx += (depths[i] + 1)
+            self.pool_idx.append(idx)
+
 
         # build layers
         self.layers = nn.ModuleList()
@@ -587,21 +593,24 @@ class SwinTransformer(nn.Module):
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer,
                                downsample=True if (i_layer < self.num_layers - 1) else False,
-                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans, type_trans=type_trans)
+                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans, type_trans=type_trans, adaptive=adaptive)
             self.layers.append(layer)
+
 
         self.norm = norm_layer(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
         self.n_trans = n_trans
-        self.is_SPT = False
+        self.is_learn = False
+        
         if not is_base:
-            self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
-            self.is_SPT = True
+            self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans, type_trans=type_trans)
+            self.is_learn = is_learn
+     
 
-        self.theta = None
-        self.is_learn = is_learn
+        self.theta_q = None
+        
         
         self.apply(self._init_weights)
 
@@ -622,31 +631,32 @@ class SwinTransformer(nn.Module):
     def no_weight_decay_keywords(self):
         return {'relative_position_bias_table'}
 
-    def forward_features(self, x):
+    def forward_features(self, x, epoch, train=True):
     
         
         
         if not self.is_learn:
             x = self.patch_embed(x) 
         else:
-            self.theta = self.localisation(x).unsqueeze(-1) 
-            x = self.patch_embed(x, self.theta, self.n_trans) if self.is_SPT else self.patch_embed(x)
-
+            self.theta_q = deque(self.localisation(x))        
+            x = self.patch_embed(x, self.theta_q.popleft(), self.n_trans, epoch, train)  
+              
         
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
         
-
-        for layer in self.layers:
-            if not self.is_learn:
-                
-                x = layer(x)            
-            else:
-                
-                x = layer(x, self.theta, self.n_trans) if self.is_SPT else layer(x)
-            
+    
         
+        for i, layer in enumerate(self.layers):
+            
+            if self.is_learn and i < len(self.layers)-1:            
+                
+                x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
+
+            else: 
+                x = layer(x) 
+                
         x = self.norm(x)  # B L C
         x = self.avgpool(x.transpose(1, 2))  # B C 1
         x = torch.flatten(x, 1)
@@ -654,8 +664,8 @@ class SwinTransformer(nn.Module):
         
         return x
 
-    def forward(self, x):
-        x = self.forward_features(x)
+    def forward(self, x, epoch=None, train=True):
+        x = self.forward_features(x, epoch, train=train)
         x = self.head(x)
         return x
 
@@ -672,14 +682,14 @@ class SwinTransformer(nn.Module):
     
     
 class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=True, n_trans=4, type='trans'):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=True, n_trans=4, type='trans', adaptive=False):
         super().__init__()
         self.exist_class_t = exist_class_t
         
         self.is_learn = is_learn
         
         if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn(type=type)
+            self.patch_shifting = SpatialTransformation_learn(type=type, adaptive=adaptive)
             
         else:           
             self.patch_shifting = SpatialTransformation_fix(merging_size) 
@@ -692,15 +702,16 @@ class ShiftedPatchTokenization(nn.Module):
             nn.Linear(patch_dim, dim)
         )
         
+        
         # print(self.merging)
         
         
-    def forward(self, x, theta=None, n_trans=None):
+    def forward(self, x, theta=None, n_trans=None, epoch=None, train=True):
         out = x if len(x.size()) == 4 else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         
         if self.is_learn:
             
-            out = self.patch_shifting(out, theta, n_trans)
+            out = self.patch_shifting(out, theta, n_trans, epoch, train)
         else:
             out = self.patch_shifting(out)
         out = self.merging(out)
@@ -759,18 +770,18 @@ class SpatialTransformation_fix(nn.Module):
     
     
 class SpatialTransformation_learn(nn.Module):
-    def __init__(self, type='trans'):
+    def __init__(self, type='trans', adaptive=False):
         super().__init__()
         self.type = type
         
         if self.type=='trans':
-            self.transformation = Translation()
+            self.transformation = Translation(adaptive=adaptive)
         elif self.type=='affine':
-            self.transformation = Affine()
+            self.transformation = Affine(adaptive=adaptive)
         elif self.type=='rigid':
-            self.transformation = Rigid()
+            self.transformation = Rigid(adaptive=adaptive)
                 
-    def forward(self, x, theta, n_transform):   
+    def forward(self, x, theta, n_transform, epoch, train=True):   
         
         # print(theta[0])
         
@@ -778,7 +789,7 @@ class SpatialTransformation_learn(nn.Module):
         theta_list = torch.chunk(theta, n_transform, dim=1)
         
         for i in range (n_transform):
-            out.append(self.transformation(x, theta_list[i]))
+            out.append(self.transformation(x, theta_list[i], epoch, train=train))
             
         out = torch.cat(out, dim=1)
         
