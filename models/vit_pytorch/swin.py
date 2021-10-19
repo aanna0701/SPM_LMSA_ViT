@@ -774,12 +774,14 @@ class SpatialTransformation_learn(nn.Module):
         super().__init__()
         self.type = type
         
+        constant = 0.25e1
+        
         if self.type=='trans':
-            self.transformation = Translation(adaptive=adaptive)
+            self.transformation = Translation(constant, adaptive=adaptive)
         elif self.type=='affine':
-            self.transformation = Affine(adaptive=adaptive)
+            self.transformation = Affine(constant, adaptive=adaptive)
         elif self.type=='rigid':
-            self.transformation = Rigid(adaptive=adaptive)
+            self.transformation = Rigid(constant, adaptive=adaptive)
                 
     def forward(self, x, theta, n_transform, epoch, train=True):   
         
