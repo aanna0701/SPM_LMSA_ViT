@@ -34,8 +34,8 @@ class Localisation(nn.Module):
         elif type_trans=='rigid':
             n_output = 3*n_trans
         
-        self.n_tokenize = n_tokenize 
-        n_output *= n_tokenize
+        # self.n_tokenize = n_tokenize 
+        # n_output *= n_tokenize
             
         self.mlp_head = nn.Sequential(
             nn.Linear(self.in_dim * (img_size**2), 64, bias=False),
@@ -77,7 +77,7 @@ class Localisation(nn.Module):
         out = feature2.view(feature2.size(0), -1)
         out = self.mlp_head(out)
         
-        out = torch.chunk(out, self.n_tokenize, -1)
+        # out = torch.chunk(out, self.n_tokenize, -1)
 
         
         return out

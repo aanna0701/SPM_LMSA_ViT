@@ -638,8 +638,11 @@ class SwinTransformer(nn.Module):
         if not self.is_learn:
             x = self.patch_embed(x) 
         else:
-            self.theta_q = deque(self.localisation(x))        
-            x = self.patch_embed(x, self.theta_q.popleft(), self.n_trans, epoch, train)  
+            # self.theta_q = deque(self.localisation(x))        
+            # x = self.patch_embed(x, self.theta_q.popleft(), self.n_trans, epoch, train)  
+            
+            self.theta = self.localisation(x)
+            x = self.patch_embed(x, self.theta, self.n_trans, epoch, train)  
               
         
         if self.ape:
@@ -652,7 +655,8 @@ class SwinTransformer(nn.Module):
             
             if self.is_learn and i < len(self.layers)-1:            
                 
-                x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
+                # x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
+                x = layer(x, self.theta, self.n_trans, epoch, train) 
 
             else: 
                 x = layer(x) 
@@ -774,7 +778,7 @@ class SpatialTransformation_learn(nn.Module):
         super().__init__()
         self.type = type
         
-        constant = 0.25e1
+        constant = 2.5e1
         
         if self.type=='trans':
             self.transformation = Translation(constant, adaptive=adaptive)
