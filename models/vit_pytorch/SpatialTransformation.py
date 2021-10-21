@@ -168,7 +168,7 @@ class Translation(nn.Module):
         self.constant_tmp = 1
         self.is_adaptive = adaptive
         
-    def forward(self, x, theta, patch_size,epoch=None, train=True):
+    def forward(self, x, theta, patch_size, epoch=None, train=False):
         
         if not train or not self.is_adaptive:
             constant = 1
@@ -208,7 +208,7 @@ class Affine(nn.Module):
         self.is_adaptive = adaptive
               
         
-    def forward(self, x, theta, epoch=None, train=True):
+    def forward(self, x, theta,  patch_size, epoch=None, train=False):
         
         if not train or not self.is_adaptive:
             constant = 1
@@ -222,7 +222,7 @@ class Affine(nn.Module):
             else:
                 constant = self.constant_tmp 
             
-        theta = theta * constant     
+        theta = theta * constant * patch_size    
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))
         
@@ -245,7 +245,7 @@ class Rigid(nn.Module):
         self.constant_tmp = 1
         self.is_adaptive = adaptive
         
-    def forward(self, x, theta, epoch=None, train=True):
+    def forward(self, x, theta,  patch_size, epoch=None, train=False):
         
         if not train or not self.is_adaptive:
             constant = 1
@@ -262,7 +262,7 @@ class Rigid(nn.Module):
         # print(constant)
 
         
-        theta = theta * constant 
+        theta = theta * constant * patch_size
         theta = theta.unsqueeze(-1)
                 
         angle = theta[:, (0,)]

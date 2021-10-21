@@ -597,7 +597,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix_paramter = args.beta        
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images, (epoch+1)/args.epochs, train=True)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
@@ -608,7 +608,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images, (epoch+1)/args.epochs, train=True)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
@@ -624,7 +624,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix = 'mixup'
                 mix_paramter = args.alpha
                 images, y_a, y_b, lam = mixup_data(images, target, args)
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images, (epoch+1)/args.epochs, train=True)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
@@ -636,7 +636,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images, (epoch+1)/args.epochs, train=True)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
@@ -656,7 +656,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix_paramter = args.beta
                     slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                    output = model(images, (epoch+1)/args.epochs)
+                    output = model(images, (epoch+1)/args.epochs, train=True)
                     
                     theta = list(map(CosineSimiliarity, model.theta))
                     
@@ -670,7 +670,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix = 'mixup'
                     mix_paramter = args.alpha
                     images, y_a, y_b, lam = mixup_data(images, target, args)
-                    output = model(images, (epoch+1)/args.epochs)
+                    output = model(images, (epoch+1)/args.epochs, train=True)
                     
                     theta = list(map(CosineSimiliarity, model.theta))
                     
@@ -682,7 +682,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images, (epoch+1)/args.epochs, train=True)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
@@ -695,7 +695,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
         else:
             mix = 'none'
             mix_paramter = 0
-            output = model(images, (epoch+1)/args.epochs)
+            output = model(images, (epoch+1)/args.epochs, train=True)
             
 
             
@@ -740,7 +740,12 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
 
             
             output = model(images)
-            loss = criterion(output, target)
+            
+            theta = list(map(CosineSimiliarity, model.theta))
+                
+            theta = torch.cat(theta)
+            
+            loss = args.lam * torch.sum(theta).item() + criterion(output, target)
             
             acc = accuracy(output, target, (1, 5))
             acc1 = acc[0]

@@ -670,7 +670,7 @@ class SwinTransformer(nn.Module):
         
         return x
 
-    def forward(self, x, epoch=None, train=True):
+    def forward(self, x, epoch=None, train=False):
         x = self.forward_features(x, epoch, train=train)
         x = self.head(x)
         return x
@@ -688,7 +688,7 @@ class SwinTransformer(nn.Module):
     
     
 class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=True, n_trans=4, type='trans', adaptive=False):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, type='trans', adaptive=False):
         super().__init__()
         self.exist_class_t = exist_class_t
         
@@ -713,7 +713,7 @@ class ShiftedPatchTokenization(nn.Module):
         # print(self.merging)
         
         
-    def forward(self, x, theta=None, epoch=None, train=True):
+    def forward(self, x, theta=None, epoch=None, train=False):
         out = x if len(x.size()) == 4 else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         
         if self.is_learn:
@@ -790,14 +790,14 @@ class SpatialTransformation_learn(nn.Module):
         elif self.type=='rigid':
             self.transformation = Rigid(constant, adaptive=adaptive)
                 
-    def forward(self, x, theta_list, patch_size, epoch, train=True):   
+    def forward(self, x, theta_list, patch_size, epoch, train=False):   
         
         # print(theta[0])
         
         out = [x]
         
         for i in range (len(theta_list)):
-            out.append(self.transformation(x, theta_list[i], patch_size, epoch, train=train))
+            out.append(self.transformation(x, theta_list[i], patch_size, epoch, train))
             
         out = torch.cat(out, dim=1)
         
