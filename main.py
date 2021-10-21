@@ -20,6 +20,7 @@ from utils.training_functions import accuracy
 import argparse
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
+from utils.ConsineSimiliarity import CosineSimiliarity
 from utils.throughput import throughput
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -91,6 +92,7 @@ def init_parser():
     parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
     parser.add_argument('--type_trans', default='trans',choices=['trans', 'affine', 'rigid'] , help='Tpye of trans')
     parser.add_argument('--adaptive', action='store_true' , help='adaptive version')
+    parser.add_argument('--lam', default=1e-1, type=float, help='hyperparameter of similiarity loss')
 
     # Mixup params
   
@@ -596,12 +598,24 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                 output = model(images, (epoch+1)/args.epochs)
-                loss = mixup_criterion(criterion, output, y_a, y_b, lam)                
+                
+                theta = list(map(CosineSimiliarity, model.theta))
+                
+                theta = torch.cat(theta)
+                #print(torch.sum(theta).item())
+                
+                loss = args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs)
-                loss = criterion(output, target)
+                
+                theta = list(map(CosineSimiliarity, model.theta))
+                
+                theta = torch.cat(theta)
+                #print(torch.sum(theta).item())
+                
+                loss = args.lam * torch.sum(theta).item() + criterion(output, target)
         
         # Mixup only
         elif not args.cm and args.mu:
@@ -611,13 +625,25 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix_paramter = args.alpha
                 images, y_a, y_b, lam = mixup_data(images, target, args)
                 output = model(images, (epoch+1)/args.epochs)
-                loss = mixup_criterion(criterion, output, y_a, y_b, lam)
+                
+                theta = list(map(CosineSimiliarity, model.theta))
+                
+                theta = torch.cat(theta)
+                #print(torch.sum(theta).item())
+                
+                loss = args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs)
-                loss = criterion(output, target)
+                
+                theta = list(map(CosineSimiliarity, model.theta))
+                
+                theta = torch.cat(theta)
+                #print(torch.sum(theta).item())
+                
+                loss = args.lam * torch.sum(theta).item() + criterion(output, target)
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
             r = np.random.rand(1)
@@ -631,7 +657,13 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                     output = model(images, (epoch+1)/args.epochs)
-                    loss = mixup_criterion(criterion, output, y_a, y_b, lam)         
+                    
+                    theta = list(map(CosineSimiliarity, model.theta))
+                    
+                    theta = torch.cat(theta)
+                    #print(torch.sum(theta).item())
+                    
+                    loss = args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)         
                 
                 # Mixup
                 else:
@@ -639,20 +671,38 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix_paramter = args.alpha
                     images, y_a, y_b, lam = mixup_data(images, target, args)
                     output = model(images, (epoch+1)/args.epochs)
-                    loss = mixup_criterion(criterion, output, y_a, y_b, lam)                               
+                    
+                    theta = list(map(CosineSimiliarity, model.theta))
+                    
+                    theta = torch.cat(theta)
+                    #print(torch.sum(theta).item())
+                    
+                    loss = args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                               
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs)
-                loss = criterion(output, target)     
+                
+                theta = list(map(CosineSimiliarity, model.theta))
+                
+                theta = torch.cat(theta)
+                #print(torch.sum(theta).item())
+                
+                loss = args.lam * torch.sum(theta).item() + criterion(output, target)     
         
         # No Mix
         else:
             mix = 'none'
             mix_paramter = 0
             output = model(images, (epoch+1)/args.epochs)
-            loss = criterion(output, target)
+            
+
+            
+            theta = torch.cat(theta)
+            #print(torch.sum(theta).item())
+            
+            loss = args.lam * torch.sum(theta).item() + criterion(output, target)
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
