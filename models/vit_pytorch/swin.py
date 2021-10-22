@@ -641,10 +641,11 @@ class SwinTransformer(nn.Module):
             # self.theta_q = deque(self.localisation(x))        
             # x = self.patch_embed(x, self.theta_q.popleft(), self.n_trans, epoch, train)  
             
-            self.theta = self.localisation(x)
+            # self.theta = self.localisation(x)
             self.theta = torch.chunk(self.theta, self.n_trans, dim=1)
             
             x = self.patch_embed(x, self.theta, epoch, train)  
+            # x = self.patch_embed(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train)  
               
         
         if self.ape:
@@ -659,6 +660,7 @@ class SwinTransformer(nn.Module):
                 
                 # x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
                 x = layer(x, self.theta, epoch, train) 
+                # x = layer(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train) 
 
             else: 
                 x = layer(x) 

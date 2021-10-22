@@ -89,7 +89,7 @@ def main(args, save_path):
     
         img_raw = images.cuda(args.gpu, non_blocking=True)
         
-        theta = model(img_raw)
+        theta = model(img_raw) * patch_size
         
         
         theta_list.append(theta)
@@ -98,7 +98,9 @@ def main(args, save_path):
     theta = torch.chunk(theta, 4, dim=-1)
     plt.rcParams["figure.figsize"] = (6, 6)
     plt.rc('font', family='serif')
-
+    plt.ylim([-0.4, 0.4])
+    plt.xlim([-0.4, 0.4])
+    
     
     # pca_theta = torch.pca_lowrank(theta[0], niter=10)
     
@@ -129,7 +131,7 @@ def main(args, save_path):
             print(j)
     
     plt.legend(loc='upper center', fontsize='large', ncol=4, bbox_to_anchor=(0.5, 1.12), fancybox=True)
-    plt.title(f'{args.tag}', pad=42.5, fontsize='large')
+    plt.title(f'{args.tag}', pad=43, fontsize='large')
     plt.tight_layout()
     plt.savefig(os.path.join(save_path, 'result.png'), format='png', dpi=400)         
 
@@ -139,6 +141,6 @@ if __name__ == '__main__':
     
     # global model_name
     save_path = os.path.join('./PCA', f'results_{args.tag}')
-
+    os.makedirs(save_path, exist_ok=True)
     
     main(args, save_path)

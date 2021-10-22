@@ -697,7 +697,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             mix_paramter = 0
             output = model(images, (epoch+1)/args.epochs, train=True)
             
-
+            theta = list(map(CosineSimiliarity, model.theta))
             
             theta = torch.cat(theta)
             #print(torch.sum(theta).item())
