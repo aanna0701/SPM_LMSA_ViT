@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
 import math
 
-
+ALPHA = 10
 
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
@@ -168,6 +168,8 @@ class Translation(nn.Module):
         self.constant_tmp = 1
         self.is_adaptive = adaptive
         
+        self.alpha = ALPHA
+        
     def forward(self, x, theta, patch_size, epoch=None, train=False):
         
         if not train or not self.is_adaptive:
@@ -183,7 +185,7 @@ class Translation(nn.Module):
                 constant = self.constant_tmp 
                 
         
-        theta = theta * constant * patch_size
+        theta = theta * constant * patch_size * self.alpha
         theta = theta.unsqueeze(-1)
         theta = torch.mul(theta, self.tmp1)
         theta = theta + self.tmp2.expand(x.size(0), 2, 3)
@@ -206,7 +208,8 @@ class Affine(nn.Module):
         self.theta = None
         self.constant_tmp = 1
         self.is_adaptive = adaptive
-              
+        
+        self.alpha = ALPHA
         
     def forward(self, x, theta,  patch_size, epoch=None, train=False):
         
@@ -222,7 +225,7 @@ class Affine(nn.Module):
             else:
                 constant = self.constant_tmp 
             
-        theta = theta * constant * patch_size    
+        theta = theta * constant * patch_size * self.alpha
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))
         
@@ -238,7 +241,8 @@ class Rigid(nn.Module):
         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
         self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
-            
+        
+        self.alpha = ALPHA
             
         self.constant = constant
         self.theta = None
@@ -262,7 +266,7 @@ class Rigid(nn.Module):
         # print(constant)
 
         
-        theta = theta * constant * patch_size
+        theta = theta * constant * patch_size * self.alpha
         theta = theta.unsqueeze(-1)
                 
         angle = theta[:, (0,)]

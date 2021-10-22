@@ -641,7 +641,7 @@ class SwinTransformer(nn.Module):
             # self.theta_q = deque(self.localisation(x))        
             # x = self.patch_embed(x, self.theta_q.popleft(), self.n_trans, epoch, train)  
             
-            # self.theta = self.localisation(x)
+            self.theta = self.localisation(x)
             self.theta = torch.chunk(self.theta, self.n_trans, dim=1)
             
             x = self.patch_embed(x, self.theta, epoch, train)  
