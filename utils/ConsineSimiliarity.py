@@ -5,7 +5,9 @@ import torch.nn.functional as F
 
 def CosineSimiliarity(x):
     
-    sim = einsum('b n, d n -> b d', x, x)
+    norm = torch.norm(x)
+    
+    sim = einsum('b n, d n -> b d', x/norm, x/norm)
     mask = 1 - torch.eye(x.size(0)).cuda(torch.cuda.current_device())
     
     masked_sim = torch.mul(sim, mask)
