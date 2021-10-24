@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
 import math
 
-ALPHA = 10
+ALPHA = 1
 
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
@@ -44,7 +44,9 @@ class Localisation(nn.Module):
             nn.Linear(64, 32, bias=False),
             nn.LayerNorm(32),
             nn.GELU(),
-            nn.Linear(32, n_output)
+            nn.Linear(32, n_output, bias=False),
+            nn.LayerNorm(n_output),
+            nn.Tanh()
         )
         self.num_transform = n_trans
         
@@ -183,14 +185,14 @@ class Translation(nn.Module):
                 
             else:
                 constant = self.constant_tmp 
-                
+              
         
-        theta = theta * constant * patch_size * self.alpha
+        theta = theta * constant * self.alpha
         theta = theta.unsqueeze(-1)
         theta = torch.mul(theta, self.tmp1)
         theta = theta + self.tmp2.expand(x.size(0), 2, 3)
         
-        # print(theta[0])
+        print(theta[0])
         
         # print(theta[2])
         
@@ -225,7 +227,7 @@ class Affine(nn.Module):
             else:
                 constant = self.constant_tmp 
             
-        theta = theta * constant * patch_size * self.alpha
+        theta = theta * constant * self.alpha
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))
         
@@ -266,7 +268,7 @@ class Rigid(nn.Module):
         # print(constant)
 
         
-        theta = theta * constant * patch_size * self.alpha
+        theta = theta * constant * self.alpha
         theta = theta.unsqueeze(-1)
                 
         angle = theta[:, (0,)]
