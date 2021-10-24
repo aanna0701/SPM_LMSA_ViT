@@ -272,7 +272,7 @@ class Rigid(nn.Module):
         theta = theta.unsqueeze(-1)
                 
         angle = theta[:, (0,)]
-        angle = F.tanh(angle) * math.pi
+        angle = angle * math.pi
         trans = theta[:, 1:]
         
         cos = torch.cos(angle)
