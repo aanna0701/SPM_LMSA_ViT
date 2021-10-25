@@ -159,11 +159,9 @@ class Affine(nn.Module):
         xy = theta[:, 2:].unsqueeze(-1)
         
         theta = torch.cat([cos, sin, xy], dim=-1)
-        print(theta.shape)
         
         # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
             
-        print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
