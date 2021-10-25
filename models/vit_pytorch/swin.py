@@ -646,6 +646,7 @@ class SwinTransformer(nn.Module):
             
             x = self.patch_embed(x, self.theta, epoch, train)  
             # x = self.patch_embed(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train)  
+        
               
         
         if self.ape:
