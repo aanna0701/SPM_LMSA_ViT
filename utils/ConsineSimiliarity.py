@@ -31,4 +31,13 @@ def MeanVector(x):
     norm = torch.norm(masked_sim) / 2
     
     return norm.unsqueeze(-1)
+
+def Identity(x):
     
+    identity = torch.tensor([1, 0, 0, 0]).unsqueeze(0)
+    
+    diff = x - identity.cuda(torch.cuda.current_device())
+    
+    norm = torch.norm(diff)
+    
+    return norm
