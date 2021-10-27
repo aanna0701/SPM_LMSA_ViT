@@ -34,7 +34,7 @@ def MeanVector(x):
 
 def Identity(x):
     
-    identity = torch.tensor([1, 0, 0, 0]).unsqueeze(0)
+    identity = torch.tensor([1, 0, 0, 1, 0, 0]).unsqueeze(0)
     
     diff = x - identity.cuda(torch.cuda.current_device())
     

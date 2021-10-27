@@ -30,7 +30,7 @@ class Localisation(nn.Module):
         if type_trans=='trans':
             n_output = 2*n_trans
         elif type_trans=='affine':
-            n_output = 4*n_trans
+            n_output = 6*n_trans
         elif type_trans=='rigid':
             n_output = 3*n_trans
         
@@ -128,46 +128,6 @@ class Translation(nn.Module):
         return F.grid_sample(x, grid)
     
 
-class Affine(nn.Module):
-    def __init__(self, constant=5e1, adaptive=False):
-        super().__init__()
-        
-        self.constant = constant
-        self.theta = None
-        self.constant_tmp = 1
-        self.is_adaptive = adaptive
-        
-        
-    def forward(self, x, theta,  patch_size, epoch=None, train=False):
-        
-        if not train or not self.is_adaptive:
-            constant = 1
-                
-        else:
-            if epoch is not None:
-                constant = self.constant * epoch         
-                constant = 1 - math.exp(-constant)
-                self.constant_tmp = constant
-                
-            else:
-                constant = self.constant_tmp 
-            
-        theta = theta * constant    
-        
-        cos = torch.cat([theta[:, (0, )], theta[:, (1, )]], dim=-1).unsqueeze(-1)
-        sin = torch.cat([-theta[:, (1, )], theta[:, (0, )]], dim=-1).unsqueeze(-1)
-        xy = theta[:, 2:].unsqueeze(-1)
-        
-        theta = torch.cat([cos, sin, xy], dim=-1)
-        
-        # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
-            
-        
-        grid = F.affine_grid(theta, x.size())
-        
-        return F.grid_sample(x, grid)
-    
-
 # class Affine(nn.Module):
 #     def __init__(self, constant=5e1, adaptive=False):
 #         super().__init__()
@@ -194,13 +154,54 @@ class Affine(nn.Module):
             
 #         theta = theta * constant    
         
-#         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
+#         cos = torch.cat([theta[:, (0, )], theta[:, (1, )]], dim=-1).unsqueeze(-1)
+#         sin = torch.cat([-theta[:, (1, )], theta[:, (0, )]], dim=-1).unsqueeze(-1)
+#         xy = theta[:, 2:].unsqueeze(-1)
+        
+#         theta = torch.cat([cos, sin, xy], dim=-1)
+        
+#         # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
             
-#         print(theta[0])
         
 #         grid = F.affine_grid(theta, x.size())
         
 #         return F.grid_sample(x, grid)
+    
+
+class Affine(nn.Module):
+    def __init__(self, constant=5e1, adaptive=False):
+        super().__init__()
+        
+        self.constant = constant
+        self.theta = None
+        self.constant_tmp = 1
+        self.is_adaptive = adaptive
+        
+        
+    def forward(self, x, theta,  patch_size, epoch=None, train=False):
+        
+        if not train or not self.is_adaptive:
+            constant = 1
+                
+        else:
+            if epoch is not None:
+                constant = self.constant * epoch         
+                constant = 1 - math.exp(-constant)
+                self.constant_tmp = constant
+                
+            else:
+                constant = self.constant_tmp 
+            
+        theta = theta * constant    
+        
+        
+        theta = torch.reshape(theta, (theta.size(0), 2, 3))        
+            
+        print(theta[0])
+        
+        grid = F.affine_grid(theta, x.size())
+        
+        return F.grid_sample(x, grid)
     
     
 
