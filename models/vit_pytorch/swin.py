@@ -788,9 +788,23 @@ class SpatialTransformation_learn(nn.Module):
         if self.type=='trans':
             self.transformation = Translation(constant, num_patches, adaptive=adaptive)
         elif self.type=='affine':
-            self.transformation = Affine(constant, num_patches, adaptive=adaptive)
+            self.transformation = Affine(adaptive=adaptive)
         # elif self.type=='rigid':
         #     self.transformation = Rigid(constant, patch_size, adaptive=adaptive)
+
+        self.init = list()
+        
+        for i in range(4):
+            self.init.append(self.make_init(i, num_patches).cuda(torch.cuda.current_device()))
+            
+        # print(self.init)
+        
+        # print(num_patches)
+    
+    def make_init(self, n, num_patches):
+        tmp = torch.tensor([1, 0, (math.cos(n * math.pi))/num_patches, 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))/num_patches])
+        return tmp
+        
                 
     def forward(self, x, theta_list, epoch, train=False):   
         
@@ -799,7 +813,7 @@ class SpatialTransformation_learn(nn.Module):
         out = [x]
         
         for i in range (len(theta_list)):
-            out.append(self.transformation(x, theta_list[i], epoch, train))
+            out.append(self.transformation(x, theta_list[i], self.init[i], epoch, train))
             
         out = torch.cat(out, dim=1)
         

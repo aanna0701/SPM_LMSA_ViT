@@ -170,16 +170,15 @@ class Translation(nn.Module):
     
 
 class Affine(nn.Module):
-    def __init__(self, constant, num_patches, adaptive=False):
+    def __init__(self, adaptive=False):
         super().__init__()
         
         self.constant = adaptive
         self.theta = None
         self.constant_tmp = 1
         self.is_adaptive = adaptive
-        self.init = torch.tensor([[1, 0, 1/num_patches, 0, 1, 1/num_patches]]).cuda(torch.cuda.current_device())
         
-    def forward(self, x, theta, epoch=None, train=False):
+    def forward(self, x, theta, init, epoch=None, train=False):
         
         if not train or not self.is_adaptive:
             constant = 1
@@ -192,13 +191,16 @@ class Affine(nn.Module):
                 
             else:
                 constant = self.constant_tmp 
-            
-        theta = theta * constant + self.init * (1-constant)    
+
+        # print(constant)
+
+        # theta = theta * constant + init
+        theta = theta * constant + init * (1-constant)
         
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
             
-        print(theta[0])
+        # print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
