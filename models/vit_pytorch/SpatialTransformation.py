@@ -92,7 +92,7 @@ class Translation(nn.Module):
         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
         
-        self.constant = constant
+        self.constant = adaptive
         self.theta = None
         self.constant_tmp = 1
         self.is_adaptive = adaptive
@@ -173,7 +173,7 @@ class Affine(nn.Module):
     def __init__(self, constant, num_patches, adaptive=False):
         super().__init__()
         
-        self.constant = constant
+        self.constant = adaptive
         self.theta = None
         self.constant_tmp = 1
         self.is_adaptive = adaptive
@@ -214,7 +214,7 @@ class Rigid(nn.Module):
         self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
 
             
-        self.constant = constant
+        self.constant = adaptive
         self.theta = None
         self.constant_tmp = 1
         self.is_adaptive = adaptive

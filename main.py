@@ -91,7 +91,7 @@ def init_parser():
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
     parser.add_argument('--type_trans', default='trans',choices=['trans', 'affine', 'rigid'] , help='Tpye of trans')
-    parser.add_argument('--adaptive', action='store_true' , help='adaptive version')
+    parser.add_argument('--adaptive', default=0, type=float, help='adaptive version')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     parser.add_argument('--gam', default=0, type=float, help='hyperparameter of mean similiarity loss')
     parser.add_argument('--tau', default=0, type=float, help='hyperparameter of identity')
@@ -789,7 +789,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
                 target = target.cuda(args.gpu, non_blocking=True)
 
             
-            output = model(images)
+            output = model(images, train=True)
                                 
             identity = list(map(Identity, model.theta))
             identity = sum(identity)
