@@ -87,7 +87,7 @@ class Localisation(nn.Module):
         
 
 class Translation(nn.Module):
-    def __init__(self, constant=5e1, adaptive=False):
+    def __init__(self, constant, patch_size, adaptive=False):
         super(Translation, self).__init__()
         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
@@ -96,9 +96,10 @@ class Translation(nn.Module):
         self.theta = None
         self.constant_tmp = 1
         self.is_adaptive = adaptive
+        self.init = torch.tensor([[1, 0, patch_size//2, 0, 1, patch_size//2]]).cuda(torch.cuda.current_device())
 
         
-    def forward(self, x, theta, patch_size, epoch=None, train=False):
+    def forward(self, x, theta, epoch=None, train=False):
         
         if not train or not self.is_adaptive:
             constant = 1
@@ -113,7 +114,7 @@ class Translation(nn.Module):
                 constant = self.constant_tmp 
               
         
-        theta = theta * constant
+        theta = theta * constant + self.init * (1-constant)
         theta = theta.unsqueeze(-1)
         theta = torch.mul(theta, self.tmp1)
         theta = theta + self.tmp2.expand(x.size(0), 2, 3)
@@ -169,16 +170,16 @@ class Translation(nn.Module):
     
 
 class Affine(nn.Module):
-    def __init__(self, constant=5e1, adaptive=False):
+    def __init__(self, constant, num_patches, adaptive=False):
         super().__init__()
         
         self.constant = constant
         self.theta = None
         self.constant_tmp = 1
         self.is_adaptive = adaptive
+        self.init = torch.tensor([[1, 0, 1/num_patches, 0, 1, 1/num_patches]]).cuda(torch.cuda.current_device())
         
-        
-    def forward(self, x, theta,  patch_size, epoch=None, train=False):
+    def forward(self, x, theta, epoch=None, train=False):
         
         if not train or not self.is_adaptive:
             constant = 1
@@ -192,7 +193,7 @@ class Affine(nn.Module):
             else:
                 constant = self.constant_tmp 
             
-        theta = theta * constant    
+        theta = theta * constant + self.init * (1-constant)    
         
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        

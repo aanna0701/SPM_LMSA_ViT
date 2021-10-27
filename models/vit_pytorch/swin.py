@@ -421,7 +421,7 @@ class BasicLayer(nn.Module):
                 # self.localisation = SwinTransformer(img_size=input_resolution[0], window_size=2, drop_path_rate=0, patch_size=input_resolution[0]//4, mlp_ratio=2, depths=[1, 3], num_heads=[2, 4], num_classes=8, embed_dim=24, in_chans=dim)
 #                self.downsample = ShiftedPatchMerging(dim, dim*2, input_resolution[0])
 
-                self.downsample = ShiftedPatchTokenization(dim, dim*2, 2, is_learn=is_learn, type=type_trans, adaptive=adaptive)
+                self.downsample = ShiftedPatchTokenization(input_resolution[0]//2 ,dim, dim*2, 2, is_learn=is_learn, type=type_trans, adaptive=adaptive)
 
         else:
             self.downsample = None
@@ -552,7 +552,7 @@ class SwinTransformer(nn.Module):
             
         else:
             #self.patch_embed = ShiftedPatchMerging(3, embed_dim, img_size, patch_size, is_pe=True)
-            self.patch_embed = ShiftedPatchTokenization(3, embed_dim, patch_size, is_learn=is_learn, type=type_trans, adaptive=adaptive)
+            self.patch_embed = ShiftedPatchTokenization(img_size//patch_size, 3, embed_dim, patch_size, is_learn=is_learn, type=type_trans, adaptive=adaptive)
             
             
             self.patches_resolution = [img_size // patch_size, img_size // patch_size]
@@ -691,14 +691,14 @@ class SwinTransformer(nn.Module):
     
     
 class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, type='trans', adaptive=False):
+    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, type='trans', adaptive=False):
         super().__init__()
         self.exist_class_t = exist_class_t
         
         self.is_learn = is_learn
         
         if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn(type=type, adaptive=adaptive)
+            self.patch_shifting = SpatialTransformation_learn(num_patches, type=type, adaptive=adaptive)
             
         else:           
             self.patch_shifting = SpatialTransformation_fix(merging_size) 
@@ -711,7 +711,6 @@ class ShiftedPatchTokenization(nn.Module):
             nn.Linear(patch_dim, dim)
         )
         
-        self.patch_size = merging_size
         
         # print(self.merging)
         
@@ -721,7 +720,7 @@ class ShiftedPatchTokenization(nn.Module):
         
         if self.is_learn:
             
-            out = self.patch_shifting(out, theta, self.patch_size, epoch, train)
+            out = self.patch_shifting(out, theta, epoch, train)
         else:
             out = self.patch_shifting(out)
         out = self.merging(out)
@@ -780,27 +779,27 @@ class SpatialTransformation_fix(nn.Module):
     
     
 class SpatialTransformation_learn(nn.Module):
-    def __init__(self, type='trans', adaptive=False):
+    def __init__(self, num_patches, type='trans', adaptive=False):
         super().__init__()
         self.type = type
         
         constant = 1e1
         
         if self.type=='trans':
-            self.transformation = Translation(constant, adaptive=adaptive)
+            self.transformation = Translation(constant, num_patches, adaptive=adaptive)
         elif self.type=='affine':
-            self.transformation = Affine(constant, adaptive=adaptive)
-        elif self.type=='rigid':
-            self.transformation = Rigid(constant, adaptive=adaptive)
+            self.transformation = Affine(constant, num_patches, adaptive=adaptive)
+        # elif self.type=='rigid':
+        #     self.transformation = Rigid(constant, patch_size, adaptive=adaptive)
                 
-    def forward(self, x, theta_list, patch_size, epoch, train=False):   
+    def forward(self, x, theta_list, epoch, train=False):   
         
         # print(theta[0])
         
         out = [x]
         
         for i in range (len(theta_list)):
-            out.append(self.transformation(x, theta_list[i], patch_size, epoch, train))
+            out.append(self.transformation(x, theta_list[i], epoch, train))
             
         out = torch.cat(out, dim=1)
         
