@@ -523,7 +523,7 @@ def main(args):
     
     # SAM
     base_optimizer = torch.optim.AdamW
-    optimizer = SAM(model.parameters(), base_optimizer, model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = SAM(model.parameters(), base_optimizer, lr=args.lr, weight_decay=args.weight_decay)
     
     # optimizer = torch.optim.AdamW([{'params': list(no_wd), 'weight_decay': 0}, {'params': list(yes_wd)}], lr=args.lr, weight_decay=args.weight_decay)
     # scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
