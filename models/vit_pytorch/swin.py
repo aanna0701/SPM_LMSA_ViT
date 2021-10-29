@@ -650,7 +650,7 @@ class SwinTransformer(nn.Module):
             self.theta = self.patch_embed.theta
             
         # print(self.theta[0].shape)
-        print(len(self.theta))
+        # print(len(self.theta))
               
         
         if self.ape:
