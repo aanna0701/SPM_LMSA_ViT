@@ -50,6 +50,7 @@ class Localisation(nn.Module):
         )
         self.num_transform = n_trans
         
+        
         self.apply(self._init_weights)
 
         
@@ -86,47 +87,47 @@ class Localisation(nn.Module):
         
         
 
-class Translation(nn.Module):
-    def __init__(self, constant, patch_size, adaptive=False):
-        super(Translation, self).__init__()
-        self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
-        self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
+# class Translation(nn.Module):
+#     def __init__(self, constant, patch_size, adaptive=False):
+#         super(Translation, self).__init__()
+#         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
+#         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
         
-        self.constant = adaptive
-        self.theta = None
-        self.constant_tmp = 1
-        self.is_adaptive = adaptive
-        self.init = torch.tensor([[1, 0, patch_size//2, 0, 1, patch_size//2]]).cuda(torch.cuda.current_device())
+#         self.constant = adaptive
+#         self.theta = None
+#         self.constant_tmp = 1
+#         self.is_adaptive = adaptive
+#         self.init = torch.tensor([[1, 0, patch_size//2, 0, 1, patch_size//2]]).cuda(torch.cuda.current_device())
 
         
-    def forward(self, x, theta, epoch=None, train=False):
+#     def forward(self, x, theta, epoch=None, train=False):
         
-        if not train or not self.is_adaptive:
-            constant = 1
+#         if not train or not self.is_adaptive:
+#             constant = 1
                 
-        else:
-            if epoch is not None:
-                constant = self.constant * epoch         
-                constant = 1 - math.exp(-constant)
-                self.constant_tmp = constant
+#         else:
+#             if epoch is not None:
+#                 constant = self.constant * epoch         
+#                 constant = 1 - math.exp(-constant)
+#                 self.constant_tmp = constant
                 
-            else:
-                constant = self.constant_tmp 
+#             else:
+#                 constant = self.constant_tmp 
               
         
-        theta = theta * constant + self.init * (1-constant)
-        theta = theta.unsqueeze(-1)
-        theta = torch.mul(theta, self.tmp1)
-        theta = theta + self.tmp2.expand(x.size(0), 2, 3)
+#         theta = theta * constant + self.init * (1-constant)
+#         theta = theta.unsqueeze(-1)
+#         theta = torch.mul(theta, self.tmp1)
+#         theta = theta + self.tmp2.expand(x.size(0), 2, 3)
         
-        # print(theta[0])
+#         # print(theta[0])
         
-        # print(theta[2])
+#         # print(theta[2])
         
         
-        grid = F.affine_grid(theta, x.size())
+#         grid = F.affine_grid(theta, x.size())
         
-        return F.grid_sample(x, grid)
+#         return F.grid_sample(x, grid)
     
 
 # class Affine(nn.Module):
@@ -196,6 +197,7 @@ class Affine(nn.Module):
 
         # theta = theta * constant + init
         theta = theta * constant + init * (1-constant)
+        self.theta = theta
         
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
@@ -208,55 +210,55 @@ class Affine(nn.Module):
     
     
 
-class Rigid(nn.Module):
-    def __init__(self, constant=5e1, adaptive=False):
-        super().__init__()
-        self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
-        self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
-        self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
+# class Rigid(nn.Module):
+#     def __init__(self, constant=5e1, adaptive=False):
+#         super().__init__()
+#         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
+#         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
+#         self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
 
             
-        self.constant = adaptive
-        self.theta = None
-        self.constant_tmp = 1
-        self.is_adaptive = adaptive
+#         self.constant = adaptive
+#         self.theta = None
+#         self.constant_tmp = 1
+#         self.is_adaptive = adaptive
         
-    def forward(self, x, theta,  patch_size, epoch=None, train=False):
+#     def forward(self, x, theta,  patch_size, epoch=None, train=False):
         
-        if not train or not self.is_adaptive:
-            constant = 1
+#         if not train or not self.is_adaptive:
+#             constant = 1
                 
-        else:
-            if epoch is not None:
-                constant = self.constant * epoch         
-                constant = 1 - math.exp(-constant)
-                self.constant_tmp = constant
+#         else:
+#             if epoch is not None:
+#                 constant = self.constant * epoch         
+#                 constant = 1 - math.exp(-constant)
+#                 self.constant_tmp = constant
                 
-            else:
-                constant = self.constant_tmp 
+#             else:
+#                 constant = self.constant_tmp 
 
-        # print(constant)
+#         # print(constant)
 
         
-        theta = theta * constant 
-        theta = theta.unsqueeze(-1)
+#         theta = theta * constant 
+#         theta = theta.unsqueeze(-1)
                 
-        angle = theta[:, (0,)]
-        angle = angle * math.pi
-        trans = theta[:, 1:]
+#         angle = theta[:, (0,)]
+#         angle = angle * math.pi
+#         trans = theta[:, 1:]
         
-        cos = torch.cos(angle)
-        sin = torch.sin(angle)
+#         cos = torch.cos(angle)
+#         sin = torch.sin(angle)
      
-        mat_cos = torch.mul(cos, self.tmp2.expand(x.size(0), 2, 3))
-        mat_sin = torch.mul(sin, self.tmp3.expand(x.size(0), 2, 3))
-        mat_trans = torch.mul(trans, self.tmp1.expand(x.size(0), 2, 3))
+#         mat_cos = torch.mul(cos, self.tmp2.expand(x.size(0), 2, 3))
+#         mat_sin = torch.mul(sin, self.tmp3.expand(x.size(0), 2, 3))
+#         mat_trans = torch.mul(trans, self.tmp1.expand(x.size(0), 2, 3))
         
-        theta = mat_cos + mat_sin + mat_trans
-        self.theta = theta
+#         theta = mat_cos + mat_sin + mat_trans
+#         self.theta = theta
         
         
-        grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size())
+#         grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size())
         
-        return F.grid_sample(x, grid)
+#         return F.grid_sample(x, grid)
     

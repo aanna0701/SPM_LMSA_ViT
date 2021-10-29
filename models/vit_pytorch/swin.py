@@ -14,7 +14,7 @@ from utils.drop_path import DropPath
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
-from .SpatialTransformation import Translation, Localisation, Affine, Rigid
+from .SpatialTransformation import Localisation, Affine
 from collections import deque
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
@@ -641,12 +641,16 @@ class SwinTransformer(nn.Module):
             # self.theta_q = deque(self.localisation(x))        
             # x = self.patch_embed(x, self.theta_q.popleft(), self.n_trans, epoch, train)  
             
-            self.theta = self.localisation(x)
-            self.theta = torch.chunk(self.theta, self.n_trans, dim=1)
+            theta = self.localisation(x)
+            theta = torch.chunk(theta, self.n_trans, dim=1)
             
-            x = self.patch_embed(x, self.theta, epoch, train)  
+            x = self.patch_embed(x, theta, epoch, train)  
             # x = self.patch_embed(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train)  
         
+            self.theta = self.patch_embed.theta
+            
+        # print(self.theta[0].shape)
+        print(len(self.theta))
               
         
         if self.ape:
@@ -660,7 +664,7 @@ class SwinTransformer(nn.Module):
             if self.is_learn and i < len(self.layers)-1:            
                 
                 # x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
-                x = layer(x, self.theta, epoch, train) 
+                x = layer(x, theta, epoch, train) 
                 # x = layer(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train) 
 
             else: 
@@ -711,7 +715,7 @@ class ShiftedPatchTokenization(nn.Module):
             nn.Linear(patch_dim, dim)
         )
         
-        
+        self.theta = None
         # print(self.merging)
         
         
@@ -725,6 +729,7 @@ class ShiftedPatchTokenization(nn.Module):
             out = self.patch_shifting(out)
         out = self.merging(out)
       
+        self.theta = self.patch_shifting.theta
 
         return out
 
@@ -734,6 +739,8 @@ class SpatialTransformation_fix(nn.Module):
         super().__init__()
       
         self.shift = patch_size // 2
+        
+        self.theta = None
       
     def forward(self, x):
    
@@ -783,11 +790,9 @@ class SpatialTransformation_learn(nn.Module):
         super().__init__()
         self.type = type
         
-        constant = 1e1
-        
-        if self.type=='trans':
-            self.transformation = Translation(constant, num_patches, adaptive=adaptive)
-        elif self.type=='affine':
+        # if self.type=='trans':
+        #     self.transformation = Translation(constant, num_patches, adaptive=adaptive)
+        if self.type=='affine':
             self.transformation = Affine(adaptive=adaptive)
         # elif self.type=='rigid':
         #     self.transformation = Rigid(constant, patch_size, adaptive=adaptive)
@@ -796,11 +801,10 @@ class SpatialTransformation_learn(nn.Module):
         
         for i in range(4):
             self.init.append(self.make_init(i, num_patches).cuda(torch.cuda.current_device()))
-            
-        # print(self.init)
         
-        # print(num_patches)
-    
+        self.theta = list()
+                
+          
     def make_init(self, n, num_patches):
         tmp = torch.tensor([1, 0, (math.cos(n * math.pi))/num_patches, 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))/num_patches])
         return tmp
@@ -811,12 +815,16 @@ class SpatialTransformation_learn(nn.Module):
         # print(theta[0])
         
         out = [x]
+        tmp = list()
         
         for i in range (len(theta_list)):
             out.append(self.transformation(x, theta_list[i], self.init[i], epoch, train))
+            tmp.append(self.transformation.theta)
+            
+        self.theta = tmp
             
         out = torch.cat(out, dim=1)
         
-       
+        
        
         return out
