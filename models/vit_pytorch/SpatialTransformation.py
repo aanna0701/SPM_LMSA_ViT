@@ -11,13 +11,24 @@ class Localisation(nn.Module):
         super().__init__()
         self.in_dim = in_dim
         
-        self.layers0 = nn.Sequential(
-            nn.Conv2d(3, self.in_dim, 3, 2, 1, bias=False),
-            nn.BatchNorm2d(in_dim),
-            nn.GELU()
-        )
+        if img_size == 32:
+            
+            self.layers0 = nn.Sequential(
+                nn.Conv2d(3, self.in_dim, 3, 2, 1, bias=False),
+                nn.BatchNorm2d(in_dim),
+                nn.GELU()
+            )     
         
-        img_size //= 2
+            img_size //= 2
+            
+        elif img_size == 64:
+            self.layers0 = nn.Sequential(
+                nn.Conv2d(3, self.in_dim, 7, 4, 2, bias=False),
+                nn.BatchNorm2d(in_dim),
+                nn.GELU()
+            )     
+        
+            img_size //= 4
         
         self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
         self.in_dim *= 2
