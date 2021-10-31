@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch import einsum
 import torch.nn.functional as F
+import math
 
 def CosineSimiliarity(x):
     
@@ -14,7 +15,7 @@ def CosineSimiliarity(x):
     
     masked_sim = torch.mul(sim, mask)
     
-    norm = torch.norm(masked_sim) / 2
+    norm = torch.norm(masked_sim) / math.sqrt(2)
             
     return norm.unsqueeze(-1)
 
@@ -28,7 +29,7 @@ def MeanVector(x):
     
     masked_sim = torch.mul(sim, mask)
     
-    norm = torch.norm(masked_sim) / 2
+    norm = torch.norm(masked_sim) / math.sqrt(2)
     
     return norm.unsqueeze(-1)
 
