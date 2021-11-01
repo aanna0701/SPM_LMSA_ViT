@@ -179,20 +179,22 @@ class Localisation(nn.Module):
 #         grid = F.affine_grid(theta, x.size())
         
 #         return F.grid_sample(x, grid)
-    
+
+
 
 class Affine(nn.Module):
-    def __init__(self, adaptive=False):
+    def __init__(self, adaptive=False, constant=False):
         super().__init__()
         
         self.constant = adaptive
         self.theta = None
-        self.constant_tmp = 1
-        self.is_adaptive = adaptive
+            
+        self.constant_tmp = None if not constant else constant
         
-    def forward(self, x, theta, init, epoch=None, train=False):
         
-        if not train or not self.is_adaptive:
+    def forward(self, x, theta, init, epoch=None):
+        
+        if self.constant:
             constant = 1
                 
         else:
@@ -207,9 +209,7 @@ class Affine(nn.Module):
         # print(constant)
 
         # theta = theta * constant + init
-        theta = theta * constant + init * (1-constant)
-        self.theta = theta
-        
+        theta = theta * constant + init * (1-constant)        
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
             

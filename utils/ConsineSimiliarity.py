@@ -6,9 +6,12 @@ import math
 
 def CosineSimiliarity(x):
     
-    norm = torch.norm(x, dim=-1, keepdim= True)
+    avg = x.mean(dim=0, keepdim= True)
+    x_ = x - avg
     
-    norm = torch.div(x, norm)
+    norm = torch.norm(x_, dim=-1, keepdim= True)
+    
+    norm = torch.div(x_, norm)
     
     sim = einsum('b n, d n -> b d', norm, norm)
     mask = 1 - torch.eye(x.size(0)).cuda(torch.cuda.current_device())
@@ -18,6 +21,21 @@ def CosineSimiliarity(x):
     norm = torch.norm(masked_sim) / math.sqrt(2)
             
     return norm.unsqueeze(-1)
+
+# def CosineSimiliarity(x):
+    
+#     norm = torch.norm(x, dim=-1, keepdim= True)
+    
+#     norm = torch.div(x, norm)
+    
+#     sim = einsum('b n, d n -> b d', norm, norm)
+#     mask = 1 - torch.eye(x.size(0)).cuda(torch.cuda.current_device())
+    
+#     masked_sim = torch.mul(sim, mask)
+    
+#     norm = torch.norm(masked_sim) / math.sqrt(2)
+            
+#     return norm.unsqueeze(-1)
 
 def MeanVector(x):
     

@@ -557,7 +557,11 @@ def main(args):
         if acc1 > best_acc1:
             print('* Best model upate *')
             best_acc1 = acc1
-            torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'tr_constant': model.patch_embed.patch_shifting.transformation.constant_tmp
+            }
+                       , os.path.join(save_path, 'best.pth'))
         
         if acc5 > best_acc5:
             best_acc5 = acc5
@@ -601,35 +605,37 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                 output = model(images, (epoch+1)/args.epochs, train=True)
                                     
-                identity = list(map(Identity, model.theta))
-                identity = sum(identity)
+                # identity = list(map(Identity, model.theta))
+                # identity = sum(identity)
                 
-                mean = list(map(MeanVector, model.theta))
-                mean = torch.cat(mean)
+                # mean = list(map(MeanVector, model.theta))
+                # mean = torch.cat(mean)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
                 theta = torch.cat(theta)
                 #print(torch.sum(theta).item())
                 
-                loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                
+                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                
+                loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs, train=True)
                                     
-                identity = list(map(Identity, model.theta))
-                identity = sum(identity)
+                # identity = list(map(Identity, model.theta))
+                # identity = sum(identity)
                 
-                mean = list(map(MeanVector, model.theta))
-                mean = torch.cat(mean)
+                # mean = list(map(MeanVector, model.theta))
+                # mean = torch.cat(mean)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
                 theta = torch.cat(theta)
                 #print(torch.sum(theta).item())
                 
-                loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + criterion(output, target)
+                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + criterion(output, target)
+                loss =  args.lam * torch.sum(theta).item() + criterion(output, target)
         
         # Mixup only
         elif not args.cm and args.mu:
@@ -640,36 +646,39 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 images, y_a, y_b, lam = mixup_data(images, target, args)
                 output = model(images, (epoch+1)/args.epochs, train=True)
                 
-                identity = list(map(Identity, model.theta))
-                identity = sum(identity)                
+                # identity = list(map(Identity, model.theta))
+                # identity = sum(identity)                
                 
-                mean = list(map(MeanVector, model.theta))
-                mean = torch.cat(mean)
+                # mean = list(map(MeanVector, model.theta))
+                # mean = torch.cat(mean)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
                 theta = torch.cat(theta)
                 #print(torch.sum(theta).item())
                 
-                loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)
+                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)
+                loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs, train=True)
                     
-                identity = list(map(Identity, model.theta))
-                identity = sum(identity)
+                # identity = list(map(Identity, model.theta))
+                # identity = sum(identity)
                 
-                mean = list(map(MeanVector, model.theta))
-                mean = torch.cat(mean)
+                # mean = list(map(MeanVector, model.theta))
+                # mean = torch.cat(mean)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
                 theta = torch.cat(theta)
                 #print(torch.sum(theta).item())
                 
-                loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + criterion(output, target)
+                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + criterion(output, target)
+                loss =  args.lam * torch.sum(theta).item() + criterion(output, target)
+        
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
             r = np.random.rand(1)
@@ -684,18 +693,19 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                     output = model(images, (epoch+1)/args.epochs, train=True)
                     
-                    identity = list(map(Identity, model.theta))
-                    identity = sum(identity)
+                    # identity = list(map(Identity, model.theta))
+                    # identity = sum(identity)
                     
-                    mean = list(map(MeanVector, model.theta))
-                    mean = torch.cat(mean)
+                    # mean = list(map(MeanVector, model.theta))
+                    # mean = torch.cat(mean)
                     
                     theta = list(map(CosineSimiliarity, model.theta))
                     
                     theta = torch.cat(theta)
                     #print(torch.sum(theta).item())
                     
-                    loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)         
+                    # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)         
+                    loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)         
                 
                 # Mixup
                 else:
@@ -704,36 +714,38 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     images, y_a, y_b, lam = mixup_data(images, target, args)
                     output = model(images, (epoch+1)/args.epochs, train=True)
                                         
-                    identity = list(map(Identity, model.theta))
-                    identity = sum(identity)
+                    # identity = list(map(Identity, model.theta))
+                    # identity = sum(identity)
                     
-                    mean = list(map(MeanVector, model.theta))
-                    mean = torch.cat(mean)
+                    # mean = list(map(MeanVector, model.theta))
+                    # mean = torch.cat(mean)
                     
                     theta = list(map(CosineSimiliarity, model.theta))
                     
                     theta = torch.cat(theta)
                     #print(torch.sum(theta).item())
                     
-                    loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                               
+                    # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                               
+                    loss = args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                               
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs, train=True)
                                     
-                identity = list(map(Identity, model.theta))
-                identity = sum(identity)
+                # identity = list(map(Identity, model.theta))
+                # identity = sum(identity)
                 
-                mean = list(map(MeanVector, model.theta))
-                mean = torch.cat(mean)
+                # mean = list(map(MeanVector, model.theta))
+                # mean = torch.cat(mean)
                 
                 theta = list(map(CosineSimiliarity, model.theta))
                 
                 theta = torch.cat(theta)
                 #print(torch.sum(theta).item())
                 
-                loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)     
+                # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)     
+                loss = args.lam * torch.sum(theta).item() + criterion(output, target)     
         
         # No Mix
         else:
@@ -741,18 +753,19 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             mix_paramter = 0
             output = model(images, (epoch+1)/args.epochs, train=True)
                                 
-            identity = list(map(Identity, model.theta))
-            identity = sum(identity)
+            # identity = list(map(Identity, model.theta))
+            # identity = sum(identity)
         
-            mean = list(map(MeanVector, model.theta))
-            mean = torch.cat(mean)
+            # mean = list(map(MeanVector, model.theta))
+            # mean = torch.cat(mean)
             
             theta = list(map(CosineSimiliarity, model.theta))
             
             theta = torch.cat(theta)
             #print(torch.sum(theta).item())
             
-            loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)
+            # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)
+            loss = args.lam * torch.sum(theta).item() + criterion(output, target)
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
@@ -791,17 +804,18 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             
             output = model(images, train=True)
                                 
-            identity = list(map(Identity, model.theta))
-            identity = sum(identity)
+            # identity = list(map(Identity, model.theta))
+            # identity = sum(identity)
             
-            mean = list(map(MeanVector, model.theta))
-            mean = torch.cat(mean)
+            # mean = list(map(MeanVector, model.theta))
+            # mean = torch.cat(mean)
             
             theta = list(map(CosineSimiliarity, model.theta))
                 
             theta = torch.cat(theta)
             
-            loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)
+            # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)
+            loss = args.lam * torch.sum(theta).item() + criterion(output, target)
             
             acc = accuracy(output, target, (1, 5))
             acc1 = acc[0]
