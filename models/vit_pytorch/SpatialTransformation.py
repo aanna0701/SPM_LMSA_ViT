@@ -199,8 +199,12 @@ class Affine(nn.Module):
                 
         else:
             if epoch is not None:
-                constant = self.constant * epoch         
-                constant = 1 - math.exp(-constant)
+                
+                if epoch > (5/100):
+                    constant = self.constant
+                else:
+                    constant = 1    
+                
                 self.constant_tmp = constant
                 
             elif const is not None:
@@ -222,6 +226,46 @@ class Affine(nn.Module):
         
         return F.grid_sample(x, grid)
     
+
+# class Affine(nn.Module):
+#     def __init__(self, adaptive=False, constant=False):
+#         super().__init__()
+        
+#         self.constant = adaptive
+#         self.theta = None
+            
+#         self.constant_tmp = 1 if not self.constant > 0. else constant
+        
+        
+#     def forward(self, x, theta, init, epoch=None, const=None):
+        
+#         if not self.constant > 0.:            
+#             constant = 1
+                
+#         else:
+#             if epoch is not None:
+#                 constant = self.constant * epoch         
+#                 constant = 1 - math.exp(-constant)
+#                 self.constant_tmp = constant
+                
+#             elif const is not None:
+#                 constant = const
+                
+#             else:
+#                 constant = self.constant_tmp 
+        
+
+#         # theta = theta * constant + init
+#         theta = theta * constant + init * (1-constant)
+#         self.theta = theta        
+        
+#         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
+            
+#         # print(theta[0])
+        
+#         grid = F.affine_grid(theta, x.size())
+        
+#         return F.grid_sample(x, grid)
     
 
 # class Rigid(nn.Module):
