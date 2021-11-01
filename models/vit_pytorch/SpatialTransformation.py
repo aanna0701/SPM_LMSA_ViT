@@ -189,10 +189,10 @@ class Affine(nn.Module):
         self.constant = adaptive
         self.theta = None
             
-        self.constant_tmp = 1 if not constant else constant
+        self.constant_tmp = 1 if not self.constant > 0. else constant
         
         
-    def forward(self, x, theta, init, epoch=None):
+    def forward(self, x, theta, init, epoch=None, const=None):
         
         if not self.constant > 0.:            
             constant = 1
@@ -203,9 +203,12 @@ class Affine(nn.Module):
                 constant = 1 - math.exp(-constant)
                 self.constant_tmp = constant
                 
+            elif const is not None:
+                constant = const
+                
             else:
                 constant = self.constant_tmp 
-
+        
 
         # theta = theta * constant + init
         theta = theta * constant + init * (1-constant)
