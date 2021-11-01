@@ -200,7 +200,7 @@ class Affine(nn.Module):
         else:
             if epoch is not None:
                 
-                if epoch > (5/100):
+                if epoch < (6/100):
                     constant = self.constant
                 else:
                     constant = 1    
