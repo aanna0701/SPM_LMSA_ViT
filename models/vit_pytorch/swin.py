@@ -631,7 +631,7 @@ class SwinTransformer(nn.Module):
     def no_weight_decay_keywords(self):
         return {'relative_position_bias_table'}
 
-    def forward_features(self, x, epoch, train=True):
+    def forward_features(self, x, epoch):
     
         
         
@@ -644,7 +644,7 @@ class SwinTransformer(nn.Module):
             theta = self.localisation(x)
             theta = torch.chunk(theta, self.n_trans, dim=1)
             
-            x = self.patch_embed(x, theta, epoch, train)  
+            x = self.patch_embed(x, theta, epoch)  
             # x = self.patch_embed(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train)  
         
             self.theta = self.patch_embed.theta
@@ -664,7 +664,7 @@ class SwinTransformer(nn.Module):
             if self.is_learn and i < len(self.layers)-1:            
                 
                 # x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
-                x = layer(x, theta, epoch, train) 
+                x = layer(x, theta, epoch) 
                 # x = layer(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train) 
 
             else: 
@@ -719,12 +719,12 @@ class ShiftedPatchTokenization(nn.Module):
         # print(self.merging)
         
         
-    def forward(self, x, theta=None, epoch=None, train=False):
+    def forward(self, x, theta=None, epoch=None):
         out = x if len(x.size()) == 4 else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         
         if self.is_learn:
             
-            out = self.patch_shifting(out, theta, epoch, train)
+            out = self.patch_shifting(out, theta, epoch)
         else:
             out = self.patch_shifting(out)
         out = self.merging(out)
@@ -810,7 +810,7 @@ class SpatialTransformation_learn(nn.Module):
         return tmp
         
                 
-    def forward(self, x, theta_list, epoch, train=False):   
+    def forward(self, x, theta_list, epoch):   
         
         # print(theta[0])
         
@@ -818,7 +818,7 @@ class SpatialTransformation_learn(nn.Module):
         tmp = list()
         
         for i in range (len(theta_list)):
-            out.append(self.transformation(x, theta_list[i], self.init[i], epoch, train))
+            out.append(self.transformation(x, theta_list[i], self.init[i], epoch))
             tmp.append(self.transformation.theta)
             
         self.theta = tmp

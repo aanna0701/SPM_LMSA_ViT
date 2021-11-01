@@ -603,7 +603,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix_paramter = args.beta        
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                output = model(images, (epoch+1)/args.epochs, train=True)
+                output = model(images, (epoch+1)/args.epochs)
                                     
                 # identity = list(map(Identity, model.theta))
                 # identity = sum(identity)
@@ -621,7 +621,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs, train=True)
+                output = model(images, (epoch+1)/args.epochs)
                                     
                 # identity = list(map(Identity, model.theta))
                 # identity = sum(identity)
@@ -644,7 +644,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix = 'mixup'
                 mix_paramter = args.alpha
                 images, y_a, y_b, lam = mixup_data(images, target, args)
-                output = model(images, (epoch+1)/args.epochs, train=True)
+                output = model(images, (epoch+1)/args.epochs)
                 
                 # identity = list(map(Identity, model.theta))
                 # identity = sum(identity)                
@@ -663,7 +663,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs, train=True)
+                output = model(images, (epoch+1)/args.epochs)
                     
                 # identity = list(map(Identity, model.theta))
                 # identity = sum(identity)
@@ -712,7 +712,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix = 'mixup'
                     mix_paramter = args.alpha
                     images, y_a, y_b, lam = mixup_data(images, target, args)
-                    output = model(images, (epoch+1)/args.epochs, train=True)
+                    output = model(images, (epoch+1)/args.epochs)
                                         
                     # identity = list(map(Identity, model.theta))
                     # identity = sum(identity)
