@@ -801,7 +801,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
                 target = target.cuda(args.gpu, non_blocking=True)
 
             
-            output = model(images, train=True)
+            output = model(images)
                                 
             # identity = list(map(Identity, model.theta))
             # identity = sum(identity)
