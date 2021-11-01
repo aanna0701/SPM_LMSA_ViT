@@ -18,7 +18,7 @@ def CosineSimiliarity(x):
     
     masked_sim = torch.mul(sim, mask)
     
-    norm = torch.norm(masked_sim) / math.sqrt(2)
+    norm = torch.norm(masked_sim)
             
     return norm.unsqueeze(-1)
 
@@ -47,7 +47,7 @@ def MeanVector(x):
     
     masked_sim = torch.mul(sim, mask)
     
-    norm = torch.norm(masked_sim) / math.sqrt(2)
+    norm = torch.norm(masked_sim)
     
     return norm.unsqueeze(-1)
 
