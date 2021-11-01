@@ -200,8 +200,12 @@ class Affine(nn.Module):
         else:
             if epoch is not None:
                 
-                if epoch < (6/100):
+                if epoch == (1/100):
                     constant = self.constant
+                
+                elif epoch < (6/100):
+                    constant = ((epoch * 100) -1 ) * (1/5)
+                    
                 else:
                     constant = 1    
                 
@@ -220,7 +224,8 @@ class Affine(nn.Module):
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
             
-        # print(theta[0])
+        print(constant)
+        print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
