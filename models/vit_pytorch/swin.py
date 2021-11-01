@@ -527,10 +527,11 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, type_trans= 'rigid', adaptive=False ,**kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, type_trans= 'affine', adaptive=False ,**kwargs):
         super().__init__()
         
         assert type_trans in ['trans', 'affine', 'rigid'], 'Invalid type of transformation'
+   
 
         self.num_classes = num_classes
         self.num_layers = len(depths)

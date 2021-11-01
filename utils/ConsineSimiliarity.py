@@ -6,6 +6,8 @@ import math
 
 def CosineSimiliarity(x):
     
+    batch = x.size(0)
+    
     avg = x.mean(dim=0, keepdim= True)
     x_ = x - avg
     
@@ -14,9 +16,9 @@ def CosineSimiliarity(x):
     norm = torch.div(x_, norm)
     
     sim = einsum('b n, d n -> b d', norm, norm)
-    mask = 1 - torch.eye(x.size(0)).cuda(torch.cuda.current_device())
+    mask = 1 - torch.eye(batch).cuda(torch.cuda.current_device())
     
-    masked_sim = torch.mul(sim, mask)
+    masked_sim = torch.mul(sim, mask) / math.sqrt(batch)
     
     norm = torch.norm(masked_sim)
             

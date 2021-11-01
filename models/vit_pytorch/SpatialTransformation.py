@@ -194,7 +194,7 @@ class Affine(nn.Module):
         
     def forward(self, x, theta, init, epoch=None):
         
-        if self.constant:
+        if not self.constant > 0.:            
             constant = 1
                 
         else:
@@ -206,7 +206,6 @@ class Affine(nn.Module):
             else:
                 constant = self.constant_tmp 
 
-        # print(constant)
 
         # theta = theta * constant + init
         theta = theta * constant + init * (1-constant)
