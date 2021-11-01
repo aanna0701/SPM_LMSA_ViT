@@ -189,7 +189,7 @@ class Affine(nn.Module):
         self.constant = adaptive
         self.theta = None
             
-        self.constant_tmp = None if not constant else constant
+        self.constant_tmp = 1 if not constant else constant
         
         
     def forward(self, x, theta, init, epoch=None):
@@ -209,7 +209,8 @@ class Affine(nn.Module):
         # print(constant)
 
         # theta = theta * constant + init
-        theta = theta * constant + init * (1-constant)        
+        theta = theta * constant + init * (1-constant)
+        self.theta = theta        
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
             

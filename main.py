@@ -297,7 +297,7 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(adaptive=args.adaptive, type_trans=args.type_trans, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False)
+        model = SwinTransformer(adaptive=args.adaptive, type_trans=args.type_trans, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=True)
         
     elif args.model =='deepvit':
         from models.vit_pytorch.deepvit import DeepViT
@@ -691,14 +691,13 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix_paramter = args.beta
                     slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                    output = model(images, (epoch+1)/args.epochs, train=True)
+                    output = model(images, (epoch+1)/args.epochs)
                     
                     # identity = list(map(Identity, model.theta))
                     # identity = sum(identity)
                     
                     # mean = list(map(MeanVector, model.theta))
                     # mean = torch.cat(mean)
-                    
                     theta = list(map(CosineSimiliarity, model.theta))
                     
                     theta = torch.cat(theta)
@@ -731,7 +730,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs, train=True)
+                output = model(images, (epoch+1)/args.epochs)
                                     
                 # identity = list(map(Identity, model.theta))
                 # identity = sum(identity)
@@ -751,7 +750,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
         else:
             mix = 'none'
             mix_paramter = 0
-            output = model(images, (epoch+1)/args.epochs, train=True)
+            output = model(images, (epoch+1)/args.epochs)
                                 
             # identity = list(map(Identity, model.theta))
             # identity = sum(identity)

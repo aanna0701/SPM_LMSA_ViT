@@ -435,7 +435,7 @@ class BasicLayer(nn.Module):
                 x = blk(x)
         if self.downsample is not None:
             # theta = self.localisation(rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))) if self.is_theta else None
-            x = self.downsample(x, theta, epoch=epoch, train=train) if theta is not None else self.downsample(x)
+            x = self.downsample(x, theta, epoch=epoch) if theta is not None else self.downsample(x)
         return x
 
     def extra_repr(self) -> str:
@@ -643,7 +643,7 @@ class SwinTransformer(nn.Module):
             
             theta = self.localisation(x)
             theta = torch.chunk(theta, self.n_trans, dim=1)
-            
+         
             x = self.patch_embed(x, theta, epoch)  
             # x = self.patch_embed(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train)  
         
@@ -822,7 +822,7 @@ class SpatialTransformation_learn(nn.Module):
             tmp.append(self.transformation.theta)
             
         self.theta = tmp
-            
+        
         out = torch.cat(out, dim=1)
         
         
