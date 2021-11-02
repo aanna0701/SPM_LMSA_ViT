@@ -40,7 +40,6 @@ class Attention(nn.Module):
         inner_dim = dim_head *  heads
         self.heads = heads
         self.scale = dim_head ** -0.5
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
@@ -56,7 +55,6 @@ class Attention(nn.Module):
         )
         self.mask = torch.eye(num_patches, num_patches)
         self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
-        # self.inf = float('-inf')
         self.if_patch_attn = if_patch_attn
 
     def forward(self, x, context = None):
@@ -67,18 +65,7 @@ class Attention(nn.Module):
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        """ LMSA """
-        ############################
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
-
-        
-        if self.if_patch_attn:
-            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -1e-9
-        else:
-            dots[:, :,:, 0] = -1e-9
-        ###########################
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
         
         
@@ -89,6 +76,7 @@ class Attention(nn.Module):
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
+
 
 class Transformer(nn.Module):
     def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., if_patch_attn=False):
@@ -110,6 +98,7 @@ class Transformer(nn.Module):
             x = attn(x, context = context) + x
             x = ff(x) + x
         return x
+    
     
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
