@@ -181,7 +181,8 @@ class Localisation(nn.Module):
         return out
         
 """       
-    
+
+"""
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
         super().__init__()
@@ -270,8 +271,9 @@ class Localisation(nn.Module):
 
         
         return out
+"""
 
-"""     
+
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
         super().__init__()
@@ -322,7 +324,8 @@ class Localisation(nn.Module):
             nn.LayerNorm(32),
             nn.GELU(),
             nn.Linear(32, n_output, bias=False),
-            nn.LayerNorm(n_output)
+            nn.LayerNorm(n_output),
+            nn.Tanh()
         )
         self.num_transform = n_trans
         
@@ -360,13 +363,14 @@ class Localisation(nn.Module):
 
         
         return out
-"""        
+        
 class Affine(nn.Module):
     def __init__(self, adaptive=False, constant=False):
         super().__init__()
         
         self.constant = adaptive
         self.theta = None
+        self.init = None
             
         self.constant_tmp = 1 if not self.constant > 0. else constant
         
@@ -387,14 +391,15 @@ class Affine(nn.Module):
                 
             else:
                 constant = self.constant_tmp 
-
-        # theta = theta * constant + init
+        # print(theta[0])
+        # theta = theta + init
         theta = theta * constant + init * (1-constant)
-        self.theta = theta        
+        self.theta = theta    
+        self.init = init    
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         # print('========')
-        # print(init)
+       
         print(theta[0])
         
         grid = F.affine_grid(theta, x.size())

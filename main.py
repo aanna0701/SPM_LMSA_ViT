@@ -559,7 +559,8 @@ def main(args):
             best_acc1 = acc1
             torch.save({
                 'model_state_dict': model.state_dict(),
-                'tr_constant': model.patch_embed.patch_shifting.transformation.constant_tmp
+                'tr_constant': model.patch_embed.patch_shifting.transformation.constant_tmp,
+                'tr_init': model.patch_embed.patch_shifting.transformation.init
             }
                        , os.path.join(save_path, 'best.pth'))
         
