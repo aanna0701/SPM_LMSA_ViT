@@ -99,88 +99,88 @@ class Transformer(nn.Module):
             x = ff(x) + x
         return x
     
-    
-# class Localisation(nn.Module):
-#     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
-#         super().__init__()
-#         self.in_dim = in_dim
+"""    
+class Localisation(nn.Module):
+    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
+        super().__init__()
+        self.in_dim = in_dim
         
-#         if img_size == 32:
+        if img_size == 32:
             
-#             self.layers0 = nn.Sequential(
-#                 nn.Conv2d(3, self.in_dim, 3, 2, 1, bias=False)
-#             )     
+            self.layers0 = nn.Sequential(
+                nn.Conv2d(3, self.in_dim, 3, 2, 1, bias=False)
+            )     
         
-#             img_size //= 2
+            img_size //= 2
             
-#         elif img_size == 64:
-#             self.layers0 = nn.Sequential(
-#                 nn.Conv2d(3, self.in_dim, 7, 4, 2, bias=False)
-#             )     
+        elif img_size == 64:
+            self.layers0 = nn.Sequential(
+                nn.Conv2d(3, self.in_dim, 7, 4, 2, bias=False)
+            )     
         
-#             img_size //= 4
+            img_size //= 4
         
-#         self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
-#         self.in_dim *= 2
-#         img_size //= 2
+        self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
+        self.in_dim *= 2
+        img_size //= 2
         
         
-#         if type_trans=='trans':
-#             n_output = 2*n_trans
-#         elif type_trans=='affine':
-#             n_output = 6*n_trans
-#         elif type_trans=='rigid':
-#             n_output = 3*n_trans
+        if type_trans=='trans':
+            n_output = 2*n_trans
+        elif type_trans=='affine':
+            n_output = 6*n_trans
+        elif type_trans=='rigid':
+            n_output = 3*n_trans
         
-#         self.mlp_head = nn.Sequential(
-#             nn.LayerNorm(self.in_dim),
-#             nn.Linear(self.in_dim, n_output)
-#         )
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(self.in_dim),
+            nn.Linear(self.in_dim, n_output)
+        )
         
-#         self.num_transform = n_trans
+        self.num_transform = n_trans
         
-#         self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim))
-#         self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, 16, 128)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim))
+        self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, 16, 128)
 
         
-#         self.apply(self._init_weights)
+        self.apply(self._init_weights)
 
         
-#     def make_layer(self, in_dim, hidden_dim):
-#         layers = nn.ModuleList([])
+    def make_layer(self, in_dim, hidden_dim):
+        layers = nn.ModuleList([])
     
-#         layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
-#         layers.append(nn.BatchNorm2d(hidden_dim))
-#         layers.append(nn.GELU())
+        layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
+        layers.append(nn.BatchNorm2d(hidden_dim))
+        layers.append(nn.GELU())
             
-#         return nn.Sequential(*layers)
+        return nn.Sequential(*layers)
     
-#     def _init_weights(self, m):
-#         if isinstance(m, (nn.Linear, nn.Conv2d)):
-#             trunc_normal_(m.weight, std=.02)
-#             if m.bias is not None:
-#                 nn.init.constant_(m.bias, 0)
-#         elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
-#             nn.init.constant_(m.bias, 0)
-#             nn.init.constant_(m.weight, 1.0)
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            trunc_normal_(m.weight, std=.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
             
-#     def forward(self, x):
+    def forward(self, x):
     
-#         feature1 = self.layers0(x)
-#         feature2 = self.layers1(feature1)
+        feature1 = self.layers0(x)
+        feature2 = self.layers1(feature1)
         
-#         out = rearrange(feature2, 'b c h w -> b (h w) c')
+        out = rearrange(feature2, 'b c h w -> b (h w) c')
         
-#         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = x.size(0))
-#         cls_attd = self.cls_transformer(cls_tokens, out)
-#         out = self.mlp_head(cls_attd[:, 0])
+        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = x.size(0))
+        cls_attd = self.cls_transformer(cls_tokens, out)
+        out = self.mlp_head(cls_attd[:, 0])
         
-#         # out = torch.chunk(out, self.n_tokenize, -1)
+        # out = torch.chunk(out, self.n_tokenize, -1)
 
         
-#         return out
+        return out
         
-        
+"""       
     
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
@@ -270,143 +270,97 @@ class Localisation(nn.Module):
 
         
         return out
-        
-        
 
-# class Translation(nn.Module):
-#     def __init__(self, constant, patch_size, adaptive=False):
-#         super(Translation, self).__init__()
-#         self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
-#         self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
+"""     
+class Localisation(nn.Module):
+    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
+        super().__init__()
+        self.in_dim = in_dim
         
-#         self.constant = adaptive
-#         self.theta = None
-#         self.constant_tmp = 1
-#         self.is_adaptive = adaptive
-#         self.init = torch.tensor([[1, 0, patch_size//2, 0, 1, patch_size//2]]).cuda(torch.cuda.current_device())
+        if img_size == 32:
+            
+            self.layers0 = nn.Sequential(
+                nn.Conv2d(3, self.in_dim, 3, 2, 1, bias=False),
+                nn.BatchNorm2d(in_dim),
+                nn.GELU()
+            )     
+        
+            img_size //= 2
+            
+        elif img_size == 64:
+            self.layers0 = nn.Sequential(
+                nn.Conv2d(3, self.in_dim, 7, 4, 2, bias=False),
+                nn.BatchNorm2d(in_dim),
+                nn.GELU()
+            )     
+        
+            img_size //= 4
+        
+        self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
+        self.in_dim *= 2
+        img_size //= 2
+        
+        # self.layers2 = self.make_layer(self.in_dim, self.in_dim*2)
+        # self.in_dim *= 2
+        # img_size //= 2
+        
+        if type_trans=='trans':
+            n_output = 2*n_trans
+        elif type_trans=='affine':
+            n_output = 6*n_trans
+        elif type_trans=='rigid':
+            n_output = 3*n_trans
+        
+        # self.n_tokenize = n_tokenize 
+        # n_output *= n_tokenize
+            
+        self.mlp_head = nn.Sequential(
+            nn.Linear(self.in_dim * (img_size**2), 64, bias=False),
+            nn.LayerNorm(64),
+            nn.GELU(),
+            nn.Linear(64, 32, bias=False),
+            nn.LayerNorm(32),
+            nn.GELU(),
+            nn.Linear(32, n_output, bias=False),
+            nn.LayerNorm(n_output)
+        )
+        self.num_transform = n_trans
+        
+        
+        self.apply(self._init_weights)
 
         
-#     def forward(self, x, theta, epoch=None, train=False):
-        
-#         if not train or not self.is_adaptive:
-#             constant = 1
-                
-#         else:
-#             if epoch is not None:
-#                 constant = self.constant * epoch         
-#                 constant = 1 - math.exp(-constant)
-#                 self.constant_tmp = constant
-                
-#             else:
-#                 constant = self.constant_tmp 
-              
-        
-#         theta = theta * constant + self.init * (1-constant)
-#         theta = theta.unsqueeze(-1)
-#         theta = torch.mul(theta, self.tmp1)
-#         theta = theta + self.tmp2.expand(x.size(0), 2, 3)
-        
-#         # print(theta[0])
-        
-#         # print(theta[2])
-        
-        
-#         grid = F.affine_grid(theta, x.size())
-        
-#         return F.grid_sample(x, grid)
+    def make_layer(self, in_dim, hidden_dim):
+        layers = nn.ModuleList([])
     
-
-# class Affine(nn.Module):
-#     def __init__(self, constant=5e1, adaptive=False):
-#         super().__init__()
-        
-#         self.constant = constant
-#         self.theta = None
-#         self.constant_tmp = 1
-#         self.is_adaptive = adaptive
-        
-        
-#     def forward(self, x, theta,  patch_size, epoch=None, train=False):
-        
-#         if not train or not self.is_adaptive:
-#             constant = 1
-                
-#         else:
-#             if epoch is not None:
-#                 constant = self.constant * epoch         
-#                 constant = 1 - math.exp(-constant)
-#                 self.constant_tmp = constant
-                
-#             else:
-#                 constant = self.constant_tmp 
+        layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
+        layers.append(nn.BatchNorm2d(hidden_dim))
+        layers.append(nn.GELU())
             
-#         theta = theta * constant    
-        
-#         cos = torch.cat([theta[:, (0, )], theta[:, (1, )]], dim=-1).unsqueeze(-1)
-#         sin = torch.cat([-theta[:, (1, )], theta[:, (0, )]], dim=-1).unsqueeze(-1)
-#         xy = theta[:, 2:].unsqueeze(-1)
-        
-#         theta = torch.cat([cos, sin, xy], dim=-1)
-        
-#         # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
-            
-        
-#         grid = F.affine_grid(theta, x.size())
-        
-#         return F.grid_sample(x, grid)
-
-
-
-# class Affine(nn.Module):
-#     def __init__(self, adaptive=False, constant=False):
-#         super().__init__()
-        
-#         self.constant = adaptive
-#         self.theta = None
-            
-#         self.constant_tmp = 1 if not self.constant > 0. else constant
-        
-        
-#     def forward(self, x, theta, init, epoch=None, const=None):
-        
-#         if not self.constant > 0.:            
-#             constant = 1
-                
-#         else:
-#             if epoch is not None:
-                
-#                 if epoch == (1/100):
-#                     constant = self.constant
-                
-#                 elif epoch < (6/100):
-#                     constant = ((epoch * 100) -1 ) * (1/5)
-                    
-#                 else:
-#                     constant = 1    
-                
-#                 self.constant_tmp = constant
-                
-#             elif const is not None:
-#                 constant = const
-                
-#             else:
-#                 constant = self.constant_tmp 
-        
-
-#         # theta = theta * constant + init
-#         theta = theta * constant + init * (1-constant)
-#         self.theta = theta        
-        
-#         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
-            
-#         print(constant)
-#         print(theta[0])
-        
-#         grid = F.affine_grid(theta, x.size())
-        
-#         return F.grid_sample(x, grid)
+        return nn.Sequential(*layers)
     
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            nn.init.constant_(m.weight, 0)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+            
+    def forward(self, x):
+    
+        feature1 = self.layers0(x)
+        feature2 = self.layers1(feature1)
+        
+        out = feature2.view(feature2.size(0), -1)
+        out = self.mlp_head(out)
+        
+        # out = torch.chunk(out, self.n_tokenize, -1)
 
+        
+        return out
+"""        
 class Affine(nn.Module):
     def __init__(self, adaptive=False, constant=False):
         super().__init__()
