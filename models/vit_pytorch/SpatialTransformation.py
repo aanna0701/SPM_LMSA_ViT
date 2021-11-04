@@ -99,7 +99,7 @@ class Transformer(nn.Module):
             x = ff(x) + x
         return x
     
-"""    
+
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
         super().__init__()
@@ -108,14 +108,14 @@ class Localisation(nn.Module):
         if img_size == 32:
             
             self.layers0 = nn.Sequential(
-                nn.Conv2d(3, self.in_dim, 3, 2, 1, bias=False)
+                nn.Conv2d(3, self.in_dim, 3, 2, 1)
             )     
         
             img_size //= 2
             
         elif img_size == 64:
             self.layers0 = nn.Sequential(
-                nn.Conv2d(3, self.in_dim, 7, 4, 2, bias=False)
+                nn.Conv2d(3, self.in_dim, 7, 4, 2)
             )     
         
             img_size //= 4
@@ -125,12 +125,8 @@ class Localisation(nn.Module):
         img_size //= 2
         
         
-        if type_trans=='trans':
-            n_output = 2*n_trans
-        elif type_trans=='affine':
+        if type_trans=='affine':
             n_output = 6*n_trans
-        elif type_trans=='rigid':
-            n_output = 3*n_trans
         
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
@@ -179,8 +175,9 @@ class Localisation(nn.Module):
         
         return out
         
-"""       
 
+       
+"""
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
         super().__init__()
@@ -270,7 +267,9 @@ class Localisation(nn.Module):
 
         
         return out
-        
+
+"""
+     
 class Affine(nn.Module):
     def __init__(self, adaptive=False, constant=False):
         super().__init__()
@@ -300,14 +299,15 @@ class Affine(nn.Module):
                 constant = self.constant_tmp 
         # print(theta[0])
         # theta = theta + init
-        theta = theta * constant + init * (1-constant)
+        # theta = theta * constant + init * (1-constant)
+        theta = theta * constant + init
         self.theta = theta    
         self.init = init    
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         # print('========')
-       
-        print(theta[0])
+        # print(constant)
+        # print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
