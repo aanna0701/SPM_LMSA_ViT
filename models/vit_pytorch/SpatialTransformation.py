@@ -150,14 +150,13 @@ class Localisation(nn.Module):
         layers = nn.ModuleList([])
     
         layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
-        layers.append(nn.BatchNorm2d(hidden_dim))
-        layers.append(nn.GELU())
             
         return nn.Sequential(*layers)
     
     def _init_weights(self, m):
         if isinstance(m, (nn.Linear, nn.Conv2d)):
             trunc_normal_(m.weight, std=.02)
+            # nn.init.constant_(m.weight, 0)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
@@ -181,98 +180,6 @@ class Localisation(nn.Module):
         return out
         
 """       
-
-"""
-class Localisation(nn.Module):
-    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
-        super().__init__()
-        self.in_dim = in_dim
-        
-        if img_size == 32:
-            
-            self.layers0 = nn.Sequential(
-                nn.Conv2d(3, self.in_dim, 3, 2, 1, bias=False),
-                nn.BatchNorm2d(in_dim),
-                nn.GELU()
-            )     
-        
-            img_size //= 2
-            
-        elif img_size == 64:
-            self.layers0 = nn.Sequential(
-                nn.Conv2d(3, self.in_dim, 7, 4, 2, bias=False),
-                nn.BatchNorm2d(in_dim),
-                nn.GELU()
-            )     
-        
-            img_size //= 4
-        
-        self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
-        self.in_dim *= 2
-        img_size //= 2
-        
-        # self.layers2 = self.make_layer(self.in_dim, self.in_dim*2)
-        # self.in_dim *= 2
-        # img_size //= 2
-        
-        if type_trans=='trans':
-            n_output = 2*n_trans
-        elif type_trans=='affine':
-            n_output = 6*n_trans
-        elif type_trans=='rigid':
-            n_output = 3*n_trans
-        
-        # self.n_tokenize = n_tokenize 
-        # n_output *= n_tokenize
-            
-        self.mlp_head = nn.Sequential(
-            nn.Linear(self.in_dim * (img_size**2), 64, bias=False),
-            nn.LayerNorm(64),
-            nn.GELU(),
-            nn.Linear(64, 32, bias=False),
-            nn.LayerNorm(32),
-            nn.GELU(),
-            nn.Linear(32, n_output, bias=False),
-            nn.LayerNorm(n_output)
-        )
-        self.num_transform = n_trans
-        
-        
-        self.apply(self._init_weights)
-
-        
-    def make_layer(self, in_dim, hidden_dim):
-        layers = nn.ModuleList([])
-    
-        layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
-        layers.append(nn.BatchNorm2d(hidden_dim))
-        layers.append(nn.GELU())
-            
-        return nn.Sequential(*layers)
-    
-    def _init_weights(self, m):
-        if isinstance(m, (nn.Linear, nn.Conv2d)):
-            trunc_normal_(m.weight, std=.02)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-            
-    def forward(self, x):
-    
-        feature1 = self.layers0(x)
-        feature2 = self.layers1(feature1)
-        
-        out = feature2.view(feature2.size(0), -1)
-        out = self.mlp_head(out)
-        
-        # out = torch.chunk(out, self.n_tokenize, -1)
-
-        
-        return out
-"""
-
 
 class Localisation(nn.Module):
     def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
