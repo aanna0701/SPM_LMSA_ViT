@@ -605,7 +605,8 @@ class SwinTransformer(nn.Module):
         self.is_learn = False
         
         if not is_base:
-            self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans)
+            if self.is_learn:
+                self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans)
             self.is_learn = is_learn
      
 
