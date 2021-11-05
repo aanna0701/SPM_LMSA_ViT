@@ -274,39 +274,21 @@ class Affine(nn.Module):
     def __init__(self, adaptive=False, constant=False):
         super().__init__()
         
-        self.constant = adaptive
         self.theta = None
         self.init = None
-            
-        self.constant_tmp = 1 if not self.constant > 0. else constant
         
         
     def forward(self, x, theta, init, epoch=None, const=None):
         
-        if not self.constant > 0.:            
-            constant = 1
-            
-        elif const is not None:
-            constant = const
-                
-        else:
-            if epoch is not None:
-                constant = self.constant * epoch         
-                constant = 1 - math.exp(-constant)
-                self.constant_tmp = constant
-                
-            else:
-                constant = self.constant_tmp 
         # print(theta[0])
         # theta = theta + init
         # theta = theta * constant + init * (1-constant)
-        theta = theta * constant + init
+        theta = theta + init
         self.theta = theta    
         self.init = init    
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         # print('========')
-        print(constant)
         print(theta[0])
         
         grid = F.affine_grid(theta, x.size())

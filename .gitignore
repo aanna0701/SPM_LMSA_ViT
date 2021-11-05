@@ -10,4 +10,5 @@ params/
 *.pyc
 *.pth
 *.csv
+*model.py
 events*

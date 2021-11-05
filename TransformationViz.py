@@ -15,70 +15,50 @@ from scipy.special import softmax
 np.set_printoptions(precision=5)
 import seaborn as sns
 colors = sns.color_palette('Paired',16)
-
-
-class Translation(nn.Module):
-    def __init__(self):
-        super(Translation, self).__init__()
-        self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
-        self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
-        
-      
-        
-    def forward(self, x,  theta):
-        theta = torch.mul(theta, self.tmp1)
-        theta = theta + self.tmp2.expand(x.size(0), 2, 3)
-        
-        # print(theta[0])
-        
-        grid = F.affine_grid(theta, x.size(), align_corners=True)
-        
-        return F.grid_sample(x, grid, align_corners=True)
-    
+import math
 
 class Affine(nn.Module):
-    def __init__(self):
+    def __init__(self, adaptive=False):
         super().__init__()
-              
         
-    def forward(self, x,  theta):
+        self.constant = adaptive
+        self.theta = None
+            
+        self.constant_tmp = 1 
+        
+        
+    def forward(self, x, theta, init, epoch=None, const=None):
+        
+        if not self.constant > 0.:            
+            constant = 1
+            
+        elif const is not None:
+            constant = const
                 
+        else:
+            if epoch is not None:
+                constant = self.constant * epoch         
+                constant = 1 - math.exp(-constant)
+                self.constant_tmp = constant
+                
+            else:
+                constant = self.constant_tmp 
         
-        theta = torch.reshape(theta, (theta.size(0), 2, 3))
-        
-        grid = F.affine_grid(theta, x.size(), align_corners=True)
-        
-        return F.grid_sample(x, grid, align_corners=True)
 
-class Rigid(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.tmp1 = torch.tensor([[0, 0, 1],[0, 0, 1]]).cuda(torch.cuda.current_device())
-        self.tmp2 = torch.tensor([[1, 0, 0],[0, 1, 0]]).cuda(torch.cuda.current_device())
-        self.tmp3 = torch.tensor([[0, -1, 0],[1, 0, 0]]).cuda(torch.cuda.current_device())
+        # theta = theta * constant + init
+        print('==============')
+        print(theta[0])
+        theta = theta * constant + init * (1-constant)
+        self.theta = theta        
         
-    def forward(self, x, theta):
+        theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         
-    
-        theta = theta 
+        print(constant)
+        print(theta[0])
+        print('==============')
+        grid = F.affine_grid(theta, x.size())
         
-        # print(theta[0])
-        # print(epoch)
-        # print(resolution)
-        
-        angle = theta[:, (0,)]
-        trans = theta[:, 1:]
-        cos = torch.cos(angle)
-        sin = torch.sin(angle)
-        
-        mat_cos = torch.mul(cos, self.tmp2)
-        mat_sin = torch.mul(sin, self.tmp3)
-        mat_trans = torch.mul(trans, self.tmp1)
-        
-        theta = mat_cos + mat_sin + mat_trans
-        
-        grid = F.affine_grid(theta.expand(x.size(0), 2, 3), x.size(), align_corners=True)
-        return F.grid_sample(x, grid, align_corners=True)
+        return F.grid_sample(x, grid)
     
     
 
@@ -87,19 +67,37 @@ def init_parser():
 
     parser.add_argument('--tag', type=str, help='tag')
     parser.add_argument('--gpu', default=0, type=int)
+    parser.add_argument('--data', default='CIFAR100', type=str)
 
     return parser
 
 def main(args, save_path):
  
-        
-    n_classes = 100
-    img_mean, img_std = (0.5070, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762) 
-    img_size = 32
-    patch_size = 4
-    in_channels = 3
 
+    if args.data == 'CIFAR100':
+        
+        n_classes = 100
+        img_size = 32
+        patch_size = 4
+        
+        val_dataset = datasets.CIFAR100(
+            root='./dataset', train=False, download=False, transform=transforms.Compose([
+            transforms.Resize(img_size),
+            transforms.ToTensor()]))
     
+    elif args.data == 'T-IMNET':
+        
+        n_classes = 200
+        img_size = 64
+        patch_size = 8
+        
+        
+        val_dataset = datasets.ImageFolder(
+            root=os.path.join('../dataset', 'tiny_imagenet', 'val'), 
+            transform=transforms.Compose([
+            transforms.Resize(img_size), transforms.ToTensor()]))
+    
+        
     from visualization.Transformation.model import SwinTransformer
     if img_size > 64:
         depths = [2, 2, 6, 2]
@@ -115,7 +113,7 @@ def main(args, save_path):
         patch_size //= 2
         
         
-    model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=0, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, num_trans=4)
+    model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=0, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, num_trans=4, is_learn=True)
   
     
     # from visualization.ViT_SP_T_M.model import Model
@@ -126,22 +124,17 @@ def main(args, save_path):
     '''
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
-    model.load_state_dict(torch.load(os.path.join('./visualization/Transformation', 'best.pth')))
+    checkpoint = torch.load(os.path.join('./visualization/Transformation', 'best.pth'))
+    # model.load_state_dict(checkpoint)
+    # const = None
+    model.load_state_dict(checkpoint['model_state_dict'])
+    const = checkpoint['tr_constant']
     
-    
-         
-    normalize = [transforms.Normalize(mean=img_mean, std=img_std)]
 
-    val_dataset = datasets.CIFAR100(
-                root='./dataset', train=False, download=False, transform=transforms.Compose([
-                transforms.Resize(img_size),
-                transforms.ToTensor()]))
     
     plt.rcParams["figure.figsize"] = (5,5)
     
-    # trans = Affine()
-    trans = Rigid()
-    # trans = Translation()
+    trans = Affine(adaptive=True)
     
     for i, (images, _) in enumerate(val_dataset):
         
@@ -153,13 +146,16 @@ def main(args, save_path):
         plt.imshow(img_raw.cpu().permute(1, 2, 0))
         plt.axis('off')
         plt.savefig(os.path.join(fig_save_path, f'{i}_input.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
-        _ = model(img_raw.unsqueeze(0))
-        theta = model.theta
-        theta_list = torch.chunk(theta, 4, dim=1)
-        for j, theta in enumerate(theta_list):
-            img_trans = trans(img_raw.unsqueeze(0), theta)    
+        theta = model(img_raw.unsqueeze(0))
+        init = model.patch_embed.patch_shifting.init
+        
+        
+        # theta_list = torch.chunk(theta, 4, dim=1)
+        for j, theta in enumerate(theta):
+            img_trans = trans(img_raw.unsqueeze(0), theta, init[j], const=const)    
             plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
             plt.savefig(os.path.join(fig_save_path, f'{i}_{j}_trans.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+            
        
 
 
@@ -196,7 +192,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     # global model_name
-    save_path = os.path.join('./visualization', f'results_Trans_{args.tag}')
+    save_path = os.path.join('./visualization', f'results_affine_{args.tag}_{args.data}')
 
     
     main(args, save_path)

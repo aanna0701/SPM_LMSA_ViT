@@ -89,7 +89,11 @@ def main(args, save_path):
     
         img_raw = images.cuda(args.gpu, non_blocking=True)
         
-        theta = model(img_raw) * patch_size
+        theta = model(img_raw)
+        
+        theta = list(map(lambda x: x.unsqueeze(-1), theta)) 
+        
+        theta = torch.cat(theta, dim=-1)
         
         
         theta_list.append(theta)
@@ -98,8 +102,8 @@ def main(args, save_path):
     theta = torch.chunk(theta, 4, dim=-1)
     plt.rcParams["figure.figsize"] = (6, 6)
     plt.rc('font', family='serif')
-    plt.ylim([-0.4, 0.4])
-    plt.xlim([-0.4, 0.4])
+    # plt.ylim([-0.4, 0.4])
+    # plt.xlim([-0.4, 0.4])
     
     
     # pca_theta = torch.pca_lowrank(theta[0], niter=10)
@@ -111,8 +115,9 @@ def main(args, save_path):
     
     
     for i, x in enumerate(theta):
+
         
-        
+        x = torch.pca_lowrank(x.squeeze(-1), q=2, center=True)[0]
     
         x = x.cpu().detach().numpy()
         print(labels[i])
