@@ -389,7 +389,7 @@ class BasicLayer(nn.Module):
 
     def __init__(self, dim, input_resolution, depth, num_heads, window_size, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, is_learn=True, n_trans=4, type_trans='trans', adaptive=False):
+                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, is_learn=True, n_trans=4, adaptive=False):
 
         super().__init__()
         self.dim = dim
@@ -421,7 +421,7 @@ class BasicLayer(nn.Module):
                 # self.localisation = SwinTransformer(img_size=input_resolution[0], window_size=2, drop_path_rate=0, patch_size=input_resolution[0]//4, mlp_ratio=2, depths=[1, 3], num_heads=[2, 4], num_classes=8, embed_dim=24, in_chans=dim)
 #                self.downsample = ShiftedPatchMerging(dim, dim*2, input_resolution[0])
 
-                self.downsample = ShiftedPatchTokenization(input_resolution[0]//2 ,dim, dim*2, 2, is_learn=is_learn, type=type_trans, adaptive=adaptive)
+                self.downsample = ShiftedPatchTokenization(input_resolution[0]//2 ,dim, dim*2, 2, is_learn=is_learn, adaptive=adaptive)
 
         else:
             self.downsample = None
@@ -527,10 +527,9 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, type_trans= 'affine', adaptive=False ,**kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, adaptive=False ,**kwargs):
         super().__init__()
         
-        assert type_trans in ['trans', 'affine', 'rigid'], 'Invalid type of transformation'
    
 
         self.num_classes = num_classes
@@ -553,7 +552,7 @@ class SwinTransformer(nn.Module):
             
         else:
             #self.patch_embed = ShiftedPatchMerging(3, embed_dim, img_size, patch_size, is_pe=True)
-            self.patch_embed = ShiftedPatchTokenization(img_size//patch_size, 3, embed_dim, patch_size, is_learn=is_learn, type=type_trans, adaptive=adaptive)
+            self.patch_embed = ShiftedPatchTokenization(img_size//patch_size, 3, embed_dim, patch_size, is_learn=is_learn, adaptive=adaptive)
             
             
             self.patches_resolution = [img_size // patch_size, img_size // patch_size]
@@ -594,7 +593,7 @@ class SwinTransformer(nn.Module):
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer,
                                downsample=True if (i_layer < self.num_layers - 1) else False,
-                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans, type_trans=type_trans, adaptive=adaptive)
+                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans, adaptive=adaptive)
             self.layers.append(layer)
 
 
@@ -606,7 +605,7 @@ class SwinTransformer(nn.Module):
         self.is_learn = False
         
         if not is_base:
-            self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans, type_trans=type_trans)
+            self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans)
             self.is_learn = is_learn
      
 
@@ -696,14 +695,14 @@ class SwinTransformer(nn.Module):
     
     
 class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, type='trans', adaptive=False):
+    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, adaptive=False):
         super().__init__()
         self.exist_class_t = exist_class_t
         
         self.is_learn = is_learn
         
         if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn(num_patches, type=type, adaptive=adaptive)
+            self.patch_shifting = SpatialTransformation_learn(num_patches, adaptive=adaptive)
             
         else:           
             self.patch_shifting = SpatialTransformation_fix(merging_size) 
