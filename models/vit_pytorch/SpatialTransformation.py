@@ -293,6 +293,7 @@ class Affine(nn.Module):
         
     def forward(self, x, theta, init, epoch=None, const=None):
         
+        # theta = torch.mul(theta, self.scale) + init
         theta = theta + init
         self.theta = theta
         
