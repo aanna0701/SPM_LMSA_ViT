@@ -638,19 +638,14 @@ class SwinTransformer(nn.Module):
         if not self.is_learn:
             x = self.patch_embed(x) 
         else:
-            # self.theta_q = deque(self.localisation(x))        
-            # x = self.patch_embed(x, self.theta_q.popleft(), self.n_trans, epoch, train)  
             
             theta = self.localisation(x)
             theta = torch.chunk(theta, self.n_trans, dim=1)
          
             x = self.patch_embed(x, theta, epoch)  
-            # x = self.patch_embed(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train)  
         
             self.theta = self.patch_embed.theta
             
-        # print(self.theta[0].shape)
-        # print(len(self.theta))
               
         
         if self.ape:
