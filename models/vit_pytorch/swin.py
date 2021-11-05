@@ -807,11 +807,11 @@ class SpatialTransformation_learn(nn.Module):
                 
           
     def make_init(self, n, num_patches):
-        self.noise = torch.normal(0, 0.1, size=(6,))
+        # self.noise = torch.normal(0, 0.1, size=(6,))
         tmp = torch.tensor([1, 0, (math.cos(n * math.pi))/num_patches, 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))/num_patches])
         # tmp = torch.tensor([1, 0, (math.cos(n * math.pi))/2, 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))/2])
-        print(self.noise)
-        tmp = tmp + self.noise
+        # print(self.noise)
+        # tmp = tmp + self.noise
         
         return tmp
         
