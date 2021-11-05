@@ -101,7 +101,7 @@ class Transformer(nn.Module):
     
 
 class Localisation(nn.Module):
-    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
+    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4):
         super().__init__()
         self.in_dim = in_dim
         
@@ -125,8 +125,7 @@ class Localisation(nn.Module):
         img_size //= 2
         
         
-        if type_trans=='affine':
-            n_output = 6*n_trans
+        n_output = 6*n_trans
         
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
@@ -179,7 +178,7 @@ class Localisation(nn.Module):
        
 """
 class Localisation(nn.Module):
-    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='trans'):
+    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4):
         super().__init__()
         self.in_dim = in_dim
         
@@ -210,12 +209,8 @@ class Localisation(nn.Module):
         # self.in_dim *= 2
         # img_size //= 2
         
-        if type_trans=='trans':
-            n_output = 2*n_trans
-        elif type_trans=='affine':
-            n_output = 6*n_trans
-        elif type_trans=='rigid':
-            n_output = 3*n_trans
+
+        n_output = 6*n_trans
         
         # self.n_tokenize = n_tokenize 
         # n_output *= n_tokenize
@@ -274,14 +269,13 @@ class Affine(nn.Module):
     def __init__(self, adaptive=False, constant=False):
         super().__init__()
         
-        self.constant_tmp = None        
+        self.constant_tmp = None
+        self.theta = None    
         
     def forward(self, x, theta, init, epoch=None, const=None):
         
-        # print(theta[0])
-        # theta = theta + init
-        # theta = theta * constant + init * (1-constant)
         theta = theta + init
+        self.theta = theta
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         # print('========')
