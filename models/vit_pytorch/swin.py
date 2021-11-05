@@ -426,7 +426,7 @@ class BasicLayer(nn.Module):
         else:
             self.downsample = None
 
-    def forward(self, x, theta=None, epoch=None, train=True):
+    def forward(self, x, theta=None, epoch=None, scale=None):
         for blk in self.blocks:
             if self.use_checkpoint:
                 x = checkpoint.checkpoint(blk, x)
@@ -435,7 +435,7 @@ class BasicLayer(nn.Module):
                 x = blk(x)
         if self.downsample is not None:
             # theta = self.localisation(rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))) if self.is_theta else None
-            x = self.downsample(x, theta, epoch=epoch) if theta is not None else self.downsample(x)
+            x = self.downsample(x, theta, epoch=epoch, scale=scale) if theta is not None else self.downsample(x)
         return x
 
     def extra_repr(self) -> str:
@@ -527,7 +527,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, adaptive=False, init_noise=0. ,**kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, adaptive=False, init_noise=0., scaling=True ,**kwargs):
         super().__init__()
         
    
@@ -612,6 +612,11 @@ class SwinTransformer(nn.Module):
 
         self.theta = None
         
+        if scaling :
+            init_eps = 0.1
+            self.scale = nn.Parameter(torch.zeros(1, 1).fill_(init_eps))
+        else:
+            self.scale = None
         
         self.apply(self._init_weights)
 
@@ -642,7 +647,7 @@ class SwinTransformer(nn.Module):
             theta = self.localisation(x)
             theta = torch.chunk(theta, self.n_trans, dim=1)
          
-            x = self.patch_embed(x, theta, epoch)  
+            x = self.patch_embed(x, theta, epoch, self.scale)  
         
             self.theta = self.patch_embed.theta
             
@@ -659,7 +664,7 @@ class SwinTransformer(nn.Module):
             if self.is_learn and i < len(self.layers)-1:            
                 
                 # x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
-                x = layer(x, theta, epoch) 
+                x = layer(x, theta, epoch, self.scale) 
                 # x = layer(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train) 
 
             else: 
@@ -714,12 +719,12 @@ class ShiftedPatchTokenization(nn.Module):
         # print(self.merging)
         
         
-    def forward(self, x, theta=None, epoch=None):
+    def forward(self, x, theta=None, epoch=None, scale=None):
         out = x if len(x.size()) == 4 else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         
         if self.is_learn:
             
-            out = self.patch_shifting(out, theta, epoch)
+            out = self.patch_shifting(out, theta, epoch, scale)
         else:
             out = self.patch_shifting(out)
         out = self.merging(out)
@@ -803,7 +808,7 @@ class SpatialTransformation_learn(nn.Module):
         return tmp
         
                 
-    def forward(self, x, theta_list, epoch):   
+    def forward(self, x, theta_list, epoch, scale):   
         
         # print(theta[0])
         
@@ -811,7 +816,7 @@ class SpatialTransformation_learn(nn.Module):
         tmp = list()
         
         for i in range (len(theta_list)):
-            out.append(self.transformation(x, theta_list[i], self.init[i], epoch))
+            out.append(self.transformation(x, theta_list[i], self.init[i], epoch, scale))
             tmp.append(self.transformation.theta)
             
         self.theta = tmp

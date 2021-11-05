@@ -715,6 +715,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
     writer.add_scalar("Loss/train", avg_loss, epoch)
     writer.add_scalar("Acc/train", avg_acc1, epoch)
 
+    
     return lr
 
 
@@ -760,6 +761,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
     
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
+    logger_dict.update(keys[4], model.scale.item())
     
     writer.add_scalar("Loss/val", avg_loss, epoch)
     writer.add_scalar("Acc/val", avg_acc1, epoch)
@@ -809,6 +811,6 @@ if __name__ == '__main__':
     global keys
     
     logger_dict = Logger_dict(logger, save_path)
-    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'V Top-5']
+    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'ParameterScale']
     
     main(args)
