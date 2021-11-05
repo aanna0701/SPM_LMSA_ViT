@@ -527,7 +527,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, adaptive=False, init_noise=0., scaling=True ,**kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, adaptive=False, init_noise=0., scale=0. ,**kwargs):
         super().__init__()
         
    
@@ -612,8 +612,8 @@ class SwinTransformer(nn.Module):
 
         self.theta = None
         
-        if scaling :
-            init_eps = 0.1
+        if scale != 0. :
+            init_eps = scale
             self.scale = nn.Parameter(torch.zeros(1, 1).fill_(init_eps))
         else:
             self.scale = None
