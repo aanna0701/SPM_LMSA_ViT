@@ -264,6 +264,22 @@ class Localisation(nn.Module):
         return out
 
 """
+
+class LayerScale(nn.Module):
+    def __init__(self, dim, fn, depth):
+        super().__init__()
+        if depth <= 18:  # epsilon detailed in section 2 of paper
+            init_eps = 0.1
+        elif depth > 18 and depth <= 24:
+            init_eps = 1e-5
+        else:
+            init_eps = 1e-6
+
+        scale = torch.zeros(1, 1, dim).fill_(init_eps)
+        self.scale = nn.Parameter(scale)
+        self.fn = fn
+    def forward(self, x, **kwargs):
+        return self.fn(x, **kwargs) * self.scale
      
 class Affine(nn.Module):
     def __init__(self, adaptive=False, constant=False):
@@ -271,6 +287,9 @@ class Affine(nn.Module):
         
         self.constant_tmp = None
         self.theta = None    
+        
+        init_eps = 0.1
+        self.scale = nn.Parameter(torch.zeros(1, 1).fill_(init_eps))
         
     def forward(self, x, theta, init, epoch=None, const=None):
         
