@@ -789,7 +789,7 @@ class SpatialTransformation_learn(nn.Module):
         self.init = list()
         
         for i in range(4):
-            self.init.append(self.make_init(i, num_patches).cuda(torch.cuda.current_device(), init_noise=init_noise))
+            self.init.append(self.make_init(i, num_patches, init_noise=init_noise).cuda(torch.cuda.current_device()))
         
         self.theta = list()
                 
