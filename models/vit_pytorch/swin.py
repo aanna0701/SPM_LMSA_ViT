@@ -638,8 +638,7 @@ class SwinTransformer(nn.Module):
         
         if not self.is_learn:
             x = self.patch_embed(x) 
-        else:
-            
+        else:            
             theta = self.localisation(x)
             theta = torch.chunk(theta, self.n_trans, dim=1)
          
