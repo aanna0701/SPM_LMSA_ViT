@@ -92,6 +92,7 @@ def init_parser():
     parser.add_argument('--adaptive', default=0, type=float, help='adaptive version')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     parser.add_argument('--is_trans_learn', action='store_true', help='is transformation learn type')
+    parser.add_argument('--init_noise', default=0, type=float, help='init noise')
     
     
     # Mixup params
@@ -257,7 +258,7 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(adaptive=args.adaptive, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn)
+        model = SwinTransformer(adaptive=args.adaptive, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise)
    
    
     
