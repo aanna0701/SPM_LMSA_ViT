@@ -274,9 +274,7 @@ class Affine(nn.Module):
     def __init__(self, adaptive=False, constant=False):
         super().__init__()
         
-        self.theta = None
-        self.init = None
-        
+        self.constant_tmp = None        
         
     def forward(self, x, theta, init, epoch=None, const=None):
         
@@ -284,8 +282,6 @@ class Affine(nn.Module):
         # theta = theta + init
         # theta = theta * constant + init * (1-constant)
         theta = theta + init
-        self.theta = theta    
-        self.init = init    
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         # print('========')

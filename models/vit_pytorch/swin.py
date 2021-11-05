@@ -740,7 +740,7 @@ class SpatialTransformation_fix(nn.Module):
         super().__init__()
       
         self.shift = patch_size // 2
-        
+        self.is_learn = False
         self.theta = None
       
     def forward(self, x):
@@ -787,17 +787,11 @@ class SpatialTransformation_fix(nn.Module):
     
     
 class SpatialTransformation_learn(nn.Module):
-    def __init__(self, num_patches, type='trans', adaptive=False):
+    def __init__(self, num_patches, adaptive=False):
         super().__init__()
-        self.type = type
         
-        # if self.type=='trans':
-        #     self.transformation = Translation(constant, num_patches, adaptive=adaptive)
-        if self.type=='affine':
-            self.transformation = Affine(adaptive=adaptive)
-        # elif self.type=='rigid':
-        #     self.transformation = Rigid(constant, patch_size, adaptive=adaptive)
-
+        self.is_learn = True
+        self.transformation = Affine(adaptive=adaptive)
         self.init = list()
         
         for i in range(4):

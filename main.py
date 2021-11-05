@@ -28,9 +28,8 @@ import warnings
 warnings.filterwarnings("ignore", category=Warning)
 
 best_acc1 = 0
-best_acc5 = 0
 input_size = 32
-MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit', 'res56', 'res56_linear']
+MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit']
 
 
 def init_parser():
@@ -126,7 +125,6 @@ def init_parser():
 
 def main(args):
     global best_acc1    
-    global best_acc5    
     
     torch.cuda.set_device(args.gpu)
 
@@ -184,15 +182,6 @@ def main(args):
         patch_size = 8
         in_channels = 3
         
-    elif args.dataset == 'M-IMNET':
-        print(Fore.YELLOW+'*'*80)
-        logger.debug('M-IMNET')
-        print('*'*80 + Style.RESET_ALL)
-        n_classes = 64
-        img_mean, img_std = (0.4711, 0.4499, 0.4031), (0.2747, 0.2660, 0.2815)
-        img_size = 84
-        patch_size = 8
-        in_channels = 3
     
     '''
         Model 
@@ -209,31 +198,7 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
     #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
-    
-    elif args.model == 'g-vit':
-        from models.vit_pytorch.git import GiT       
-        dim_head = args.channel // args.heads
-        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
-   
-    elif args.model == 'g-vit2':
-        from models.vit_pytorch.git_2 import SwinTransformer       
-        if img_size > 64:
-            depths = [2, 2, 6, 2]
-            num_heads = [3, 6, 12, 24]
-            mlp_ratio = 4
-            window_size = 7
-            patch_size = 4
-        else:
-            depths = [2, 6, 4]
-            num_heads = [3, 6, 12]
-            mlp_ratio = 2
-            window_size = 4
-            patch_size //= 2
-            
-        model = SwinTransformer(adaptive=args.adaptive, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
-       
-   
-    
+        
     elif args.model == 'cait':
         from models.vit_pytorch.cait import CaiT        
         dim_head = args.channel // args.heads
@@ -246,11 +211,7 @@ def main(args):
             
         model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
     
-    elif args.model == 'lovit':
-        from models.vit_pytorch.local_vit import LocalViT        
-        dim_head = args.channel // args.heads
-        model = LocalViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
-
+    
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
         if img_size == 32:
@@ -298,11 +259,7 @@ def main(args):
             
             
         model = SwinTransformer(adaptive=args.adaptive, type_trans=args.type_trans, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=True)
-        
-    elif args.model =='deepvit':
-        from models.vit_pytorch.deepvit import DeepViT
-        model = DeepViT(img_size=img_size, num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
-        
+   
    
     
     model.cuda(args.gpu)  
@@ -313,7 +270,6 @@ def main(args):
     logger.debug(f'Number of params: {n_parameters}')
     logger.debug(f'Initial learning rate: {args.lr:.6f}')
     logger.debug(f"Start training for {args.epochs} epochs")
-    # logger.debug(f"Throughput {cost} images/sec")
     print('*'*80+Style.RESET_ALL)
     
     
@@ -331,7 +287,6 @@ def main(args):
     else:
         criterion = nn.CrossEntropyLoss()
     
-    criterion_theta = nn.MSELoss()
         
     if args.sd > 0.:
         print(Fore.YELLOW + '*'*80)
@@ -488,15 +443,7 @@ def main(args):
             root=os.path.join(args.data_path, 'tiny_imagenet', 'val'), 
             transform=transforms.Compose([
             transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
-        
-    elif args.dataset == 'M-IMNET':
-    
-        train_dataset = datasets.ImageFolder(
-            root=os.path.join(args.data_path, 'mini_imagenet_84', 'train'), transform=augmentations)
-        val_dataset = datasets.ImageFolder(
-            root=os.path.join(args.data_path, 'mini_imagenet_84', 'val'), 
-            transform=transforms.Compose([
-            transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
+      
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,  num_workers=args.workers, pin_memory=True,
@@ -545,7 +492,7 @@ def main(args):
     for epoch in tqdm(range(args.epochs)):
         # adjust_learning_rate(optimizer, epoch, args)
         lr = train(train_loader, model, criterion, optimizer, epoch, scheduler, args)
-        acc1, acc5 = validate(val_loader, model, criterion, lr, args, epoch=epoch)
+        acc1 = validate(val_loader, model, criterion, lr, args, epoch=epoch)
         torch.save({
             'model_state_dict': model.state_dict(),
             'epoch': epoch,
@@ -557,18 +504,24 @@ def main(args):
         if acc1 > best_acc1:
             print('* Best model upate *')
             best_acc1 = acc1
-            torch.save({
-                'model_state_dict': model.state_dict(),
-                'tr_constant': model.patch_embed.patch_shifting.transformation.constant_tmp,
-                'tr_init': model.patch_embed.patch_shifting.transformation.init
-            }
-                       , os.path.join(save_path, 'best.pth'))
-        
-        if acc5 > best_acc5:
-            best_acc5 = acc5
+            
+            if model.patch_embed.patch_shifting.is_learn and model.patch_embed.patch_shifting.transformation.constant_tmp is not None:
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'tr_constant': model.patch_embed.patch_shifting.transformation.constant_tmp,
+                    'tr_init': model.patch_embed.patch_shifting.transformation.init
+                }
+                           , os.path.join(save_path, 'best.pth'))
+            
+            else:
+                torch.save({
+                    'model_state_dict': model.state_dict()
+                }
+                           , os.path.join(save_path, 'best.pth'))
+ 
             
         
-        print(f'Best acc1 {best_acc1:.2f}, Best acc5 {best_acc5:.2f}')
+        print(f'Best acc1 {best_acc1:.2f}')
         print('*'*80)
         print(Style.RESET_ALL)        
         
@@ -580,14 +533,14 @@ def main(args):
         #         writer.add_scalar(f"Scale/depth{i}_head{idx}", nn.functional.sigmoid(scale), epoch)
         
     print(Fore.RED+'*'*80)
-    logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')
+    logger.debug(f'best top-1: {best_acc1:.2f}, final top-1: {acc1:.2f}')
     print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
 
 def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
     model.train()
-    loss_val, acc1_val, acc5_val = 0, 0, 0
+    loss_val, acc1_val = 0, 0
     n = 0
     mix = ''
     mix_paramter = 0
@@ -605,38 +558,32 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                 output = model(images, (epoch+1)/args.epochs)
-                                    
-                # identity = list(map(Identity, model.theta))
-                # identity = sum(identity)
                 
-                # mean = list(map(MeanVector, model.theta))
-                # mean = torch.cat(mean)
+                if args.lam != 0.:            
+                    theta = list(map(CosineSimiliarity, model.theta))
+        
+                    theta = torch.cat(theta)
                 
-                theta = list(map(CosineSimiliarity, model.theta))
-                
-                theta = torch.cat(theta)
-                #print(torch.sum(theta).item())
-                
-                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                
-                loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                
+                    loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam) 
+                    
+                else:
+                    loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
+                        
+                           
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs)
                                     
-                # identity = list(map(Identity, model.theta))
-                # identity = sum(identity)
-                
-                # mean = list(map(MeanVector, model.theta))
-                # mean = torch.cat(mean)
-                
-                theta = list(map(CosineSimiliarity, model.theta))
-                
-                theta = torch.cat(theta)
-                #print(torch.sum(theta).item())
-                
-                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + criterion(output, target)
-                loss =  args.lam * torch.sum(theta).item() + criterion(output, target)
+                if args.lam != 0.:  
+                    theta = list(map(CosineSimiliarity, model.theta))
+                    
+                    theta = torch.cat(theta)
+                    
+                    loss =  args.lam * torch.sum(theta).item() + criterion(output, target)
+                    
+                else:
+                    loss = criterion(output, target)
         
         # Mixup only
         elif not args.cm and args.mu:
@@ -647,38 +594,30 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 images, y_a, y_b, lam = mixup_data(images, target, args)
                 output = model(images, (epoch+1)/args.epochs)
                 
-                # identity = list(map(Identity, model.theta))
-                # identity = sum(identity)                
-                
-                # mean = list(map(MeanVector, model.theta))
-                # mean = torch.cat(mean)
-                
-                theta = list(map(CosineSimiliarity, model.theta))
-                
-                theta = torch.cat(theta)
-                #print(torch.sum(theta).item())
-                
-                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)
-                loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)
+                if args.lam != 0.: 
+                    theta = list(map(CosineSimiliarity, model.theta))
+                    
+                    theta = torch.cat(theta)
+                    
+                    loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)
+                    
+                else:
+                    loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs)
+                 
+                if args.lam != 0.:
+                    theta = list(map(CosineSimiliarity, model.theta))
                     
-                # identity = list(map(Identity, model.theta))
-                # identity = sum(identity)
+                    theta = torch.cat(theta)
                 
-                # mean = list(map(MeanVector, model.theta))
-                # mean = torch.cat(mean)
-                
-                theta = list(map(CosineSimiliarity, model.theta))
-                
-                theta = torch.cat(theta)
-                #print(torch.sum(theta).item())
-                
-                # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + criterion(output, target)
-                loss =  args.lam * torch.sum(theta).item() + criterion(output, target)
+                    loss =  args.lam * torch.sum(theta).item() + criterion(output, target)
+        
+                else:
+                    loss =  criterion(output, target)
         
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
@@ -694,18 +633,15 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                     output = model(images, (epoch+1)/args.epochs)
                     
-                    # identity = list(map(Identity, model.theta))
-                    # identity = sum(identity)
+                    if args.lam != 0.:
+                        theta = list(map(CosineSimiliarity, model.theta))
+                        
+                        theta = torch.cat(theta)
                     
-                    # mean = list(map(MeanVector, model.theta))
-                    # mean = torch.cat(mean)
-                    theta = list(map(CosineSimiliarity, model.theta))
-                    
-                    theta = torch.cat(theta)
-                    #print(torch.sum(theta).item())
-                    
-                    # loss =  args.tau * identity.item() + args.gam * torch.sum(mean).item() +args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)         
-                    loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)         
+                        loss =  args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)         
+                
+                    else:
+                        loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
                 
                 # Mixup
                 else:
@@ -713,39 +649,33 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix_paramter = args.alpha
                     images, y_a, y_b, lam = mixup_data(images, target, args)
                     output = model(images, (epoch+1)/args.epochs)
-                                        
-                    # identity = list(map(Identity, model.theta))
-                    # identity = sum(identity)
                     
-                    # mean = list(map(MeanVector, model.theta))
-                    # mean = torch.cat(mean)
+                    if args.lam != 0.:
                     
-                    theta = list(map(CosineSimiliarity, model.theta))
-                    
-                    theta = torch.cat(theta)
-                    #print(torch.sum(theta).item())
-                    
-                    # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                               
-                    loss = args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                               
+                        theta = list(map(CosineSimiliarity, model.theta))
+                        
+                        theta = torch.cat(theta)
+                        
+                        loss = args.lam * torch.sum(theta).item() + mixup_criterion(criterion, output, y_a, y_b, lam)                               
+            
+                    else:
+                        loss = mixup_criterion(criterion, output, y_a, y_b, lam) 
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images, (epoch+1)/args.epochs)
-                                    
-                # identity = list(map(Identity, model.theta))
-                # identity = sum(identity)
+          
+                if args.lam != 0.:
                 
-                # mean = list(map(MeanVector, model.theta))
-                # mean = torch.cat(mean)
+                    theta = list(map(CosineSimiliarity, model.theta))
+                    
+                    theta = torch.cat(theta)
                 
-                theta = list(map(CosineSimiliarity, model.theta))
-                
-                theta = torch.cat(theta)
-                #print(torch.sum(theta).item())
-                
-                # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)     
-                loss = args.lam * torch.sum(theta).item() + criterion(output, target)     
+                    loss = args.lam * torch.sum(theta).item() + criterion(output, target)
+                    
+                else:
+                    loss = criterion(output, target)     
         
         # No Mix
         else:
@@ -753,19 +683,16 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             mix_paramter = 0
             output = model(images, (epoch+1)/args.epochs)
                                 
-            # identity = list(map(Identity, model.theta))
-            # identity = sum(identity)
-        
-            # mean = list(map(MeanVector, model.theta))
-            # mean = torch.cat(mean)
+            if args.lam != 0.:
             
-            theta = list(map(CosineSimiliarity, model.theta))
-            
-            theta = torch.cat(theta)
-            #print(torch.sum(theta).item())
-            
-            # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)
-            loss = args.lam * torch.sum(theta).item() + criterion(output, target)
+                theta = list(map(CosineSimiliarity, model.theta))
+                
+                theta = torch.cat(theta)
+                
+                loss = args.lam * torch.sum(theta).item() + criterion(output, target)
+                
+            else:
+                loss = criterion(output, target)
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
@@ -780,7 +707,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
         lr = optimizer.param_groups[0]["lr"]
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
-            avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
+            avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
             progress_bar(i, len(train_loader),f'[Epoch {epoch+1}/{args.epochs}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
 
     logger_dict.update(keys[0], avg_loss)
@@ -793,7 +720,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
 
 def validate(val_loader, model, criterion, lr, args, epoch=None):
     model.eval()
-    loss_val, acc1_val, acc5_val = 0, 0, 0
+    loss_val, acc1_val = 0, 0
     n = 0
     with torch.no_grad():
         for i, (images, target) in enumerate(val_loader):
@@ -803,31 +730,27 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
 
             
             output = model(images)
-                                
-            # identity = list(map(Identity, model.theta))
-            # identity = sum(identity)
             
-            # mean = list(map(MeanVector, model.theta))
-            # mean = torch.cat(mean)
+            if args.lam != 0.:
             
-            theta = list(map(CosineSimiliarity, model.theta))
+                theta = list(map(CosineSimiliarity, model.theta))
+                    
+                theta = torch.cat(theta)
                 
-            theta = torch.cat(theta)
+                loss = args.lam * torch.sum(theta).item() + criterion(output, target)
             
-            # loss = args.tau * identity.item() + args.gam * torch.sum(mean).item() + args.lam * torch.sum(theta).item() + criterion(output, target)
-            loss = args.lam * torch.sum(theta).item() + criterion(output, target)
+            else:
+                loss = criterion(output, target)
             
             acc = accuracy(output, target, (1, 5))
             acc1 = acc[0]
-            acc5 = acc[1]
             n += images.size(0)
             loss_val += float(loss.item() * images.size(0))
             acc1_val += float(acc1[0] * images.size(0))
-            acc5_val += float(acc5[0] * images.size(0))
 
             if args.print_freq >= 0 and i % args.print_freq == 0:
-                avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
-                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
+                avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
+                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.6f}')
     print()        
 
     # total_mins = -1 if time_begin is None else (time() - time_begin) / 60
@@ -837,12 +760,11 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
     
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
-    logger_dict.update(keys[4], avg_acc5)
     
     writer.add_scalar("Loss/val", avg_loss, epoch)
     writer.add_scalar("Acc/val", avg_acc1, epoch)
     
-    return avg_acc1, avg_acc5
+    return avg_acc1
 
 
 if __name__ == '__main__':
