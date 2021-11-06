@@ -259,7 +259,7 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(adaptive=args.adaptive, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, scale=args.scale)
+        model = SwinTransformer(adaptive=args.adaptive, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale)
    
    
     
@@ -466,6 +466,7 @@ def main(args):
     yes_wd = all_params - no_wd
     
     print('*' * 80)
+    print('No Weight Decay')
     print(no_wd)
     print('*' * 80)
     
