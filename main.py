@@ -766,7 +766,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
     
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
-    logger_dict.update(keys[4], model.scale.item())
+    logger_dict.update(keys[4], model.patch_embed.patch_shifting.transformation.scale.item())
     
     writer.add_scalar("Loss/val", avg_loss, epoch)
     writer.add_scalar("Acc/val", avg_acc1, epoch)
