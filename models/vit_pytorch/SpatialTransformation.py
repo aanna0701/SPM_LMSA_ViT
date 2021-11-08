@@ -282,25 +282,22 @@ class LayerScale(nn.Module):
         return self.fn(x, **kwargs) * self.scale
      
 class Affine(nn.Module):
-    def __init__(self, adaptive=False, constant=False, eps=0.):
+    def __init__(self):
         super().__init__()
         
         self.constant_tmp = None
         self.theta = None
-            
-        init_eps = eps
-        self.scale = nn.Parameter(torch.zeros(1, 1).fill_(init_eps)) if not eps == 0. else None
+                   
         
-        
-    def forward(self, x, theta, init, epoch=None):
+    def forward(self, x, theta, init, scale=None):
         
         # theta = torch.mul(theta, self.scale) + init
-        theta = theta + init if self.scale is None else torch.mul(theta, self.scale) + init
+        theta = theta + init if scale is None else torch.mul(theta, scale) + init
         self.theta = theta
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
-        # print('========')
-        print(self.scale)
+        print('========')
+        print(scale)
         print(theta[0])
         
         grid = F.affine_grid(theta, x.size())

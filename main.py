@@ -89,7 +89,6 @@ def init_parser():
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
-    parser.add_argument('--adaptive', default=0, type=float, help='adaptive version')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     parser.add_argument('--is_trans_learn', action='store_true', help='is transformation learn type')
     parser.add_argument('--init_noise', default=0, type=float, help='init noise')
@@ -259,7 +258,7 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(adaptive=args.adaptive, n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale)
+        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale)
    
    
     
@@ -562,7 +561,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix_paramter = args.beta        
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images)
                 
                 if args.lam != 0.:            
                     theta = list(map(CosineSimiliarity, model.theta))
@@ -578,7 +577,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images)
                                     
                 if args.lam != 0.:  
                     theta = list(map(CosineSimiliarity, model.theta))
@@ -597,7 +596,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix = 'mixup'
                 mix_paramter = args.alpha
                 images, y_a, y_b, lam = mixup_data(images, target, args)
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images)
                 
                 if args.lam != 0.: 
                     theta = list(map(CosineSimiliarity, model.theta))
@@ -612,7 +611,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images)
                  
                 if args.lam != 0.:
                     theta = list(map(CosineSimiliarity, model.theta))
@@ -636,7 +635,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix_paramter = args.beta
                     slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
-                    output = model(images, (epoch+1)/args.epochs)
+                    output = model(images)
                     
                     if args.lam != 0.:
                         theta = list(map(CosineSimiliarity, model.theta))
@@ -653,7 +652,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix = 'mixup'
                     mix_paramter = args.alpha
                     images, y_a, y_b, lam = mixup_data(images, target, args)
-                    output = model(images, (epoch+1)/args.epochs)
+                    output = model(images)
                     
                     if args.lam != 0.:
                     
@@ -669,7 +668,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 mix = 'none'
                 mix_paramter = 0
-                output = model(images, (epoch+1)/args.epochs)
+                output = model(images)
           
                 if args.lam != 0.:
                 
@@ -686,7 +685,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
         else:
             mix = 'none'
             mix_paramter = 0
-            output = model(images, (epoch+1)/args.epochs)
+            output = model(images)
                                 
             if args.lam != 0.:
             
@@ -766,7 +765,8 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
     
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
-    logger_dict.update(keys[4], model.patch_embed.patch_shifting.transformation.scale.item())
+    for i in range(4):
+        logger_dict.update(keys[4+i], model.patch_embed.patch_shifting.scale[i].item())
     
     writer.add_scalar("Loss/val", avg_loss, epoch)
     writer.add_scalar("Acc/val", avg_acc1, epoch)
@@ -816,6 +816,6 @@ if __name__ == '__main__':
     global keys
     
     logger_dict = Logger_dict(logger, save_path)
-    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'ParameterScale']
+    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'ParameterScale_1', 'ParameterScale_2', 'ParameterScale_3', 'ParameterScale_4']
     
     main(args)
