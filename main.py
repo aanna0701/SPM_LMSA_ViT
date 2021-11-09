@@ -93,6 +93,7 @@ def init_parser():
     parser.add_argument('--is_trans_learn', action='store_true', help='is transformation learn type')
     parser.add_argument('--init_noise', default=0, type=float, help='init noise')
     parser.add_argument('--scale', default=0, type=float, help='init noise')
+    parser.add_argument('--padding', default='zeros', choices=['zeros', 'border', 'reflection'])
     
     
     # Mixup params
@@ -258,7 +259,7 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale)
+        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale, padding_mode=args.padding)
    
    
     
@@ -806,7 +807,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.dataset}-{args.tag}-Seed{args.seed}"
+    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-{args.tag}-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)

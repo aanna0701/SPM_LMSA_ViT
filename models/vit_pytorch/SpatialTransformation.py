@@ -282,12 +282,12 @@ class LayerScale(nn.Module):
         return self.fn(x, **kwargs) * self.scale
      
 class Affine(nn.Module):
-    def __init__(self):
+    def __init__(self, padding_mode='zeros'):
         super().__init__()
         
         self.constant_tmp = None
         self.theta = None
-                   
+        self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
         
@@ -304,7 +304,7 @@ class Affine(nn.Module):
         
         grid = F.affine_grid(theta, x.size())
         
-        return F.grid_sample(x, grid)
+        return F.grid_sample(x, grid, padding_mode=self.mode)
      
      
 # class Affine(nn.Module):
