@@ -697,6 +697,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
             else:
                 loss = criterion(output, target)
+                
+        
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
@@ -714,10 +716,17 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
             progress_bar(i, len(train_loader),f'[Epoch {epoch+1}/{args.epochs}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
 
+        # for i in range(3):
+        #     print('=======================')
+        #     for j in range(4):
+        #         print(model.scale[i][j].item())
+
+
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
     writer.add_scalar("Loss/train", avg_loss, epoch)
     writer.add_scalar("Acc/train", avg_acc1, epoch)
+    
 
     
     return lr
@@ -765,11 +774,17 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
     
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
-    for i in range(4):
-        logger_dict.update(keys[4+i], model.patch_embed.patch_shifting.scale[i].item())
+    # for i in range(4):
+    #     logger_dict.update(keys[4+i], model.scale[0][i].item())
+    # for i in range(4):
+    #     logger_dict.update(keys[8+i], model.scale[1][i].item())
+    # for i in range(4):
+    #     logger_dict.update(keys[12+i], model.scale[2][i].item())
     
     writer.add_scalar("Loss/val", avg_loss, epoch)
     writer.add_scalar("Acc/val", avg_acc1, epoch)
+    
+
     
     return avg_acc1
 
@@ -816,6 +831,9 @@ if __name__ == '__main__':
     global keys
     
     logger_dict = Logger_dict(logger, save_path)
-    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'ParameterScale_1', 'ParameterScale_2', 'ParameterScale_3', 'ParameterScale_4']
+    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 
+            'ParameterScale_1', 'ParameterScale_2', 'ParameterScale_3', 'ParameterScale_4',
+            'ParameterScale_5', 'ParameterScale_6', 'ParameterScale_7', 'ParameterScale_8',
+            'ParameterScale_9', 'ParameterScale_10', 'ParameterScale_11', 'ParameterScale_12']
     
     main(args)

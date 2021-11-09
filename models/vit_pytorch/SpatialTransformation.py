@@ -292,13 +292,15 @@ class Affine(nn.Module):
     def forward(self, x, theta, init, scale=None):
         
         # theta = torch.mul(theta, self.scale) + init
-        theta = theta + init if scale is None else torch.mul(theta, scale) + init
+        # theta = theta + init if scale is None else torch.mul(theta, scale) + init
+        # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
+        theta = theta 
         self.theta = theta
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
-        print('========')
-        print(scale)
-        print(theta[0])
+        # print('========')
+        # print(scale)
+        # print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         

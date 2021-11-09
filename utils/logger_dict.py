@@ -34,7 +34,7 @@ class Logger_dict():
         i = 0
         values = []
         for key, value in self.dict.items():
-            print(f'{key}' +'\t'+ f'{value:.2f}')
+            print(f'{key}' +'\t'+ f'{value}')
             i += 1
             values.append(value)
         self.write_csv(values)
