@@ -304,7 +304,7 @@ class Affine(nn.Module):
         print(scale)
         print(theta[0])
         
-        grid = F.affine_grid(theta, x.size(), align_corners=True)
+        grid = F.affine_grid(theta, x.size())
         
         return F.grid_sample(x, grid, padding_mode=self.mode)
      
