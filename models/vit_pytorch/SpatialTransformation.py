@@ -101,7 +101,7 @@ class Transformer(nn.Module):
     
 
 class Localisation(nn.Module):
-    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4):
+    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='affine'):
         super().__init__()
         self.in_dim = in_dim
         
@@ -125,7 +125,11 @@ class Localisation(nn.Module):
         else:
             self.layer2 = None
         
-        n_output = 6*n_trans
+        if type_trans == 'trans_scale':
+            n_output = 3*n_trans
+        
+        elif type_trans == 'affine':
+            n_output = 6*n_trans
         
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
@@ -282,6 +286,63 @@ class LayerScale(nn.Module):
         self.fn = fn
     def forward(self, x, **kwargs):
         return self.fn(x, **kwargs) * self.scale
+     
+class Affine(nn.Module):
+    def __init__(self, padding_mode='zeros'):
+        super().__init__()
+        
+        self.constant_tmp = None
+        self.theta = None
+        self.mode = padding_mode
+        
+    def forward(self, x, theta, init, scale=None):
+        
+        # theta = torch.mul(theta, self.scale) + init
+        theta = theta + init if scale is None else torch.mul(theta, scale) + init
+        # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
+        # theta = theta 
+        self.theta = theta
+        
+        theta = torch.reshape(theta, (theta.size(0), 2, 3))        
+        print('========')
+        print(scale)
+        print(theta[0])
+        
+        grid = F.affine_grid(theta, x.size())
+        
+        return F.grid_sample(x, grid, padding_mode=self.mode)
+     
+class Trans_scale(nn.Module):
+    def __init__(self, padding_mode='zeros'):
+        super().__init__()
+        
+        self.mode = padding_mode
+        self.trans = torch.tensor([[0, 0, 1], [0, 0, 1]]).cuda(torch.cuda.current_device())
+        self.scaling = torch.tensor([[1, 0, 0], [0, 1, 0]]).cuda(torch.cuda.current_device())
+        
+    def forward(self, x, theta, init, scale=None):
+        
+        trans = torch.mul(self.trans, theta[:, 2:].unsqueeze(-1))
+        scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
+        theta = trans + scaling
+        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
+        print('========')
+        print(theta[0])
+
+        # theta = torch.mul(theta, self.scale) + init
+        theta = theta + init if scale is None else torch.mul(theta, scale) + init
+        # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
+        # theta = theta 
+        self.theta = theta
+        
+        # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
+        
+        print(scale)
+        print(theta[0])
+        
+        grid = F.affine_grid(theta, x.size())
+        
+        return F.grid_sample(x, grid, padding_mode=self.mode)
      
 class Affine(nn.Module):
     def __init__(self, padding_mode='zeros'):
