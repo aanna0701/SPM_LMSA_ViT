@@ -293,10 +293,6 @@ def main(args):
         print(Fore.YELLOW + '*'*80)
         logger.debug(f'Stochastic depth({args.sd}) used ')
         print('*'*80+Style.RESET_ALL)         
-        
-    '''
-        GPU
-    '''
 
 
 

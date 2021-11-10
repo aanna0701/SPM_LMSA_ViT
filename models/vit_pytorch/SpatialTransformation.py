@@ -105,25 +105,25 @@ class Localisation(nn.Module):
         super().__init__()
         self.in_dim = in_dim
         
-        if img_size == 32:
             
-            self.layers0 = nn.Sequential(
-                nn.Conv2d(3, self.in_dim, 3, 2, 1)
-            )     
+        self.layers0 = nn.Sequential(
+            nn.Conv2d(3, self.in_dim, 3, 2, 1)
+        )     
+    
+        img_size //= 2
         
-            img_size //= 2
-            
-        elif img_size == 64:
-            self.layers0 = nn.Sequential(
-                nn.Conv2d(3, self.in_dim, 7, 4, 2)
-            )     
-        
-            img_size //= 4
         
         self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
         self.in_dim *= 2
         img_size //= 2
         
+        if img_size == 64:
+            self.layers2 = self.make_layer(self.in_dim, self.in_dim*2)
+            self.in_dim *= 2
+            img_size //= 2
+        
+        else:
+            self.layer2 = None
         
         n_output = 6*n_trans
         
@@ -161,9 +161,11 @@ class Localisation(nn.Module):
     def forward(self, x):
     
         feature1 = self.layers0(x)
-        feature2 = self.layers1(feature1)
+        out = self.layers1(feature1)
         
-        out = rearrange(feature2, 'b c h w -> b (h w) c')
+        out = self.layers2(out) if not self.layer2 is not None else out
+        
+        out = rearrange(out, 'b c h w -> b (h w) c')
         
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = x.size(0))
         cls_attd = self.cls_transformer(cls_tokens, out)
