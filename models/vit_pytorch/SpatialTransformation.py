@@ -163,7 +163,7 @@ class Localisation(nn.Module):
         feature1 = self.layers0(x)
         out = self.layers1(feature1)
         
-        out = self.layers2(out) if not self.layer2 is not None else out
+        out = self.layers2(out) if self.layer2 is not None else out
         
         out = rearrange(out, 'b c h w -> b (h w) c')
         
