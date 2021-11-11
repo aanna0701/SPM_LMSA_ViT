@@ -236,7 +236,12 @@ def main(args):
         
         dim_head = args.channel // args.heads[0]
         
-        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, is_base=False)
+        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
+                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
+                    stochastic_depth=args.sd, is_base=False, is_learn=args.is_trans_learn, 
+                    init_noise = args.init_noise, eps=args.scale, padding_mode=args.padding, 
+                    type_trans=args.type_trans, n_token=args.n_token)
+
 
     elif args.model =='t2t':
         from models.vit_pytorch.t2t import T2T_ViT

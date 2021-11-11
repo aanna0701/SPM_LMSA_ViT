@@ -9,15 +9,11 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import to_2tuple, trunc_normal_
-from math import sqrt
 from utils.drop_path import DropPath
 import torch
-from torch import nn, einsum
-import torch.nn.functional as F
 from .SpatialTransformation import Localisation, Localisation_two,Affine, Trans_scale
-from collections import deque
-from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+from einops import rearrange
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -553,7 +549,8 @@ class SwinTransformer(nn.Module):
             
         else:
             #self.patch_embed = ShiftedPatchMerging(3, embed_dim, img_size, patch_size, is_pe=True)
-            self.patch_embed = ShiftedPatchTokenization(img_size//patch_size, 3, embed_dim, patch_size, is_learn=is_learn, init_noise=init_noise, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+            self.patch_embed = ShiftedPatchTokenization(img_size//patch_size, 3, embed_dim, patch_size, is_learn=is_learn, init_noise=init_noise, 
+                                                        eps=eps, padding_mode=padding_mode, type_trans=type_trans)
             
             
             self.patches_resolution = [img_size // patch_size, img_size // patch_size]
@@ -617,7 +614,7 @@ class SwinTransformer(nn.Module):
      
 
         self.theta = None
-        self.scale = [0] * len(depths)
+        self.scale = [0] * self.n_tokenize
          
         self.apply(self._init_weights)
 
