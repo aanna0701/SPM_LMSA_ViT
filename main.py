@@ -268,7 +268,10 @@ def main(args):
             patch_size //= 2
             
             
-        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale, padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token)
+        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
+                                patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
+                                is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale, 
+                                padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token)
    
    
     

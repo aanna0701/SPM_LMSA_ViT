@@ -101,7 +101,7 @@ class Transformer(nn.Module):
     
 
 class Localisation_two(nn.Module):
-    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='affine'):
+    def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
         super().__init__()
         self.in_dim = in_dim
         
@@ -196,13 +196,12 @@ class Localisation_two(nn.Module):
         out_scale = self.mlp_head_scale(cls_attd[:, 1])
         out = torch.cat([out_scale, out_trans], dim=1)
         # out = torch.chunk(out, self.n_tokenize, -1)
-        print(out[0])
         
         return out
         
 
 class Localisation(nn.Module):
-    def __init__(self, img_size, n_tokenize,in_dim=16, n_trans=4, type_trans='affine'):
+    def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
         super().__init__()
         self.in_dim = in_dim
         
@@ -331,7 +330,9 @@ class Trans_scale(nn.Module):
         
     def forward(self, x, theta, init, scale=None):
         
-        trans = torch.mul(self.trans, theta[:, 2:].unsqueeze(-1))
+        
+        
+        trans = torch.mul(self.trans, theta[:, 1:].unsqueeze(-1))
         scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
         theta = trans + scaling
         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
@@ -346,7 +347,6 @@ class Trans_scale(nn.Module):
         
         # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         
-        print(scale)
         print(theta[0])
         
         grid = F.affine_grid(theta, x.size())

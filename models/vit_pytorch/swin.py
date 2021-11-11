@@ -609,17 +609,16 @@ class SwinTransformer(nn.Module):
         if not is_base:
             if self.is_learn:
                 if n_token == 1:
-                    self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans, type_trans=type_trans)
+                    self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
                     
                 elif n_token == 2:
-                    self.localisation = Localisation_two(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans, type_trans=type_trans)
+                    self.localisation = Localisation_two(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
 
      
 
         self.theta = None
-        self.scale = [0, 0, 0]
-        
-        
+        self.scale = [0] * len(depths)
+         
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
