@@ -3,7 +3,6 @@ from utils.drop_path import DropPath
 import torch
 from torch import nn, einsum
 from .SpatialTransformation import Localisation, Localisation_two, Affine, Trans_scale
-from .localisation import Localisation
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
