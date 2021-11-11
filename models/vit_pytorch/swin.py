@@ -14,7 +14,7 @@ from utils.drop_path import DropPath
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
-from .SpatialTransformation import Localisation, Affine, Trans_scale
+from .SpatialTransformation import Localisation, Localisation_two,Affine, Trans_scale
 from collections import deque
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
@@ -527,7 +527,8 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, init_noise=0., eps=0., padding_mode='zeros', type_trans='affine' ,**kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, \
+                 init_noise=0., eps=0., padding_mode='zeros', type_trans='affine', n_token=1 ,**kwargs):
         super().__init__()
         
    
@@ -593,7 +594,8 @@ class SwinTransformer(nn.Module):
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer,
                                downsample=True if (i_layer < self.num_layers - 1) else False,
-                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans, init_noise=init_noise, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+                               use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, n_trans=n_trans, 
+                               init_noise=init_noise, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
             self.layers.append(layer)
 
 
@@ -606,7 +608,11 @@ class SwinTransformer(nn.Module):
         
         if not is_base:
             if self.is_learn:
-                self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans, type_trans=type_trans)
+                if n_token == 1:
+                    self.localisation = Localisation(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans, type_trans=type_trans)
+                    
+                elif n_token == 2:
+                    self.localisation = Localisation_two(img_size=img_size, n_tokenize=self.n_tokenize, n_trans=n_trans, type_trans=type_trans)
 
      
 
