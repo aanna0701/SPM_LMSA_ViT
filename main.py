@@ -198,9 +198,16 @@ def main(args):
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
-        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
-    #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
-        
+        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
+                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, 
+                    dropout=dropout, stochastic_depth=args.sd,
+                    n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale,
+                    padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token)
+
+        # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale, 
+        # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
+        # img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+   
         
     elif args.model == 'cait':
         from models.vit_pytorch.cait import CaiT        
@@ -508,16 +515,7 @@ def main(args):
             print('* Best model upate *')
             best_acc1 = acc1
             
-            if model.patch_embed.patch_shifting.is_learn and model.patch_embed.patch_shifting.transformation.constant_tmp is not None:
-                torch.save({
-                    'model_state_dict': model.state_dict(),
-                    'tr_constant': model.patch_embed.patch_shifting.transformation.constant_tmp,
-                    'tr_init': model.patch_embed.patch_shifting.transformation.init
-                }
-                           , os.path.join(save_path, 'best.pth'))
-            
-            else:
-                torch.save({
+            torch.save({
                     'model_state_dict': model.state_dict()
                 }
                            , os.path.join(save_path, 'best.pth'))
