@@ -160,7 +160,7 @@ class PiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, dim_head = 64, dropout = 0., 
                  emb_dropout = 0., stochastic_depth=0., 
                  is_base=True, n_trans=4, is_learn=True, \
-                 init_noise=0., eps=0., padding_mode='zeros', type_trans='affine', n_token=1):
+                 init_type=0., eps=0., padding_mode='zeros', type_trans='affine', n_token=1):
         super(PiT, self).__init__()
         heads = cast_tuple(heads, len(depth))
 
@@ -176,7 +176,7 @@ class PiT(nn.Module):
         
         
         else:
-            self.to_patch_embedding = ShiftedPatchTokenization(img_size//patch_size, 3, dim, patch_size, is_learn=is_learn, init_noise=init_noise, 
+            self.to_patch_embedding = ShiftedPatchTokenization(img_size//patch_size, 3, dim, patch_size, is_learn=is_learn, init_type=init_type, 
                                                                eps=eps, padding_mode=padding_mode, type_trans=type_trans, is_cls_token=False)
 
         
@@ -205,7 +205,7 @@ class PiT(nn.Module):
                 
                 else:
                     self.layers.append(ShiftedPatchTokenization(output_size//2, dim, dim*2, 2, is_learn=is_learn, 
-                                                                init_noise=init_noise, eps=eps, padding_mode=padding_mode, 
+                                                                init_type=init_type, eps=eps, padding_mode=padding_mode, 
                                                                 type_trans=type_trans))
                     self.pool_idx.append(ind+1) if ind == 0 else self.pool_idx.append(ind+2)
                 
@@ -279,7 +279,7 @@ class RearrangeImage(nn.Module):
  
 class ShiftedPatchTokenization(nn.Module):
     def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, 
-                 init_noise=0., eps=0., padding_mode='zeros', type_trans='affine', is_cls_token=True):
+                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', is_cls_token=True):
         super().__init__()
         self.exist_class_t = exist_class_t
         
@@ -293,7 +293,7 @@ class ShiftedPatchTokenization(nn.Module):
             )
         
         if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn(num_patches, init_noise=init_noise, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+            self.patch_shifting = SpatialTransformation_learn(num_patches, init_type=init_type, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
             
         else:           
             self.patch_shifting = SpatialTransformation_fix(merging_size) 
@@ -389,7 +389,7 @@ class SpatialTransformation_fix(nn.Module):
     
     
 class SpatialTransformation_learn(nn.Module):
-    def __init__(self, num_patches, init_noise=0., eps=0., padding_mode='zeros', type_trans='affine'):
+    def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
         super().__init__()
         
         self.is_learn = True
@@ -400,7 +400,7 @@ class SpatialTransformation_learn(nn.Module):
         self.init = list()
         
         for i in range(4):
-            self.init.append(self.make_init(i, num_patches, init_noise=init_noise).cuda(torch.cuda.current_device()))
+            self.init.append(self.make_init(i, num_patches, init_type=init_type).cuda(torch.cuda.current_device()))
         
         self.theta = list()
         
@@ -413,11 +413,11 @@ class SpatialTransformation_learn(nn.Module):
         else: self.scale = None
                 
           
-    def make_init(self, n, num_patches, init_noise=0.):
-        tmp = torch.tensor([1, 0, (math.cos(n * math.pi))/num_patches, 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))/num_patches])
-        if init_noise != 0.:
-            self.noise = torch.normal(0, init_noise, size=(6,))
-            tmp = tmp + self.noise
+    def make_init(self, n, num_patches, init_type='aistats'):
+        if init_type == 'aistats':
+            tmp = torch.tensor([1, 0, (math.cos(n * math.pi))/num_patches, 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))/num_patches])
+        elif init_type == 'identity':
+            tmp = torch.tensor([1, 0, 0, 0, 1, 0])
         
         return tmp
         

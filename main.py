@@ -91,7 +91,7 @@ def init_parser():
     parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     parser.add_argument('--is_trans_learn', action='store_true', help='is transformation learn type')
-    parser.add_argument('--init_noise', default=0, type=float, help='init noise')
+    parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
     parser.add_argument('--padding', default='zeros', choices=['zeros', 'border', 'reflection'])
     parser.add_argument('--type_trans', default='affine', choices=['affine', 'trans_scale'])
@@ -201,10 +201,10 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, 
                     dropout=dropout, stochastic_depth=args.sd,
-                    n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale,
+                    n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_type = args.init_type, eps=args.scale,
                     padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token)
 
-        # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale, 
+        # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
         # img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
    
@@ -239,7 +239,7 @@ def main(args):
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=False, is_learn=args.is_trans_learn, 
-                    init_noise = args.init_noise, eps=args.scale, padding_mode=args.padding, 
+                    init_type = args.init_type, eps=args.scale, padding_mode=args.padding, 
                     type_trans=args.type_trans, n_token=args.n_token)
 
 
@@ -275,7 +275,7 @@ def main(args):
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_noise, eps=args.scale, 
+                                is_base=False, is_learn=args.is_trans_learn, init_type = args.init_type, eps=args.scale, 
                                 padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token)
    
    
@@ -474,7 +474,7 @@ def main(args):
     all_params = set(model.parameters())
     no_wd = set()
     for m in list(model.parameters()):
-        if m.size() == (1, 1):
+        if m.size() == (1, 1) or len(m.size()) == 3:
             no_wd.add(m)
     yes_wd = all_params - no_wd
     
@@ -811,7 +811,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-Type[{args.type_trans}]-N_tokens[{args.n_token}]-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-Seed{args.seed}"
+    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-Type[{args.type_trans}]-N_tokens[{args.n_token}]-InitType[{args.init_type}]-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)
