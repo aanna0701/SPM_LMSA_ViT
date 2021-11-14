@@ -94,8 +94,7 @@ def init_parser():
     parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
     parser.add_argument('--padding', default='zeros', choices=['zeros', 'border', 'reflection'])
-    parser.add_argument('--type_trans', default='affine', choices=['affine', 'trans_scale'])
-    parser.add_argument('--n_token', default=1, type=int, choices=[1, 2])
+    parser.add_argument('--type_trans', default='trans_scale', choices=['affine', 'trans_scale'])
     
     
     # Mixup params
@@ -202,7 +201,7 @@ def main(args):
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, 
                     dropout=dropout, stochastic_depth=args.sd,
                     n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_type = args.init_type, eps=args.scale,
-                    padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token)
+                    padding_mode=args.padding, type_trans=args.type_trans)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
@@ -240,7 +239,7 @@ def main(args):
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=False, is_learn=args.is_trans_learn, 
                     init_type = args.init_type, eps=args.scale, padding_mode=args.padding, 
-                    type_trans=args.type_trans, n_token=args.n_token)
+                    type_trans=args.type_trans)
 
 
     elif args.model =='t2t':
@@ -276,7 +275,7 @@ def main(args):
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
                                 is_base=False, is_learn=args.is_trans_learn, init_type = args.init_type, eps=args.scale, 
-                                padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token)
+                                padding_mode=args.padding, type_trans=args.type_trans)
    
    
     
@@ -811,7 +810,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-Type[{args.type_trans}]-N_tokens[{args.n_token}]-InitType[{args.init_type}]-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-Seed{args.seed}"
+    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-Type[{args.type_trans}]-InitType[{args.init_type}]-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)

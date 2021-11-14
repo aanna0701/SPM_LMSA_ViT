@@ -5,7 +5,7 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
 import math
-from .SpatialTransformation import Localisation, Localisation_two, Affine, Trans_scale
+from .SpatialTransformation import Localisation, Affine, Trans_scale
 
 # helpers
 
@@ -127,7 +127,7 @@ class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
                  dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.,
                  is_base=True, n_trans=4, is_learn=True, \
-                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', n_token=1):
+                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -170,11 +170,7 @@ class ViT(nn.Module):
  
         if not is_base:
             if self.is_learn:
-                if n_token == 1:
-                    self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
-                    
-                elif n_token == 2:
-                    self.localisation = Localisation_two(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
+                self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
 
         self.theta = None
         self.scale = 0    

@@ -11,7 +11,7 @@ import torch.utils.checkpoint as checkpoint
 from timm.models.layers import to_2tuple, trunc_normal_
 from utils.drop_path import DropPath
 import torch
-from .SpatialTransformation import Localisation, Localisation_two,Affine, Trans_scale
+from .SpatialTransformation import Localisation,Affine, Trans_scale
 from einops.layers.torch import Rearrange
 from einops import rearrange
 
@@ -524,7 +524,7 @@ class SwinTransformer(nn.Module):
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
                  use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, \
-                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', n_token=1 ,**kwargs):
+                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', **kwargs):
         super().__init__()
         
    
@@ -605,11 +605,8 @@ class SwinTransformer(nn.Module):
         
         if not is_base:
             if self.is_learn:
-                if n_token == 1:
-                    self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
+                self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
                     
-                elif n_token == 2:
-                    self.localisation = Localisation_two(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
 
      
 

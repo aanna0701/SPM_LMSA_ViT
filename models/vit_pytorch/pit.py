@@ -2,7 +2,7 @@ from math import sqrt
 from utils.drop_path import DropPath
 import torch
 from torch import nn, einsum
-from .SpatialTransformation import Localisation, Localisation_two, Affine, Trans_scale
+from .SpatialTransformation import Localisation, Affine, Trans_scale
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
@@ -160,7 +160,7 @@ class PiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, dim_head = 64, dropout = 0., 
                  emb_dropout = 0., stochastic_depth=0., 
                  is_base=True, n_trans=4, is_learn=True, \
-                 init_type=0., eps=0., padding_mode='zeros', type_trans='affine', n_token=1):
+                 init_type=0., eps=0., padding_mode='zeros', type_trans='affine'):
         super(PiT, self).__init__()
         heads = cast_tuple(heads, len(depth))
 
@@ -225,11 +225,8 @@ class PiT(nn.Module):
         
         if not is_base:
             if self.is_learn:
-                if n_token == 1:
-                    self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
+                self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
                     
-                elif n_token == 2:
-                    self.localisation = Localisation_two(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
         
         self.n_tokenize = len(depth)
         self.theta = None
