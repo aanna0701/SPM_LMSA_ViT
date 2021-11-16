@@ -473,7 +473,7 @@ def main(args):
     all_params = set(model.parameters())
     no_wd = set()
     for m in list(model.parameters()):
-        if m.size() == (1, 1) or len(m.size()) == 3:
+        if m.size() == (1, 1):
             no_wd.add(m)
     yes_wd = all_params - no_wd
     
