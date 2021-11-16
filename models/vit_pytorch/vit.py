@@ -308,6 +308,7 @@ class SpatialTransformation_fix(nn.Module):
         
         return out
     
+
     
 class SpatialTransformation_learn(nn.Module):
     def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
@@ -338,8 +339,8 @@ class SpatialTransformation_learn(nn.Module):
         
         # ratio1 = torch.normal(1/num_patches, 1e-1).item()
         # ratio2 = torch.normal(1/num_patches, 1e-1).item()
-        ratio = np.random.normal(1/num_patches, 1e-2, size=2)
-        ratio_scale = float(np.random.normal(1, 1e-2))
+        ratio = np.random.normal(1/num_patches, 1e-3, size=2)
+        ratio_scale = float(np.random.normal(1, 1e-3))
         ratio_x = float((math.cos(n * math.pi))*ratio[0])
         ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
         
