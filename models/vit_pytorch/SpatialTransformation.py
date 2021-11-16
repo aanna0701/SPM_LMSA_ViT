@@ -164,7 +164,7 @@ class Localisation(nn.Module):
     
     def _init_weights(self, m):
         if isinstance(m, (nn.Linear, nn.Conv2d)):
-            trunc_normal_(m.weight, std=.02)
+            nn.init.xavier_normal_(m.weight)
             # nn.init.constant_(m.weight, 0)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
