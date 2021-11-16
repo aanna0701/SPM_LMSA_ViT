@@ -5,6 +5,7 @@ from torch import nn, einsum
 from .SpatialTransformation import Localisation, Affine, Trans_scale
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+import numpy as np
 
 # helpers
 

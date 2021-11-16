@@ -6,7 +6,7 @@ from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
 import math
 from .SpatialTransformation import Localisation, Affine, Trans_scale
-
+import numpy as np
 # helpers
 
 def pair(t):
