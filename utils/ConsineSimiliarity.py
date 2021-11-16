@@ -39,26 +39,26 @@ def CosineSimiliarity(x):
             
 #     return norm.unsqueeze(-1)
 
-def MeanVector(x):
+# def MeanVector(x):
     
-    avg = x.mean(dim=0, keepdim= True)
-    norm = torch.norm(avg, keepdim= True)
+#     avg = x.mean(dim=0, keepdim= True)
+#     norm = torch.norm(avg, keepdim= True)
     
-    sim = einsum('b n, d n -> b d', norm, norm)
-    mask = 1 - torch.eye(x.size(0)).cuda(torch.cuda.current_device())
+#     sim = einsum('b n, d n -> b d', norm, norm)
+#     mask = 1 - torch.eye(x.size(0)).cuda(torch.cuda.current_device())
     
-    masked_sim = torch.mul(sim, mask)
+#     masked_sim = torch.mul(sim, mask)
     
-    norm = torch.norm(masked_sim)
+#     norm = torch.norm(masked_sim)
     
-    return norm.unsqueeze(-1)
+#     return norm.unsqueeze(-1)
 
-def Identity(x):
+# def Identity(x):
     
-    identity = torch.tensor([1, 0, 0, 1, 0, 0]).unsqueeze(0)
+#     identity = torch.tensor([1, 0, 0, 1, 0, 0]).unsqueeze(0)
     
-    diff = x - identity.cuda(torch.cuda.current_device())
+#     diff = x - identity.cuda(torch.cuda.current_device())
     
-    norm = torch.norm(diff)
+#     norm = torch.norm(diff)
     
-    return norm
+#     return norm

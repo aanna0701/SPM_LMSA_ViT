@@ -20,7 +20,7 @@ from utils.training_functions import accuracy
 import argparse
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
-from utils.ConsineSimiliarity import CosineSimiliarity, MeanVector, Identity
+from utils.ConsineSimiliarity import CosineSimiliarity
 from utils.throughput import throughput
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm

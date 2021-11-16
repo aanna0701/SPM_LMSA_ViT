@@ -14,6 +14,7 @@ import torch
 from .SpatialTransformation import Localisation,Affine, Trans_scale
 from einops.layers.torch import Rearrange
 from einops import rearrange
+import numpy as np
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -814,8 +815,16 @@ class SpatialTransformation_learn(nn.Module):
           
     def make_init(self, n, num_patches, init_type='aistats'):
         
+        # ratio1 = torch.normal(1/num_patches, 1e-1).item()
+        # ratio2 = torch.normal(1/num_patches, 1e-1).item()
+        ratio = np.random.normal(1/num_patches, 1e-2, size=2)
+        ratio_scale = float(np.random.normal(1, 1e-2))
+        ratio_x = float((math.cos(n * math.pi))*ratio[0])
+        ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
+        
         if init_type == 'aistats':
-            tmp = torch.tensor([1, 0, (math.cos(n * math.pi))/num_patches, 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))/num_patches])
+            tmp = torch.tensor([ratio_scale, 0, ratio_x, 0, ratio_scale, ratio_y])
+            # tmp = torch.tensor([1, 0, (math.cos(n * math.pi)), 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))])
         elif init_type == 'identity':
             tmp = torch.tensor([1, 0, 0, 0, 1, 0])
             
