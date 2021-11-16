@@ -309,7 +309,7 @@ class SpatialTransformation_fix(nn.Module):
         return out
     
 
-    
+ 
 class SpatialTransformation_learn(nn.Module):
     def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
         super().__init__()
@@ -331,7 +331,8 @@ class SpatialTransformation_learn(nn.Module):
         if not eps == 0.:
             self.scale = nn.ParameterList()
             for i in range(4):
-                self.scale.append(nn.Parameter(torch.zeros(1, 1).fill_(init_eps)))
+                self.scale.append(nn.Parameter(torch.zeros(1, 3).fill_(init_eps)))
+    
         else: self.scale = None
                 
           

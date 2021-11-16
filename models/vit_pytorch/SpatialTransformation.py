@@ -240,16 +240,31 @@ class Trans_scale(nn.Module):
     def forward(self, x, theta, init, scale=None):
         
         
+        print('========')
+        print(scale)
         
-        trans = torch.mul(self.trans, theta[:, 1:].unsqueeze(-1))
-        scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
+        # trans = torch.mul(self.trans, theta[:, 1:].unsqueeze(-1))
+        # scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
+        
+        if scale is not None:
+            scale = scale.expand(x.size(0), -1).unsqueeze(-1)
+            trans = torch.mul(self.trans, torch.mul(theta[:, 1:].unsqueeze(-1), scale[:,1:]))
+            scaling = torch.mul(self.scaling, torch.mul(theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1), scale[:, (0,)]))
+        
+        else:
+            trans = torch.mul(self.trans, theta[:, 1:].unsqueeze(-1))
+            scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
+        
         theta = trans + scaling
         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
-        print('========')
+        
+        
+        
         print(theta[0])
-
+        
         # theta = torch.mul(theta, self.scale) + init
-        theta = theta + init if scale is None else torch.mul(theta, scale) + init
+        # theta = theta + init if scale is None else torch.mul(theta, scale) + init
+        theta = theta + init 
         # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
         # theta = theta 
         self.theta = theta
