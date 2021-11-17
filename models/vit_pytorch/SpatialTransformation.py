@@ -149,7 +149,7 @@ class Localisation(nn.Module):
         self.num_transform = n_trans
         
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim))
-        self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, 16, 128)
+        self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, 32, 256)
 
         
         self.apply(self._init_weights)
