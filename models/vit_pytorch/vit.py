@@ -127,7 +127,7 @@ class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
                  dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.,
                  is_base=True, n_trans=4, is_learn=True, \
-                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
+                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -148,7 +148,7 @@ class ViT(nn.Module):
         else:
             self.to_patch_embedding = ShiftedPatchTokenization(img_size//patch_size, 3, dim, patch_size, is_learn=is_learn, 
                                                                init_type=init_type, eps=eps, padding_mode=padding_mode, 
-                                                               type_trans=type_trans)
+                                                               type_trans=type_trans, init_noise=init_noise)
             
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -215,16 +215,17 @@ class ViT(nn.Module):
 
 
 
-    
 class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
+    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, init_type='aistats', 
+                 eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
         super().__init__()
         self.exist_class_t = exist_class_t
         
         self.is_learn = is_learn
         
         if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn(num_patches, init_type=init_type, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+            self.patch_shifting = SpatialTransformation_learn(num_patches, init_type=init_type, eps=eps, padding_mode=padding_mode, 
+                                                              type_trans=type_trans, init_noise=init_noise)
             
         else:           
             self.patch_shifting = SpatialTransformation_fix(merging_size) 
@@ -308,10 +309,9 @@ class SpatialTransformation_fix(nn.Module):
         
         return out
     
-
- 
+    
 class SpatialTransformation_learn(nn.Module):
-    def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
+    def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
         super().__init__()
         
         self.is_learn = True
@@ -322,7 +322,7 @@ class SpatialTransformation_learn(nn.Module):
         self.init = list()
         
         for i in range(4):
-            self.init.append(self.make_init(i, num_patches, init_type=init_type).cuda(torch.cuda.current_device()))
+            self.init.append(self.make_init(i, num_patches, init_type=init_type, init_noise=init_noise).cuda(torch.cuda.current_device()))
         
         self.theta = list()
         
@@ -336,12 +336,12 @@ class SpatialTransformation_learn(nn.Module):
         else: self.scale = None
                 
           
-    def make_init(self, n, num_patches, init_type='aistats'):
+    def make_init(self, n, num_patches, init_type='aistats', init_noise=[1e-3, 1e-3]):
         
         # ratio1 = torch.normal(1/num_patches, 1e-1).item()
         # ratio2 = torch.normal(1/num_patches, 1e-1).item()
-        ratio = np.random.normal(1/num_patches, 1e-3, size=2)
-        ratio_scale = float(np.random.normal(1, 1e-3))
+        ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
+        ratio_scale = float(np.random.normal(1, init_noise[1]))
         ratio_x = float((math.cos(n * math.pi))*ratio[0])
         ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
         

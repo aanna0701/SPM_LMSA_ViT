@@ -109,6 +109,48 @@ class Transformer(nn.Module):
         return x
     
 
+class ParamTransformer(nn.Module):
+    def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
+        super().__init__()
+        self.in_dim = in_dim
+     
+        if type_trans == 'affine':
+            n_output = 6*n_trans
+        
+        elif type_trans == 'trans_scale':
+            n_output = 3*n_trans
+        
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(self.in_dim),
+            nn.Linear(self.in_dim, n_output, bias=False)
+        )
+        
+        
+        self.param_transformer = Transformer(self.in_dim, img_size**2, 2, 4, in_dim//4, 256)
+
+        
+        self.apply(self._init_weights)
+
+    
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            nn.init.xavier_normal_(m.weight)
+            # nn.init.constant_(m.weight, 0)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+            
+    def forward(self, param_token, x):
+        
+       
+        param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
+        param_attd = self.param_transformer(param_token, x)
+        out = self.mlp_head(param_attd[:, 0])
+        
+        return out
+
 class Localisation(nn.Module):
     def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
         super().__init__()
@@ -146,12 +188,6 @@ class Localisation(nn.Module):
         )
         
         
-        self.num_transform = n_trans
-        
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim))
-        self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, 32, 256)
-
-        
         self.apply(self._init_weights)
 
         
@@ -181,11 +217,89 @@ class Localisation(nn.Module):
         
         out = rearrange(out, 'b c h w -> b (h w) c')
         
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = x.size(0))
-        cls_attd = self.cls_transformer(cls_tokens, out)
-        out = self.mlp_head(cls_attd[:, 0])
         
         return out
+    
+
+# class Localisation(nn.Module):
+#     def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
+#         super().__init__()
+#         self.in_dim = in_dim
+        
+            
+#         self.layers0 = nn.Sequential(
+#             nn.Conv2d(3, self.in_dim, 3, 2, 1)
+#         )     
+    
+#         img_size //= 2
+        
+        
+#         self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
+#         self.in_dim *= 2
+#         img_size //= 2
+        
+#         if img_size == 64:
+#             self.layers2 = self.make_layer(self.in_dim, self.in_dim*2)
+#             self.in_dim *= 2
+#             img_size //= 2
+        
+#         else:
+#             self.layer2 = None
+        
+#         if type_trans == 'affine':
+#             n_output = 6*n_trans
+        
+#         elif type_trans == 'trans_scale':
+#             n_output = 3*n_trans
+        
+#         self.mlp_head = nn.Sequential(
+#             nn.LayerNorm(self.in_dim),
+#             nn.Linear(self.in_dim, n_output, bias=False)
+#         )
+        
+        
+#         self.num_transform = n_trans
+        
+#         self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim))
+#         self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, 16, 256)
+
+        
+#         self.apply(self._init_weights)
+
+        
+#     def make_layer(self, in_dim, hidden_dim):
+#         layers = nn.ModuleList([])
+    
+#         layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
+            
+#         return nn.Sequential(*layers)
+    
+#     def _init_weights(self, m):
+#         if isinstance(m, (nn.Linear, nn.Conv2d)):
+#             nn.init.xavier_normal_(m.weight)
+#             # nn.init.constant_(m.weight, 0)
+#             if m.bias is not None:
+#                 nn.init.constant_(m.bias, 0)
+#         elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
+#             nn.init.constant_(m.bias, 0)
+#             nn.init.constant_(m.weight, 1.0)
+            
+#     def forward(self, x):
+    
+#         feature1 = self.layers0(x)
+#         out = self.layers1(feature1)
+        
+#         out = self.layers2(out) if self.layer2 is not None else out
+        
+#         out = rearrange(out, 'b c h w -> b (h w) c')
+        
+#         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = x.size(0))
+#         cls_attd = self.cls_transformer(cls_tokens, out)
+#         out = self.mlp_head(cls_attd[:, 0])
+        
+#         return out
+    
+
         
 
 
@@ -222,7 +336,7 @@ class Affine(nn.Module):
         
         theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         print('========')
-        print(scale)
+        # print(scale)
         print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
@@ -241,14 +355,17 @@ class Trans_scale(nn.Module):
         
         
         print('========')
-        print(scale)
+        # print(scale)
         
         # trans = torch.mul(self.trans, theta[:, 1:].unsqueeze(-1))
         # scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
         
         if scale is not None:
             scale = scale.expand(x.size(0), -1).unsqueeze(-1)
+            
             trans = torch.mul(self.trans, torch.mul(theta[:, 1:].unsqueeze(-1), scale[:,1:]))
+            
+            
             scaling = torch.mul(self.scaling, torch.mul(theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1), scale[:, (0,)]))
         
         else:

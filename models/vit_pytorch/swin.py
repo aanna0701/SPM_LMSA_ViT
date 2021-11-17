@@ -11,7 +11,7 @@ import torch.utils.checkpoint as checkpoint
 from timm.models.layers import to_2tuple, trunc_normal_
 from utils.drop_path import DropPath
 import torch
-from .SpatialTransformation import Localisation,Affine, Trans_scale
+from .SpatialTransformation import Localisation,Affine, Trans_scale, ParamTransformer
 from einops.layers.torch import Rearrange
 from einops import rearrange
 import numpy as np
@@ -386,7 +386,8 @@ class BasicLayer(nn.Module):
 
     def __init__(self, dim, input_resolution, depth, num_heads, window_size, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, is_learn=True, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
+                 drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False, is_base=True, 
+                 is_learn=True, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
 
         super().__init__()
         self.dim = dim
@@ -407,7 +408,6 @@ class BasicLayer(nn.Module):
                                  norm_layer=norm_layer)
             for i in range(depth)])
 
-        self.localisation = None
         # patch merging layer
         if downsample:
             if is_base:
@@ -415,15 +415,24 @@ class BasicLayer(nn.Module):
                 self.is_theta = False          
             else:
                 self.is_theta = True 
-                # self.localisation = SwinTransformer(img_size=input_resolution[0], window_size=2, drop_path_rate=0, patch_size=input_resolution[0]//4, mlp_ratio=2, depths=[1, 3], num_heads=[2, 4], num_classes=8, embed_dim=24, in_chans=dim)
-#                self.downsample = ShiftedPatchMerging(dim, dim*2, input_resolution[0])
+                
 
-                self.downsample = ShiftedPatchTokenization(input_resolution[0]//2 ,dim, dim*2, 2, is_learn=is_learn, init_type=init_type, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+                self.downsample = ShiftedPatchTokenization(input_resolution[0]//2 ,dim, dim*2, 2, is_learn=is_learn, 
+                                                           init_type=init_type, eps=eps, padding_mode=padding_mode, 
+                                                           type_trans=type_trans, init_noise=init_noise)
 
+        
         else:
             self.downsample = None
 
-    def forward(self, x, theta=None):
+
+        self.linear_param = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, 32, bias=False)
+        )
+
+
+    def forward(self, x, param_token=None, param_transformer=None):
         for blk in self.blocks:
             if self.use_checkpoint:
                 x = checkpoint.checkpoint(blk, x)
@@ -432,6 +441,8 @@ class BasicLayer(nn.Module):
                 x = blk(x)
         if self.downsample is not None:
             # theta = self.localisation(rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))) if self.is_theta else None
+            theta = param_transformer(param_token, self.linear_param(x))
+            theta = torch.chunk(theta, 4, dim=1)
             x = self.downsample(x, theta) if theta is not None else self.downsample(x)
         return x
 
@@ -525,7 +536,7 @@ class SwinTransformer(nn.Module):
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
                  use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, \
-                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', **kwargs):
+                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3], **kwargs):
         super().__init__()
         
    
@@ -538,6 +549,7 @@ class SwinTransformer(nn.Module):
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
         self.n_tokenize = len(depths)
+        pt_dim = 16 if img_size == 16 else 32
 
         """ Base """
         if is_base:
@@ -551,7 +563,7 @@ class SwinTransformer(nn.Module):
         else:
             #self.patch_embed = ShiftedPatchMerging(3, embed_dim, img_size, patch_size, is_pe=True)
             self.patch_embed = ShiftedPatchTokenization(img_size//patch_size, 3, embed_dim, patch_size, is_learn=is_learn, init_type=init_type, 
-                                                        eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+                                                        eps=eps, padding_mode=padding_mode, type_trans=type_trans, init_noise=init_noise)
             
             
             self.patches_resolution = [img_size // patch_size, img_size // patch_size]
@@ -593,7 +605,7 @@ class SwinTransformer(nn.Module):
                                norm_layer=norm_layer,
                                downsample=True if (i_layer < self.num_layers - 1) else False,
                                use_checkpoint=use_checkpoint, is_base=is_base, is_learn=is_learn, 
-                               init_type=init_type, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+                               init_type=init_type, eps=eps, padding_mode=padding_mode, type_trans=type_trans, init_noise=init_noise)
             self.layers.append(layer)
 
 
@@ -607,11 +619,15 @@ class SwinTransformer(nn.Module):
         if not is_base:
             if self.is_learn:
                 self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
+                self.param_transformer = ParamTransformer(img_size=img_size, in_dim=pt_dim, type_trans=type_trans)
+                self.param_tokens = nn.ParameterList()
+                for _ in range(len(depths)):
+                    self.param_tokens.append(nn.Parameter(torch.randn(1, 1, pt_dim)))
                     
 
      
 
-        self.theta = None
+        self.theta = [0] * self.n_tokenize
         self.scale = [0] * self.n_tokenize
          
         self.apply(self._init_weights)
@@ -639,13 +655,17 @@ class SwinTransformer(nn.Module):
         
         if not self.is_learn:
             x = self.patch_embed(x) 
-        else:            
-            theta = self.localisation(x)
-            theta = torch.chunk(theta, self.n_trans, dim=1)
-         
+        else:      
+            
+                  
+            featuremap = self.localisation(x)
+            theata_1 = self.param_transformer(self.param_tokens[k], featuremap)
+            theta = torch.chunk(theata_1, self.n_trans, dim=1)
+            
             x = self.patch_embed(x, theta)  
         
-            self.theta = self.patch_embed.theta
+        
+            self.theta[k] = self.patch_embed.theta
             self.scale[k] = self.patch_embed.scale
             k += 1
             
@@ -662,9 +682,8 @@ class SwinTransformer(nn.Module):
             if self.is_learn and i < len(self.layers)-1:            
                 
                 # x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
-                x = layer(x, theta) 
+                x = layer(x, self.param_tokens[k], self.param_transformer) 
                 # x = layer(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train) 
-                
                 self.scale[k] = layer.downsample.scale
                 k += 1 
 
@@ -696,14 +715,16 @@ class SwinTransformer(nn.Module):
     
     
 class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
+    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, init_type='aistats', 
+                 eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
         super().__init__()
         self.exist_class_t = exist_class_t
         
         self.is_learn = is_learn
         
         if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn(num_patches, init_type=init_type, eps=eps, padding_mode=padding_mode, type_trans=type_trans)
+            self.patch_shifting = SpatialTransformation_learn(num_patches, init_type=init_type, eps=eps, padding_mode=padding_mode, 
+                                                              type_trans=type_trans, init_noise=init_noise)
             
         else:           
             self.patch_shifting = SpatialTransformation_fix(merging_size) 
@@ -789,7 +810,7 @@ class SpatialTransformation_fix(nn.Module):
     
     
 class SpatialTransformation_learn(nn.Module):
-    def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine'):
+    def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
         super().__init__()
         
         self.is_learn = True
@@ -800,7 +821,7 @@ class SpatialTransformation_learn(nn.Module):
         self.init = list()
         
         for i in range(4):
-            self.init.append(self.make_init(i, num_patches, init_type=init_type).cuda(torch.cuda.current_device()))
+            self.init.append(self.make_init(i, num_patches, init_type=init_type, init_noise=init_noise).cuda(torch.cuda.current_device()))
         
         self.theta = list()
         
@@ -814,12 +835,12 @@ class SpatialTransformation_learn(nn.Module):
         else: self.scale = None
                 
           
-    def make_init(self, n, num_patches, init_type='aistats'):
+    def make_init(self, n, num_patches, init_type='aistats', init_noise=[1e-3, 1e-3]):
         
         # ratio1 = torch.normal(1/num_patches, 1e-1).item()
         # ratio2 = torch.normal(1/num_patches, 1e-1).item()
-        ratio = np.random.normal(1/num_patches, 1e-3, size=2)
-        ratio_scale = float(np.random.normal(1, 1e-3))
+        ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
+        ratio_scale = float(np.random.normal(1, init_noise[1]))
         ratio_x = float((math.cos(n * math.pi))*ratio[0])
         ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
         
