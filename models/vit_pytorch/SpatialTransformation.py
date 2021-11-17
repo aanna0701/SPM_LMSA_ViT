@@ -260,8 +260,8 @@ class Localisation(nn.Module):
         
 #         self.num_transform = n_trans
         
-#         self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim))
-#         self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, 16, 256)
+#         self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim)) 
+#         self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, self.in_dim//4, 256)
 
         
 #         self.apply(self._init_weights)
@@ -299,26 +299,8 @@ class Localisation(nn.Module):
         
 #         return out
     
-
         
 
-
-class LayerScale(nn.Module):
-    def __init__(self, dim, fn, depth):
-        super().__init__()
-        if depth <= 18:  # epsilon detailed in section 2 of paper
-            init_eps = 0.1
-        elif depth > 18 and depth <= 24:
-            init_eps = 1e-5
-        else:
-            init_eps = 1e-6
-
-        scale = torch.zeros(1, 1, dim).fill_(init_eps)
-        self.scale = nn.Parameter(scale)
-        self.fn = fn
-    def forward(self, x, **kwargs):
-        return self.fn(x, **kwargs) * self.scale
-     
 class Affine(nn.Module):
     def __init__(self, padding_mode='zeros'):
         super().__init__()
@@ -327,17 +309,17 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        
-        # theta = torch.mul(theta, self.scale) + init
-        theta = theta + init if scale is None else torch.mul(theta, scale) + init
-        # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
-        # theta = theta 
-        self.theta = theta
-        
-        theta = torch.reshape(theta, (theta.size(0), 2, 3))        
         print('========')
-        # print(scale)
-        print(theta[0])
+        
+        if scale is not None:
+            theta = torch.mul(theta, scale)
+        
+        
+        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
+        theta = torch.reshape(theta, (theta.size(0), 2, 3))    
+        theta = theta + init 
+        self.theta = theta    
+        
         
         grid = F.affine_grid(theta, x.size())
         
@@ -352,20 +334,12 @@ class Trans_scale(nn.Module):
         self.scaling = torch.tensor([[1, 0, 0], [0, 1, 0]]).cuda(torch.cuda.current_device())
         
     def forward(self, x, theta, init, scale=None):
-        
-        
         print('========')
         # print(scale)
         
-        # trans = torch.mul(self.trans, theta[:, 1:].unsqueeze(-1))
-        # scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
-        
         if scale is not None:
             scale = scale.expand(x.size(0), -1).unsqueeze(-1)
-            
-            trans = torch.mul(self.trans, torch.mul(theta[:, 1:].unsqueeze(-1), scale[:,1:]))
-            
-            
+            trans = torch.mul(self.trans, torch.mul(theta[:, 1:].unsqueeze(-1), scale[:,1:]))           
             scaling = torch.mul(self.scaling, torch.mul(theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1), scale[:, (0,)]))
         
         else:
@@ -373,22 +347,10 @@ class Trans_scale(nn.Module):
             scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
         
         theta = trans + scaling
-        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
         
-        
-        
-        print(theta[0])
-        
-        # theta = torch.mul(theta, self.scale) + init
-        # theta = theta + init if scale is None else torch.mul(theta, scale) + init
+        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1)        
         theta = theta + init 
-        # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
-        # theta = theta 
         self.theta = theta
-        
-        # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
-        
-        print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
