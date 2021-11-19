@@ -852,7 +852,7 @@ class SpatialTransformation_learn(nn.Module):
             ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
             
             if init_type == 'aistats':
-                tmp = torch.tensor([ratio_scale_a, -ratio_scale_b, ratio_x, ratio_scale_a, ratio_scale_a, ratio_y])
+                tmp = torch.tensor([ratio_scale_a, -ratio_scale_b, ratio_x, ratio_scale_a, ratio_scale_b, ratio_y])
             elif init_type == 'identity':
                 tmp = torch.tensor([1, 0, 0, 0, 1, 0])
         
