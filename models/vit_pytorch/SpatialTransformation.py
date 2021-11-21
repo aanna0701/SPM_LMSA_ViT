@@ -129,6 +129,7 @@ class ParamTransformer(nn.Module):
         self.param_transformer = Transformer(self.in_dim, img_size**2, 2, 4, in_dim//4, 256)
 
         
+        
         self.apply(self._init_weights)
 
     
@@ -147,6 +148,8 @@ class ParamTransformer(nn.Module):
        
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, x)
+        
+        
         out = self.mlp_head(param_attd[:, 0])
         
         return out

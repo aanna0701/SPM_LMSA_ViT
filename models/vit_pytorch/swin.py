@@ -681,9 +681,8 @@ class SwinTransformer(nn.Module):
             
             if self.is_learn and i < len(self.layers)-1:            
                 
-                # x = layer(x, self.theta_q.popleft(), self.n_trans, epoch, train) 
                 x = layer(x, self.param_tokens[k], self.param_transformer) 
-                # x = layer(x, torch.chunk(self.theta, self.n_trans, dim=1), epoch, train) 
+                
                 self.theta[k] = layer.downsample.theta
                 self.scale[k] = layer.downsample.scale
                 k += 1 
@@ -846,13 +845,13 @@ class SpatialTransformation_learn(nn.Module):
             
         if type_trans == 'affine':
             ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
-            ratio_scale_a = float(np.random.normal(1, init_noise[1]))
-            ratio_scale_b = float(np.random.normal(0, init_noise[1]))
+            ratio_scale_a = float(np.random.normal(1, init_noise[1], size=2))
+            ratio_scale_b = float(np.random.normal(0, init_noise[1], size=2))
             ratio_x = float((math.cos(n * math.pi))*ratio[0])
             ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
             
             if init_type == 'aistats':
-                tmp = torch.tensor([ratio_scale_a, -ratio_scale_b, ratio_x, ratio_scale_b, ratio_scale_a, ratio_y])
+                tmp = torch.tensor([ratio_scale_a, ratio_scale_b[0], ratio_x, ratio_scale_b[1], ratio_scale_a, ratio_y])
             elif init_type == 'identity':
                 tmp = torch.tensor([1, 0, 0, 0, 1, 0])
         
