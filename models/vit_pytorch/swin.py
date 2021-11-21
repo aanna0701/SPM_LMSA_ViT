@@ -441,6 +441,7 @@ class BasicLayer(nn.Module):
                 x = blk(x)
         if self.downsample is not None:
             # theta = self.localisation(rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))) if self.is_theta else None
+
             theta = param_transformer(param_token, self.linear_param(x))
             theta = torch.chunk(theta, 4, dim=1)
             x = self.downsample(x, theta) if theta is not None else self.downsample(x)
@@ -620,9 +621,11 @@ class SwinTransformer(nn.Module):
             if self.is_learn:
                 self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
                 self.param_transformer = ParamTransformer(img_size=img_size, in_dim=pt_dim, type_trans=type_trans)
-                self.param_tokens = nn.ParameterList()
-                for _ in range(len(depths)):
-                    self.param_tokens.append(nn.Parameter(torch.randn(1, 1, pt_dim)))
+                # self.param_tokens = nn.ParameterList()
+                # for _ in range(len(depths)):
+                #     self.param_tokens.append(nn.Parameter(torch.randn(1, 1, pt_dim)))
+                
+                self.param_tokens = nn.Parameter(torch.randn(1, 1, pt_dim))
                     
 
      
@@ -657,9 +660,9 @@ class SwinTransformer(nn.Module):
             x = self.patch_embed(x) 
         else:      
             
-                  
             featuremap = self.localisation(x)
-            theata_1 = self.param_transformer(self.param_tokens[k], featuremap)
+            # theata_1 = self.param_transformer(self.param_tokens[k], featuremap)
+            theata_1 = self.param_transformer(self.param_tokens, featuremap)
             theta = torch.chunk(theata_1, self.n_trans, dim=1)
             
             x = self.patch_embed(x, theta)  
@@ -681,7 +684,8 @@ class SwinTransformer(nn.Module):
             
             if self.is_learn and i < len(self.layers)-1:            
                 
-                x = layer(x, self.param_tokens[k], self.param_transformer) 
+                # x = layer(x, self.param_tokens[k], self.param_transformer) 
+                x = layer(x, self.param_transformer.param_attd, self.param_transformer)
                 
                 self.theta[k] = layer.downsample.theta
                 self.scale[k] = layer.downsample.scale
@@ -694,6 +698,7 @@ class SwinTransformer(nn.Module):
         x = self.avgpool(x.transpose(1, 2))  # B C 1
         x = torch.flatten(x, 1)
         
+        print()
         
         return x
 
@@ -845,16 +850,29 @@ class SpatialTransformation_learn(nn.Module):
             
         if type_trans == 'affine':
             ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
-            ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
-            ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
+            ratio_scale_a = np.random.normal(1, init_noise[1])
+            ratio_scale_b = np.random.normal(0, init_noise[1])
             ratio_x = float((math.cos(n * math.pi))*ratio[0])
             ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
             
             if init_type == 'aistats':
-                tmp = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
-                                    float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
+                tmp = torch.tensor([float(ratio_scale_a), -float(ratio_scale_b), ratio_x, 
+                                    float(ratio_scale_b), float(ratio_scale_a), ratio_y])
             elif init_type == 'identity':
                 tmp = torch.tensor([1, 0, 0, 0, 1, 0])
+            
+        # if type_trans == 'affine':
+        #     ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
+        #     ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
+        #     ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
+        #     ratio_x = float((math.cos(n * math.pi))*ratio[0])
+        #     ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
+            
+        #     if init_type == 'aistats':
+        #         tmp = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
+        #                             float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
+        #     elif init_type == 'identity':
+        #         tmp = torch.tensor([1, 0, 0, 0, 1, 0])
         
         elif type_trans == 'trans_scale':
             ratio = np.random.normal(1/num_patches, init_noise[0], size=2)

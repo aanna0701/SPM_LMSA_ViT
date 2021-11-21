@@ -127,7 +127,7 @@ class ParamTransformer(nn.Module):
         
         
         self.param_transformer = Transformer(self.in_dim, img_size**2, 2, 4, in_dim//4, 256)
-
+        self.param_attd = None
         
         
         self.apply(self._init_weights)
@@ -144,10 +144,13 @@ class ParamTransformer(nn.Module):
             nn.init.constant_(m.weight, 1.0)
             
     def forward(self, param_token, x):
-        
+        print(param_token)
        
-        param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
+        param_token = repeat(param_token, '() n d -> b n d', b = x.size(0)) if param_token.size(0) == 1 else param_token
         param_attd = self.param_transformer(param_token, x)
+        
+        self.param_attd = param_attd
+        
         
         
         out = self.mlp_head(param_attd[:, 0])
