@@ -323,9 +323,9 @@ class Affine(nn.Module):
             theta = torch.mul(theta, scale)
         
         
-        # init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
+        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
-        # theta = theta + init 
+        theta = theta + init 
         self.theta = theta    
         
         print(theta[0])
