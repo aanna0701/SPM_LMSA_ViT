@@ -620,12 +620,18 @@ class SwinTransformer(nn.Module):
         if not is_base:
             if self.is_learn:
                 self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
-                self.param_transformer = ParamTransformer(img_size=img_size, in_dim=pt_dim, type_trans=type_trans)
-                # self.param_tokens = nn.ParameterList()
-                # for _ in range(len(depths)):
-                #     self.param_tokens.append(nn.Parameter(torch.randn(1, 1, pt_dim)))
+                # self.param_transformer = ParamTransformer(img_size=img_size, in_dim=pt_dim, type_trans=type_trans)
                 
-                self.param_tokens = nn.Parameter(torch.randn(1, 1, pt_dim))
+                self.param_transformer = nn.ModuleList()
+                for _ in range(len(depths)):                    
+                    self.param_transformer.append(ParamTransformer(img_size=img_size, in_dim=pt_dim, type_trans=type_trans))
+                
+                
+                self.param_tokens = nn.ParameterList()
+                for _ in range(len(depths)):
+                    self.param_tokens.append(nn.Parameter(torch.randn(1, 1, pt_dim)))
+                
+                # self.param_tokens = nn.Parameter(torch.randn(1, 1, pt_dim))
                     
 
      
@@ -662,7 +668,8 @@ class SwinTransformer(nn.Module):
             
             featuremap = self.localisation(x)
             # theata_1 = self.param_transformer(self.param_tokens[k], featuremap)
-            theata_1 = self.param_transformer(self.param_tokens, featuremap)
+            # theata_1 = self.param_transformer(self.param_tokens, featuremap)
+            theata_1 = self.param_transformer[k](self.param_tokens[k], featuremap)
             theta = torch.chunk(theata_1, self.n_trans, dim=1)
             
             x = self.patch_embed(x, theta)  
@@ -685,7 +692,8 @@ class SwinTransformer(nn.Module):
             if self.is_learn and i < len(self.layers)-1:            
                 
                 # x = layer(x, self.param_tokens[k], self.param_transformer) 
-                x = layer(x, self.param_transformer.param_attd, self.param_transformer)
+                # x = layer(x, self.param_transformer.param_attd, self.param_transformer)
+                x = layer(x, self.param_tokens[k], self.param_transformer[k])
                 
                 self.theta[k] = layer.downsample.theta
                 self.scale[k] = layer.downsample.scale
@@ -698,6 +706,8 @@ class SwinTransformer(nn.Module):
         x = self.avgpool(x.transpose(1, 2))  # B C 1
         x = torch.flatten(x, 1)
         
+        print()
+        print()
         print()
         
         return x
