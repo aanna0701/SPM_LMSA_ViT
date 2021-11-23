@@ -260,14 +260,16 @@ class SwinTransformerBlock(nn.Module):
         self.register_buffer("attn_mask", attn_mask)    # No parameter
 
     def forward(self, x):
-        H, W = self.input_resolution
+        # H, W = self.input_resolution
         B, L, C = x.shape
+        H = int(math.sqrt(L))
 #        assert L == H * W, "input feature has wrong size"
 #        print(H, W, B, L, C)
 
+        
         shortcut = x
         x = self.norm1(x)
-        x = x.view(B, H, W, C)
+        x = x.view(B, H, H, C)
 
         # cyclic shift
         if self.shift_size > 0:
@@ -284,14 +286,14 @@ class SwinTransformerBlock(nn.Module):
 
         # merge windows
         attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C)
-        shifted_x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C
+        shifted_x = window_reverse(attn_windows, self.window_size, H, H)  # B H' W' C
 
         # reverse cyclic shift
         if self.shift_size > 0:
             x = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
         else:
             x = shifted_x
-        x = x.view(B, H * W, C)
+        x = x.view(B, L, C)
 
         # FFN
         x = shortcut + self.drop_path(x)
