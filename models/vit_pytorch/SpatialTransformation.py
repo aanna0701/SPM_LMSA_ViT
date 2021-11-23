@@ -142,7 +142,7 @@ class AffineNet(nn.Module):
         theta = []
         x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         for i in range(self.n_trans):
-            if scale is None:
+            if scale is not None:
                 out.append(self.transformation(x, param_list[i], init[i], scale[i]))
             else:
                 out.append(self.transformation(x, param_list[i], init[i]))
@@ -241,9 +241,9 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        # print('========')
-        # print(scale)
-        # print(theta[0])
+        print('========')
+        print(scale)
+        print(theta[0])
         
         
         if scale is not None:
@@ -254,7 +254,7 @@ class Affine(nn.Module):
         theta = theta + init 
         self.theta = theta    
         
-        # print(theta[0])
+        print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
