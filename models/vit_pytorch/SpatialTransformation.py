@@ -162,7 +162,7 @@ class PatchMerging(nn.Module):
         super().__init__()
         
         self.dim = dim
-        self.reduction = nn.Linear(4 * dim, out_dim)
+        self.reduction = nn.Linear(4 * dim, out_dim, bias=False)
         self.norm = nn.LayerNorm(4 * dim)
 
     def forward(self, x):
