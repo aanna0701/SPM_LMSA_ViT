@@ -163,7 +163,7 @@ class PatchMerging(nn.Module):
         
         self.dim = dim
         self.reduction = nn.Linear(4 * dim, out_dim, bias=False)
-
+        self.norm = nn.LayerNorm(4 * dim)
 
     def forward(self, x):
         """
@@ -180,6 +180,7 @@ class PatchMerging(nn.Module):
         x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
         x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
         
+        x = self.norm(x)
         x = self.reduction(x)
 
         return x
@@ -193,39 +194,6 @@ class PatchMerging(nn.Module):
         flops += (H // 2) * (W // 2) * 4 * self.dim * 2 * self.dim
         return flops
     
-class PatchEmbed(nn.Module):
-    r""" Image to Patch Embedding
-    Args:
-        img_size (int): Image size.  Default: 224.
-        patch_size (int): Patch token size. Default: 4.
-        in_chans (int): Number of input image channels. Default: 3.
-        embed_dim (int): Number of linear projection output channels. Default: 96.
-        norm_layer (nn.Module, optional): Normalization layer. Default: None
-    """
-
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96):
-        super().__init__()
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.num_patches = img_size // patch_size
-
-        self.in_chans = in_chans
-        self.embed_dim = embed_dim
-
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size, bias=False)
-
-
-    def forward(self, x):
-        x = self.proj(x).flatten(2).transpose(1, 2)  # B Ph*Pw C
-
-        return x
-
-    def flops(self):
-        Ho, Wo = self.patches_resolution
-        flops = Ho * Wo * self.embed_dim * self.in_chans * (self.patch_size[0] * self.patch_size[1])
-
-        return flops
-
 
 
 class Affine(nn.Module):
