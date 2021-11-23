@@ -7,7 +7,7 @@ import torch
 from torch import nn, einsum
 import torch.nn.functional as F
 
-from einops import rearrange
+from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
 
@@ -119,21 +119,17 @@ class AffineNet(nn.Module):
         
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
-            nn.Linear(self.in_dim, n_output, bias=False)
+            nn.Linear(self.in_dim, n_output, bias=False),
+            nn.Tanh()
         )
         
         self.transformation = Affine()
 
-        self.out_proj = nn.Sequential(
-            nn.LayerNorm(self.in_dim*4),
-            nn.Linear(self.in_dim*4, self.in_dim, bias=False)
-        )
-        
         self.theta = list()
         
     def forward(self, param_token, x, init, scale=None):
        
-        param_token = repeat(param_token, '() n d -> b n d', b = x.size(0)) if param_token.size(0) == 1 else param_token
+        param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, x)
         param = self.mlp_head(param_attd[:, 0])
         param_list = torch.chunk(param, self.n_trans, dim=-1)
@@ -150,7 +146,6 @@ class AffineNet(nn.Module):
                 
         out = torch.cat(out, dim=1)
         out = out.view(out.size(0), out.size(1), -1).transpose(1, 2)
-        out = self.out_proj(out)
         self.theta = theta
         
         return out
@@ -163,11 +158,11 @@ class PatchMerging(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
     """
 
-    def __init__(self, dim):
+    def __init__(self, dim, out_dim):
         super().__init__()
         
         self.dim = dim
-        self.reduction = nn.Linear(4 * dim, 2 * dim, bias=False)
+        self.reduction = nn.Linear(4 * dim, out_dim, bias=False)
 
 
     def forward(self, x):
@@ -271,19 +266,19 @@ class STiT(nn.Module):
         self.patch_size = patch_size
         self.num_patches = img_size // patch_size
         self.in_dim = in_dim
-        self.embed_dim = embed_dim
+        
         
         if type == 'PE':
-            self.down_sizing = PatchEmbed(img_size, patch_size, in_dim, embed_dim)     
-            pt_dim = embed_dim
+            self.input = Rearrange('b c h w -> b (h w) c')                  
+            pt_dim = 3
+            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, 64, heads)
         else:
-            self.down_sizing = PatchMerging(in_dim)
-            pt_dim = in_dim * 2        
+            self.input = nn.Identity()
+            pt_dim = in_dim    
+            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads)
     
-        self.param_token = nn.Parameter(torch.randn(1, 1, pt_dim))
-            
-        self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads)
-          
+        self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
+                      
         if not init_eps == 0.:
             self.scale_list = nn.ParameterList()  
             for _ in range(4):
@@ -295,6 +290,8 @@ class STiT(nn.Module):
         for i in range(4):
             self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device()))
   
+        self.patch_merge = PatchMerging(pt_dim*5, embed_dim)
+    
         self.theta = None    
             
         self.apply(self._init_weights)
@@ -314,8 +311,8 @@ class STiT(nn.Module):
     
     def _init_weights(self, m):
         if isinstance(m, (nn.Linear, nn.Conv2d)):
-            nn.init.xavier_normal_(m.weight)
-            # nn.init.constant_(m.weight, 0)
+            # nn.init.xavier_normal_(m.weight)
+            trunc_normal_(m.weight, std=.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, (nn.LayerNorm)):
@@ -324,10 +321,10 @@ class STiT(nn.Module):
 
 
     def forward(self, x):
-        x_down = self.down_sizing(x)
-        affine = self.affine_net(self.param_token, x_down, self.init_list, self.scale_list)
+        x = self.input(x)
+        affine = self.affine_net(self.param_token, x, self.init_list, self.scale_list)
         self.theta = self.affine_net.theta
-        out = x_down + affine       
-        
+        out = torch.cat([x, affine], dim=-1)      
+        out = self.patch_merge(out)
         
         return out
