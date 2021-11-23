@@ -115,7 +115,7 @@ class AffineNet(nn.Module):
         self.n_trans = n_trans
         n_output = 6*self.n_trans
 
-        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim*2)       
+        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim)       
         
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
