@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
+import numpy as np
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
 
+from einops import rearrange
 import math
 from einops import rearrange, repeat
 
-ALPHA = 1
 
 def exists(val):
     return val is not None
@@ -35,7 +36,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., if_patch_attn=False):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
         inner_dim = dim_head *  heads
         self.heads = heads
@@ -58,7 +59,6 @@ class Attention(nn.Module):
         
         self.scale = nn.Parameter(self.scale*torch.ones(heads))
         
-        self.if_patch_attn = if_patch_attn
 
     def forward(self, x, context = None):
         b, n, _, h = *x.shape, self.heads
@@ -88,14 +88,14 @@ class Attention(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., if_patch_attn=False):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.layer_dropout = layer_dropout
 
         for ind in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, if_patch_attn=if_patch_attn)),
+                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
         
@@ -106,206 +106,132 @@ class Transformer(nn.Module):
             
             x = attn(x, context = context) + x
             x = ff(x) + x
-        return x
-    
+        return x    
 
-class ParamTransformer(nn.Module):
-    def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
+class AffineNet(nn.Module):
+    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4):
         super().__init__()
         self.in_dim = in_dim
-     
-        if type_trans == 'affine':
-            n_output = 6*n_trans
-        
-        elif type_trans == 'trans_scale':
-            n_output = 3*n_trans
+        self.n_trans = n_trans
+        n_output = 6*self.n_trans
+
+        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim*2)       
         
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
             nn.Linear(self.in_dim, n_output, bias=False)
         )
         
-        
-        self.param_transformer = Transformer(self.in_dim, img_size**2, 2, 4, in_dim//4, 256)
-        self.param_attd = None
-        
-        
-        self.apply(self._init_weights)
+        self.transformation = Affine()
 
-    
-    def _init_weights(self, m):
-        if isinstance(m, (nn.Linear, nn.Conv2d)):
-            nn.init.xavier_normal_(m.weight)
-            # nn.init.constant_(m.weight, 0)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-            
-    def forward(self, param_token, x):
-        print(param_token)
+        self.out_proj = nn.Sequential(
+            nn.LayerNorm(self.in_dim*4),
+            nn.Linear(self.in_dim*4, self.in_dim, bias=False)
+        )
+        
+        self.theta = list()
+        
+    def forward(self, param_token, x, init, scale=None):
        
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0)) if param_token.size(0) == 1 else param_token
         param_attd = self.param_transformer(param_token, x)
+        param = self.mlp_head(param_attd[:, 0])
+        param_list = torch.chunk(param, self.n_trans, dim=-1)
         
-        self.param_attd = param_attd
-        
-        
-        
-        out = self.mlp_head(param_attd[:, 0])
+        out = []
+        theta = []
+        x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+        for i in range(self.n_trans):
+            if scale is None:
+                out.append(self.transformation(x, param_list[i], init[i], scale[i]))
+            else:
+                out.append(self.transformation(x, param_list[i], init[i]))
+            theta.append(self.transformation.theta)
+                
+        out = torch.cat(out, dim=1)
+        out = out.view(out.size(0), out.size(1), -1).transpose(1, 2)
+        out = self.out_proj(out)
+        self.theta = theta
         
         return out
+    
+class PatchMerging(nn.Module):
+    r""" Patch Merging Layer.
+    Args:
+        input_resolution (tuple[int]): Resolution of input feature.
+        dim (int): Number of input channels.
+        norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
+    """
 
-class Localisation(nn.Module):
-    def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
+    def __init__(self, dim):
         super().__init__()
-        self.in_dim = in_dim
         
-            
-        self.layers0 = nn.Sequential(
-            nn.Conv2d(3, self.in_dim, 3, 2, 1)
-        )     
-    
-        img_size //= 2
-        
-        
-        self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
-        self.in_dim *= 2
-        img_size //= 2
-        
-        if img_size == 64:
-            self.layers2 = self.make_layer(self.in_dim, self.in_dim*2)
-            self.in_dim *= 2
-            img_size //= 2
-        
-        else:
-            self.layer2 = None
-        
-        if type_trans == 'affine':
-            n_output = 6*n_trans
-        
-        elif type_trans == 'trans_scale':
-            n_output = 3*n_trans
-        
-        self.mlp_head = nn.Sequential(
-            nn.LayerNorm(self.in_dim),
-            nn.Linear(self.in_dim, n_output, bias=False)
-        )
-        
-        
-        self.apply(self._init_weights)
+        self.dim = dim
+        self.reduction = nn.Linear(4 * dim, 2 * dim, bias=False)
 
-        
-    def make_layer(self, in_dim, hidden_dim):
-        layers = nn.ModuleList([])
-    
-        layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
-            
-        return nn.Sequential(*layers)
-    
-    def _init_weights(self, m):
-        if isinstance(m, (nn.Linear, nn.Conv2d)):
-            nn.init.xavier_normal_(m.weight)
-            # nn.init.constant_(m.weight, 0)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-            
+
     def forward(self, x):
-    
-        feature1 = self.layers0(x)
-        out = self.layers1(feature1)
-        
-        out = self.layers2(out) if self.layer2 is not None else out
-        
-        out = rearrange(out, 'b c h w -> b (h w) c')
-        
-        
-        return out
-    
+        """
+        x: B, H*W, C
+        """
+        B, L, C = x.shape
 
-# class Localisation(nn.Module):
-#     def __init__(self, img_size,in_dim=16, n_trans=4, type_trans='affine'):
-#         super().__init__()
-#         self.in_dim = in_dim
-        
-            
-#         self.layers0 = nn.Sequential(
-#             nn.Conv2d(3, self.in_dim, 3, 2, 1)
-#         )     
-    
-#         img_size //= 2
-        
-        
-#         self.layers1 = self.make_layer(self.in_dim, self.in_dim*2)
-#         self.in_dim *= 2
-#         img_size //= 2
-        
-#         if img_size == 64:
-#             self.layers2 = self.make_layer(self.in_dim, self.in_dim*2)
-#             self.in_dim *= 2
-#             img_size //= 2
-        
-#         else:
-#             self.layer2 = None
-        
-#         if type_trans == 'affine':
-#             n_output = 6*n_trans
-        
-#         elif type_trans == 'trans_scale':
-#             n_output = 3*n_trans
-        
-#         self.mlp_head = nn.Sequential(
-#             nn.LayerNorm(self.in_dim),
-#             nn.Linear(self.in_dim, n_output, bias=False)
-#         )
-        
-        
-#         self.num_transform = n_trans
-        
-#         self.cls_token = nn.Parameter(torch.randn(1, 1, self.in_dim)) 
-#         self.cls_transformer = Transformer(self.in_dim, img_size**2, 2, 4, self.in_dim//4, 256)
+        x = rearrange(x, 'b (h w) c -> b h w c', h = int(math.sqrt(L)))
 
+        x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
+        x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
+        x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C
+        x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C
+        x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
+        x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
         
-#         self.apply(self._init_weights)
+        x = self.reduction(x)
 
-        
-#     def make_layer(self, in_dim, hidden_dim):
-#         layers = nn.ModuleList([])
+        return x
+
+    def extra_repr(self) -> str:
+        return f"input_resolution={self.input_resolution}, dim={self.dim}"
+
+    def flops(self):
+        H, W = self.input_resolution
+        flops = H * W * self.dim
+        flops += (H // 2) * (W // 2) * 4 * self.dim * 2 * self.dim
+        return flops
     
-#         layers.append(nn.Conv2d(in_dim, hidden_dim, 3, 2, 1, bias=False))
-            
-#         return nn.Sequential(*layers)
-    
-#     def _init_weights(self, m):
-#         if isinstance(m, (nn.Linear, nn.Conv2d)):
-#             nn.init.xavier_normal_(m.weight)
-#             # nn.init.constant_(m.weight, 0)
-#             if m.bias is not None:
-#                 nn.init.constant_(m.bias, 0)
-#         elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
-#             nn.init.constant_(m.bias, 0)
-#             nn.init.constant_(m.weight, 1.0)
-            
-#     def forward(self, x):
-    
-#         feature1 = self.layers0(x)
-#         out = self.layers1(feature1)
-        
-#         out = self.layers2(out) if self.layer2 is not None else out
-        
-#         out = rearrange(out, 'b c h w -> b (h w) c')
-        
-#         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = x.size(0))
-#         cls_attd = self.cls_transformer(cls_tokens, out)
-#         out = self.mlp_head(cls_attd[:, 0])
-        
-#         return out
-    
-        
+class PatchEmbed(nn.Module):
+    r""" Image to Patch Embedding
+    Args:
+        img_size (int): Image size.  Default: 224.
+        patch_size (int): Patch token size. Default: 4.
+        in_chans (int): Number of input image channels. Default: 3.
+        embed_dim (int): Number of linear projection output channels. Default: 96.
+        norm_layer (nn.Module, optional): Normalization layer. Default: None
+    """
+
+    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96):
+        super().__init__()
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.num_patches = img_size // patch_size
+
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size, bias=False)
+
+
+    def forward(self, x):
+        x = self.proj(x).flatten(2).transpose(1, 2)  # B Ph*Pw C
+
+        return x
+
+    def flops(self):
+        Ho, Wo = self.patches_resolution
+        flops = Ho * Wo * self.embed_dim * self.in_chans * (self.patch_size[0] * self.patch_size[1])
+
+        return flops
+
+
 
 class Affine(nn.Module):
     def __init__(self, padding_mode='zeros'):
@@ -315,55 +241,93 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        print('========')
-        print(scale)
-        print(theta[0])
+        # print('========')
+        # print(scale)
+        # print(theta[0])
+        
         
         if scale is not None:
             theta = torch.mul(theta, scale)
-        
         
         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
         theta = theta + init 
         self.theta = theta    
         
-        print(theta[0])
+        # print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
         return F.grid_sample(x, grid, padding_mode=self.mode)
      
-class Trans_scale(nn.Module):
-    def __init__(self, padding_mode='zeros'):
+
+class STiT(nn.Module):
+    def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
+                 init_eps=0., init_noise=[1e-3, 1e-3]):
         super().__init__()
+        assert type in ['PE', 'Pool'], 'Invalid type!!!'
+
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.num_patches = img_size // patch_size
+        self.in_dim = in_dim
+        self.embed_dim = embed_dim
         
-        self.mode = padding_mode
-        self.trans = torch.tensor([[0, 0, 1], [0, 0, 1]]).cuda(torch.cuda.current_device())
-        self.scaling = torch.tensor([[1, 0, 0], [0, 1, 0]]).cuda(torch.cuda.current_device())
-        
-    def forward(self, x, theta, init, scale=None):
-        print('========')
-        # print(scale)
-        
-        if scale is not None:
-            scale = scale.expand(x.size(0), -1).unsqueeze(-1)
-            trans = torch.mul(self.trans, torch.mul(theta[:, 1:].unsqueeze(-1), scale[:,1:]))           
-            scaling = torch.mul(self.scaling, torch.mul(theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1), scale[:, (0,)]))
-        
+        if type == 'PE':
+            self.down_sizing = PatchEmbed(img_size, patch_size, in_dim, embed_dim)     
+            pt_dim = embed_dim
         else:
-            trans = torch.mul(self.trans, theta[:, 1:].unsqueeze(-1))
-            scaling = torch.mul(self.scaling, theta[:, 0].unsqueeze(-1).expand(-1, 2).unsqueeze(-1))
+            self.down_sizing = PatchMerging(in_dim)
+            pt_dim = in_dim * 2        
+    
+        self.param_token = nn.Parameter(torch.randn(1, 1, pt_dim))
+            
+        self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads)
+          
+        if not init_eps == 0.:
+            self.scale_list = nn.ParameterList()  
+            for _ in range(4):
+                self.scale_list.append(nn.Parameter(torch.zeros(1, 6).fill_(init_eps)))
+    
+        else: self.scale_list = None  
         
-        theta = trans + scaling
+        self.init_list = list()
+        for i in range(4):
+            self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device()))
+  
+        self.theta = None    
+            
+        self.apply(self._init_weights)
+
+    def make_init(self, n, num_patches, init_noise=[0, 0]):                
         
-        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1)        
-        theta = theta + init 
-        self.theta = theta
+            ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
+            ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
+            ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
+            ratio_x = float((math.cos(n * math.pi))*ratio[0])
+            ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])             
+    
+            out = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
+                                float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
         
-        grid = F.affine_grid(theta, x.size())
+            return out
+    
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            nn.init.xavier_normal_(m.weight)
+            # nn.init.constant_(m.weight, 0)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, (nn.LayerNorm)):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+
+    def forward(self, x):
+        x_down = self.down_sizing(x)
+        affine = self.affine_net(self.param_token, x_down, self.init_list, self.scale_list)
+        self.theta = self.affine_net.theta
+        out = x_down + affine       
         
-        return F.grid_sample(x, grid, padding_mode=self.mode)
-     
-     
-     
+        
+        return out

@@ -17,49 +17,69 @@ import seaborn as sns
 colors = sns.color_palette('Paired',16)
 import math
 
+
 class Affine(nn.Module):
-    def __init__(self, adaptive=False):
+    def __init__(self, padding_mode='zeros'):
         super().__init__()
         
-        self.constant = adaptive
         self.theta = None
-            
-        self.constant_tmp = 1 
+        self.mode = padding_mode
         
-        
-    def forward(self, x, theta, init, epoch=None, const=None):
-        
-        if not self.constant > 0.:            
-            constant = 1
-            
-        elif const is not None:
-            constant = const
-                
-        else:
-            if epoch is not None:
-                constant = self.constant * epoch         
-                constant = 1 - math.exp(-constant)
-                self.constant_tmp = constant
-                
-            else:
-                constant = self.constant_tmp 
-        
-
-        # theta = theta * constant + init
-        print('==============')
+    def forward(self, x, theta, init, scale=None):
+        print('========')
+        print(scale)
         print(theta[0])
-        theta = theta * constant + init * (1-constant)
-        self.theta = theta        
         
-        theta = torch.reshape(theta, (theta.size(0), 2, 3))        
+        theta = theta.view(theta.size(0), -1)
         
-        print(constant)
+        if scale is not None:
+        
+            theta = torch.mul(theta, scale)
+        
+        
+        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
+        theta = torch.reshape(theta, (theta.size(0), 2, 3))    
+        theta = theta + init 
+        self.theta = theta    
+        
         print(theta[0])
-        print('==============')
+        
         grid = F.affine_grid(theta, x.size())
         
-        return F.grid_sample(x, grid)
+        return F.grid_sample(x, grid, padding_mode=self.mode)
     
+   
+# class Trans_scale(nn.Module):
+#     def __init__(self, padding_mode='zeros'):
+#         super().__init__()
+#         self.mode = padding_mode
+        
+#     def forward(self, x, theta, init, scale=None):
+        
+#         print(x.shape)        
+#         print(theta.shape)        
+#         print(init.shape)        
+#         print(scale.shape)        
+        
+        
+#         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
+#         print('========')
+#         print(theta[0])
+
+#         # theta = torch.mul(theta, self.scale) + init
+#         theta = theta + init if scale is None else torch.mul(theta, scale) + init
+#         # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
+#         # theta = theta 
+#         self.theta = theta
+        
+#         # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
+        
+#         print(theta[0])
+        
+#         grid = F.affine_grid(theta, x.size())
+        
+#         return F.grid_sample(x, grid, padding_mode=self.mode)
+     
     
 
 def init_parser():
@@ -113,7 +133,10 @@ def main(args, save_path):
         patch_size //= 2
         
         
-    model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=0, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False, num_trans=4, is_learn=True)
+    model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=0, 
+                            patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, 
+                            num_heads=num_heads, num_classes=n_classes, is_base=False, 
+                            num_trans=4, is_learn=True)
   
     
     # from visualization.ViT_SP_T_M.model import Model
@@ -128,19 +151,20 @@ def main(args, save_path):
     # model.load_state_dict(checkpoint)
     # const = None
     model.load_state_dict(checkpoint['model_state_dict'])
-    const = checkpoint['tr_constant']
+    # const = checkpoint['tr_constant']
     
 
     
-    plt.rcParams["figure.figsize"] = (5,5)
     
-    trans = Affine(adaptive=True)
+    
+    trans = Affine()
     
     for i, (images, _) in enumerate(val_dataset):
         
         fig_save_path = os.path.join(save_path, f'img{i}')
         os.makedirs(fig_save_path, exist_ok=True)
-    
+
+        plt.rcParams["figure.figsize"] = (5,5)
         img_raw = images.cuda(args.gpu, non_blocking=True)
         print(f'img {i}')       
         plt.imshow(img_raw.cpu().permute(1, 2, 0))
@@ -148,45 +172,48 @@ def main(args, save_path):
         plt.savefig(os.path.join(fig_save_path, f'{i}_input.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
         theta = model(img_raw.unsqueeze(0))
         init = model.patch_embed.patch_shifting.init
+        scale = model.scale
+        
+        # for scale_list in scale:
+        #     for scale in scale_list:
+        #         print(scale)
+        
+        # print(theta)
+
+        img_2 = transforms.Resize((img_raw.shape[1]//2, img_raw.shape[2]//2))(img_raw)
+        img_4 = transforms.Resize((img_2.shape[1]//2, img_2.shape[2]//2))(img_2)
+        # plt.imshow(img_2.permute(1, 2, 0).cpu().detach().numpy())
+        # plt.savefig(os.path.join(fig_save_path, f'img_2.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+        
+        # plt.imshow(img_4.permute(1, 2, 0).cpu().detach().numpy())
+        # plt.savefig(os.path.join(fig_save_path, f'img_4.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+        
         
         
         # theta_list = torch.chunk(theta, 4, dim=1)
-        for j, theta in enumerate(theta):
-            img_trans = trans(img_raw.unsqueeze(0), theta, init[j], const=const)    
-            plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
-            plt.savefig(os.path.join(fig_save_path, f'{i}_{j}_trans.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+        for i, theta in enumerate(theta):
             
+            if i == 0:
+                for j, theta in enumerate(theta):
+                    img_trans = trans(img_raw.unsqueeze(0), theta, init[j], scale[0][j])    
+                    plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
+                    plt.savefig(os.path.join(fig_save_path, f'{j}_pe.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+
+                     
+            elif i == 1:   
+                for j, theta in enumerate(theta):
+                    img_trans = trans(img_2.unsqueeze(0), theta, init[j], scale[1][j])    
+                    plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
+                    plt.savefig(os.path.join(fig_save_path, f'{j}_stage1.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+                
+            elif i == 2:    
+                for j, theta in enumerate(theta):
+                    img_trans = trans(img_4.unsqueeze(0), theta, init[j], scale[2][j])    
+                    plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
+                    plt.savefig(os.path.join(fig_save_path, f'{j}_stage2.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+            
+        plt.clf()
        
-
-
-def inference(img, model, args):
-    print('inferencing')
-    model.eval()
-    with torch.no_grad():
-    
-        images = img.cuda(args.gpu, non_blocking=True)
-        
-        _ = model(images)
-    
-    distributions =model.transformer.distributions
-    
-    dist_dict = {}
-    none_dict = {}
-    t_dict = {}
-    t_m_dict = {}
-    
-    for i in range(distributions[0].size(1)):
-        none_dict[i] = distributions[0][:, i]
-        t_dict[i] = distributions[1][:, i]
-        t_m_dict[i] = distributions[2][:, i]
-        
-    dist_dict['none'] = none_dict
-    dist_dict['t'] = t_dict
-    dist_dict['t_m'] = t_m_dict
-    
-    
-    return dist_dict, distributions[0].size(2)
-
 if __name__ == '__main__':
     parser = init_parser()
     args = parser.parse_args()

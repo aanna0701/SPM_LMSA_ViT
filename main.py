@@ -558,6 +558,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
     n = 0
     mix = ''
     mix_paramter = 0
+    
+    
     for i, (images, target) in enumerate(train_loader):
         if (not args.no_cuda) and torch.cuda.is_available():
             images = images.cuda(args.gpu, non_blocking=True)
@@ -572,6 +574,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                 output = model(images)
+                
                 
                 if args.lam != 0.:            
                     theta = list(map(CosineSimiliarity, model.theta))
@@ -591,6 +594,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                                     
                 if args.lam != 0.:  
                     theta = list(map(CosineSimiliarity, model.theta))
+                    
                     
                     theta = torch.cat(theta)
                     
@@ -646,6 +650,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                     output = model(images)
+                    
                     
                     if args.lam != 0.:
                         theta = list(map(CosineSimiliarity, model.theta))
@@ -708,7 +713,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             else:
                 loss = criterion(output, target)
                 
-        
 
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
