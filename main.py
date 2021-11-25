@@ -29,7 +29,8 @@ warnings.filterwarnings("ignore", category=Warning)
 
 best_acc1 = 0
 input_size = 32
-MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit']
+MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit',
+          'resnet', 'effinet']
 
 
 def init_parser():
@@ -281,7 +282,16 @@ def main(args):
                                 padding_mode=args.padding, type_trans=args.type_trans, 
                                 init_noise=[args.init_noise_trans, args.init_noise_scale])
    
-   
+    elif args.model =='resnet':
+        from model.conv_cifar_pytoch.efficientnet import EfficientNetB0
+        
+        model = resnet56()
+        
+        
+    elif args.model == 'effinet':
+        
+        model = EfficientNetB0()
+        
     
     model.cuda(args.gpu)  
         
