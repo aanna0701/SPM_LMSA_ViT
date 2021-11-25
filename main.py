@@ -285,13 +285,13 @@ def main(args):
     elif args.model =='resnet':
         from models.conv_cifar_pytoch.resnet import resnet56
         
-        model = resnet56()
+        model = resnet56(num_classes=n_classes)
         
         
     elif args.model == 'effinet':
         from models.conv_cifar_pytoch.efficientnet import EfficientNetB0
         
-        model = EfficientNetB0()
+        model = EfficientNetB0(num_classes=n_classes)
         
     
     model.cuda(args.gpu)  

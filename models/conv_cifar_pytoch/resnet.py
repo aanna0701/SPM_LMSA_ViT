@@ -78,7 +78,7 @@ class BasicBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=100):
+    def __init__(self, block, num_blocks, num_classes=200):
         super(ResNet, self).__init__()
         self.in_planes = 16
 
@@ -123,8 +123,8 @@ def resnet44():
     return ResNet(BasicBlock, [7, 7, 7])
 
 
-def resnet56():
-    return ResNet(BasicBlock, [9, 9, 9])
+def resnet56(num_classes):
+    return ResNet(BasicBlock, [9, 9, 9], num_classes=num_classes)
 
 
 def resnet110():
