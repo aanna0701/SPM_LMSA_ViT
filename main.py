@@ -283,13 +283,13 @@ def main(args):
                                 init_noise=[args.init_noise_trans, args.init_noise_scale])
    
     elif args.model =='resnet':
-        from model.conv_cifar_pytoch.resnet import resnet56
+        from models.conv_cifar_pytoch.resnet import resnet56
         
         model = resnet56()
         
         
     elif args.model == 'effinet':
-        from model.conv_cifar_pytoch.efficientnet import EfficientNetB0
+        from models.conv_cifar_pytoch.efficientnet import EfficientNetB0
         
         model = EfficientNetB0()
         
