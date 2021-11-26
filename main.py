@@ -295,7 +295,7 @@ def main(args):
         
         
     elif args.model == 'effiB7':
-        from models.efficientnet_pytorch.model import EfficientNet
+        from models.efficientnet_pytorch.effib7 import EfficientNet
         
         model = EfficientNet.from_name(model_name='efficientnet-b7', image_size=img_size , num_classes=n_classes)
         
