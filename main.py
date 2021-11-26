@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore", category=Warning)
 best_acc1 = 0
 input_size = 32
 MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit',
-          'resnet', 'effinet']
+          'resnet', 'effinet', 'effiB7']
 
 
 def init_parser():
@@ -292,6 +292,12 @@ def main(args):
         from models.conv_cifar_pytoch.efficientnet import EfficientNetB0
         
         model = EfficientNetB0(num_classes=n_classes)
+        
+        
+    elif args.model == 'effiB7':
+        from models.efficientnet_pytorch.model import EfficientNet
+        
+        model = EfficientNet.from_name(model_name='efficientnet-b7', image_size=img_size , num_classes=n_classes)
         
     
     model.cuda(args.gpu)  
