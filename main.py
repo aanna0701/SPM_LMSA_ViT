@@ -200,8 +200,7 @@ def main(args):
         dim_head = args.channel // args.heads
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, 
-                    dropout=dropout, stochastic_depth=args.sd,
-                    n_trans=args.n_trans, is_base=False, eps=args.scale,
+                    dropout=dropout, stochastic_depth=args.sd, is_base=False, eps=args.scale,
                     padding_mode=args.padding, init_noise=[args.init_noise_trans, args.init_noise_scale])
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
