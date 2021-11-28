@@ -273,7 +273,7 @@ class Affine(nn.Module):
 
 class STiT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., init_noise=[1e-3, 1e-3]):
+                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -285,7 +285,7 @@ class STiT(nn.Module):
         
         if type == 'PE':
             self.input = Rearrange('b c h w -> b (h w) c')
-            merge_size = 4
+            merge_size = merging_size
             pt_dim = 3 
             self.affine_net = AffineNet(self.num_patches, depth, pt_dim * (merge_size**2), 64, heads, patch_size=merge_size)
             self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim * (merge_size**2)))
