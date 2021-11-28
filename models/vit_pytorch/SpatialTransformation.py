@@ -158,27 +158,23 @@ class PatchMerging(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
     """
 
-    def __init__(self, dim, out_dim):
+    def __init__(self, patch_size, dim, out_dim):
         super().__init__()
         
+        self.merging = Rearrange('b (h p1) (w p2) c -> b (h w) (p1 p2 c)', p1=patch_size, p2 = patch_size)
         self.dim = dim
-        self.reduction = nn.Linear(4 * dim, out_dim, bias=False)
-        self.norm = nn.LayerNorm(4 * dim)
+        self.patch_dim = dim * (patch_size ** 2)
+        self.reduction = nn.Linear(self.patch_dim, out_dim, bias=False)
+        self.norm = nn.LayerNorm(self.patch_dim)
 
     def forward(self, x):
         """
         x: B, H*W, C
         """
         B, L, C = x.shape
-
+        
         x = rearrange(x, 'b (h w) c -> b h w c', h = int(math.sqrt(L)))
-
-        x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
-        x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
-        x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C
-        x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C
-        x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
-        x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
+        x = self.merging(x)
         
         x = self.norm(x)
         x = self.reduction(x)
@@ -193,6 +189,51 @@ class PatchMerging(nn.Module):
         flops = H * W * self.dim
         flops += (H // 2) * (W // 2) * 4 * self.dim * 2 * self.dim
         return flops
+    
+    
+# class PatchMerging(nn.Module):
+#     r""" Patch Merging Layer.
+#     Args:
+#         input_resolution (tuple[int]): Resolution of input feature.
+#         dim (int): Number of input channels.
+#         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
+#     """
+
+#     def __init__(self, patch_size, dim, out_dim):
+#         super().__init__()
+        
+#         self.dim = dim
+#         self.reduction = nn.Linear(4 * dim, out_dim, bias=False)
+#         self.norm = nn.LayerNorm(4 * dim)
+
+#     def forward(self, x):
+#         """
+#         x: B, H*W, C
+#         """
+#         B, L, C = x.shape
+
+#         x = rearrange(x, 'b (h w) c -> b h w c', h = int(math.sqrt(L)))
+
+#         x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
+#         x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
+#         x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C
+#         x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C
+#         x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
+#         x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
+        
+#         x = self.norm(x)
+#         x = self.reduction(x)
+
+#         return x
+
+#     def extra_repr(self) -> str:
+#         return f"input_resolution={self.input_resolution}, dim={self.dim}"
+
+#     def flops(self):
+#         H, W = self.input_resolution
+#         flops = H * W * self.dim
+#         flops += (H // 2) * (W // 2) * 4 * self.dim * 2 * self.dim
+#         return flops
     
 
 
@@ -258,7 +299,7 @@ class STiT(nn.Module):
         for i in range(4):
             self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device()))
   
-        self.patch_merge = PatchMerging(pt_dim*5, embed_dim)
+        self.patch_merge = PatchMerging(patch_size, pt_dim*5, embed_dim)
     
         self.theta = None    
             
