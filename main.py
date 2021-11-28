@@ -96,6 +96,7 @@ def init_parser():
     parser.add_argument('--padding', default='zeros', choices=['zeros', 'border', 'reflection'])
     parser.add_argument('--init_noise_trans', default=1e-3, type=float)
     parser.add_argument('--init_noise_scale', default=1e-3, type=float)
+    parser.add_argument('--merging_size', default=4, type=int)
     
     
     # Mixup params
@@ -200,7 +201,7 @@ def main(args):
         dim_head = args.channel // args.heads
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, 
-                    dropout=dropout, stochastic_depth=args.sd, is_base=False, eps=args.scale,
+                    dropout=dropout, stochastic_depth=args.sd, is_base=False, eps=args.scale, merging_size=args.merging_size,
                     padding_mode=args.padding, init_noise=[args.init_noise_trans, args.init_noise_scale])
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
@@ -237,8 +238,8 @@ def main(args):
         
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
-                    stochastic_depth=args.sd, is_base=False, 
-                    init_type = args.init_type, eps=args.scale, padding_mode=args.padding, 
+                    stochastic_depth=args.sd, is_base=False,  merging_size=args.merging_size,
+                    eps=args.scale, padding_mode=args.padding, 
                     init_noise=[args.init_noise_trans, args.init_noise_scale])
 
 
@@ -274,9 +275,8 @@ def main(args):
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=False, init_type = args.init_type, eps=args.scale, 
-                                padding_mode=args.padding,
-                                init_noise=[args.init_noise_trans, args.init_noise_scale])
+                                is_base=False,  merging_size=args.merging_size, eps=args.scale, 
+                                padding_mode=args.padding, init_noise=[args.init_noise_trans, args.init_noise_scale])
    
     elif args.model =='resnet':
         from models.conv_cifar_pytoch.resnet import resnet56
@@ -839,7 +839,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-LR[{args.lr}]-InitType[{args.init_type}]-Init[{args.init_noise_trans}, {args.init_noise_scale}]-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-Seed{args.seed}"
+    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-LR[{args.lr}]-MergeSize[{args.merging_size}]-Init[{args.init_noise_trans}, {args.init_noise_scale}]-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)

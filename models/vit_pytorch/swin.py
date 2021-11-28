@@ -524,8 +524,8 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, \
-                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3], **kwargs):
+                 use_checkpoint=False, is_base=True, n_trans=4, is_learn=True, 
+                 eps=0., padding_mode='zeros',  merging_size=4, init_noise=[1e-3, 1e-3], **kwargs):
         super().__init__()
         
    
@@ -550,7 +550,7 @@ class SwinTransformer(nn.Module):
             self.patches_resolution = patches_resolution
             
         else:
-            self.patch_embed = STiT(img_size, patch_size, 3, embed_dim, depth=2,
+            self.patch_embed = STiT(img_size, patch_size, 3, embed_dim, depth=2, merging_size=merging_size,
                                     heads=4, init_eps=eps, init_noise=init_noise)
             self.patches_resolution = [img_size // patch_size, img_size // patch_size]
             num_patches = self.patches_resolution[0] * self.patches_resolution[1]        
