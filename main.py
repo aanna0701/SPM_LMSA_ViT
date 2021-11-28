@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore", category=Warning)
 best_acc1 = 0
 input_size = 32
 MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit',
-          'resnet', 'effinet', 'effiB7']
+          'resnet', 'resnet110','effinet', 'effiB7']
 
 
 def init_parser():
@@ -286,6 +286,11 @@ def main(args):
         from models.conv_cifar_pytoch.resnet import resnet56
         
         model = resnet56(num_classes=n_classes)
+   
+    elif args.model =='resnet110':
+        from models.conv_cifar_pytoch.resnet import resnet110
+        
+        model = resnet110(num_classes=n_classes)
         
         
     elif args.model == 'effinet':
