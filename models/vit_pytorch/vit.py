@@ -4,9 +4,7 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
-import math
-from .SpatialTransformation import Localisation, Affine, Trans_scale
-import numpy as np
+from .SpatialTransformation import STiT
 # helpers
 
 def pair(t):
@@ -126,8 +124,7 @@ class Transformer(nn.Module):
 class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
                  dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0.,
-                 is_base=True, n_trans=4, is_learn=True, \
-                 init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
+                 is_base=True, eps=0., padding_mode='zeros', init_noise=[1e-3, 1e-3]):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -142,13 +139,12 @@ class ViT(nn.Module):
         
             self.to_patch_embedding = nn.Sequential(
                 Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-                nn.Linear(patch_dim, dim),
+                nn.Linear(patch_dim, dim)
             )
             
         else:
-            self.to_patch_embedding = ShiftedPatchTokenization(img_size//patch_size, 3, dim, patch_size, is_learn=is_learn, 
-                                                               init_type=init_type, eps=eps, padding_mode=padding_mode, 
-                                                               type_trans=type_trans, init_noise=init_noise)
+            self.to_patch_embedding = STiT(img_size=img_size, patch_size=patch_size, in_dim=3, embed_dim=dim, type='PE',
+                                           init_eps=eps, init_noise=init_noise)
             
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -165,17 +161,10 @@ class ViT(nn.Module):
             nn.Linear(dim, num_classes)
         )
 
-        self.n_trans = n_trans
-        self.is_learn = is_learn
  
-        if not is_base:
-            if self.is_learn:
-                self.localisation = Localisation(img_size=img_size, n_trans=n_trans, type_trans=type_trans)
-
+        self.is_base = is_base
         self.theta = None
         self.scale = 0    
-        
-        self.final_cls_token = None
         
         self.apply(init_weights)
 
@@ -183,16 +172,9 @@ class ViT(nn.Module):
     def forward(self, img):
         # patch embedding
         
-        if not self.is_learn:
-            x = self.to_patch_embedding(img)
+        x = self.to_patch_embedding(img)
             
-        else:
-                  
-            theta = self.localisation(img)
-            theta = torch.chunk(theta, self.n_trans, dim=1)
-         
-            x = self.to_patch_embedding(img, theta)  
-        
+        if not self.is_base:        
             self.theta = self.to_patch_embedding.theta
             self.scale = self.to_patch_embedding.scale
         
@@ -209,174 +191,7 @@ class ViT(nn.Module):
 
         x = self.to_latent(x)
         
-        self.final_cls_token = x
         
         return self.mlp_head(x)
 
 
-
-class ShiftedPatchTokenization(nn.Module):
-    def __init__(self, num_patches, in_dim, dim, merging_size=2, exist_class_t=False, is_learn=False, n_trans=4, init_type='aistats', 
-                 eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
-        super().__init__()
-        self.exist_class_t = exist_class_t
-        
-        self.is_learn = is_learn
-        
-        if is_learn:      
-            self.patch_shifting = SpatialTransformation_learn(num_patches, init_type=init_type, eps=eps, padding_mode=padding_mode, 
-                                                              type_trans=type_trans, init_noise=init_noise)
-            
-        else:           
-            self.patch_shifting = SpatialTransformation_fix(merging_size) 
-            
-        patch_dim = (in_dim*(1+n_trans)) * (merging_size**2) 
-        
-        self.merging = nn.Sequential(
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
-            nn.LayerNorm(patch_dim),
-            nn.Linear(patch_dim, dim)
-        )
-        
-        self.theta = None
-        self.scale = None
-        # print(self.merging)
-        
-        
-    def forward(self, x, theta=None):
-        out = x if len(x.size()) == 4 else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
-        
-        if self.is_learn:
-            
-            out = self.patch_shifting(out, theta)
-        else:
-            out = self.patch_shifting(out)
-        out = self.merging(out)
-      
-        self.theta = self.patch_shifting.theta
-        self.scale = self.patch_shifting.scale
-
-        return out
-
-    
-class SpatialTransformation_fix(nn.Module):
-    def __init__(self, patch_size):
-        super().__init__()
-      
-        self.shift = patch_size // 2
-        self.is_learn = False
-        self.theta = None
-      
-    def forward(self, x):
-   
-        x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
-        # if self.is_mean:
-        #     x_pad = x_pad.mean(dim=1, keepdim = True)
-      
-        """ 4 cardinal directions """
-        #############################
-        # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1) 
-        #############################
-      
-        """ 4 diagonal directions """
-        # #############################
-        x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
-        x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
-        x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
-        x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-        x_cat = torch.cat([x, x_lu, x_ru, x_lb, x_rb], dim=1) 
-        # #############################
-      
-        """ 8 cardinal directions """
-        #############################
-        # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-        # x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
-        # x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
-        # x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
-        # x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lu, x_ru, x_lb, x_rb], dim=1) 
-        #############################
-      
-        # out = self.out(x_cat)
-        out = x_cat
-        
-        return out
-    
-    
-class SpatialTransformation_learn(nn.Module):
-    def __init__(self, num_patches, init_type='aistats', eps=0., padding_mode='zeros', type_trans='affine', init_noise=[1e-3, 1e-3]):
-        super().__init__()
-        
-        self.is_learn = True
-        if type_trans == 'affine':
-            self.transformation = Affine(padding_mode=padding_mode)
-        elif type_trans == 'trans_scale':
-            self.transformation = Trans_scale(padding_mode=padding_mode)
-        self.init = list()
-        
-        for i in range(4):
-            self.init.append(self.make_init(i, num_patches, init_type=init_type, init_noise=init_noise).cuda(torch.cuda.current_device()))
-        
-        self.theta = list()
-        
-        init_eps = eps
-        
-        if not eps == 0.:
-            self.scale = nn.ParameterList()
-            for i in range(4):
-                self.scale.append(nn.Parameter(torch.zeros(1, 3).fill_(init_eps)))
-    
-        else: self.scale = None
-                
-          
-    def make_init(self, n, num_patches, init_type='aistats', init_noise=[1e-3, 1e-3]):
-        
-        # ratio1 = torch.normal(1/num_patches, 1e-1).item()
-        # ratio2 = torch.normal(1/num_patches, 1e-1).item()
-        ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
-        ratio_scale = float(np.random.normal(1, init_noise[1]))
-        ratio_x = float((math.cos(n * math.pi))*ratio[0])
-        ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])
-        
-        if init_type == 'aistats':
-            tmp = torch.tensor([ratio_scale, 0, ratio_x, 0, ratio_scale, ratio_y])
-            # tmp = torch.tensor([1, 0, (math.cos(n * math.pi)), 0, 1, (math.sin(((n//2) * 2 + 1) * math.pi / 2))])
-        elif init_type == 'identity':
-            tmp = torch.tensor([1, 0, 0, 0, 1, 0])
-            
-        print(tmp)
-        
-        return tmp
-        
-                
-    def forward(self, x, theta_list):   
-        
-        # print(theta[0])
-        
-        out = [x]
-        tmp = list()
-        
-        
-        for i in range (len(theta_list)):
-            if self.scale is None:
-                out.append(self.transformation(x, theta_list[i], self.init[i]))
-            
-            else:
-                out.append(self.transformation(x, theta_list[i], self.init[i], self.scale[i]))
-                
-            tmp.append(self.transformation.theta)
-            
-        self.theta = tmp
-        
-        out = torch.cat(out, dim=1)
-        
-        
-       
-        return out

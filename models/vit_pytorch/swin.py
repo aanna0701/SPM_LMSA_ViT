@@ -12,10 +12,6 @@ from timm.models.layers import to_2tuple, trunc_normal_
 from utils.drop_path import DropPath
 import torch
 from .SpatialTransformation import STiT
-from einops.layers.torch import Rearrange
-from einops import rearrange
-import numpy as np
-from collections import deque
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
