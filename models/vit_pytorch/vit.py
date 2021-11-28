@@ -164,7 +164,7 @@ class ViT(nn.Module):
  
         self.is_base = is_base
         self.theta = None
-        self.scale = 0    
+        self.scale = None   
         
         self.apply(init_weights)
 
@@ -176,7 +176,7 @@ class ViT(nn.Module):
             
         if not self.is_base:        
             self.theta = self.to_patch_embedding.theta
-            self.scale = self.to_patch_embedding.scale
+            self.scale = self.to_patch_embedding.scale_list
         
         b, n, _ = x.shape
 
