@@ -103,20 +103,25 @@ class Transformer(nn.Module):
     def forward(self, x, context = None):
 
         for attn, ff in self.layers:
-            
             x = attn(x, context = context) + x
             x = ff(x) + x
         return x    
 
 class AffineNet(nn.Module):
-    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4):
+    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, patch_size=None):
         super().__init__()
         self.in_dim = in_dim
         self.n_trans = n_trans
         n_output = 6*self.n_trans
-
-        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim)       
+        self.patch_size = patch_size
+        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim)
         
+        if patch_size is not None:       
+            self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
+  
+        else:
+            self.rearrange = nn.Identity()
+            
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
             nn.Linear(self.in_dim, n_output, bias=False),
@@ -126,17 +131,17 @@ class AffineNet(nn.Module):
         self.transformation = Affine()
 
         self.theta = list()
-        
     def forward(self, param_token, x, init, scale=None):
-       
+        # print(x.shape)
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
-        param_attd = self.param_transformer(param_token, x)
+        param_attd = self.param_transformer(param_token, self.rearrange(x))
         param = self.mlp_head(param_attd[:, 0])
         param_list = torch.chunk(param, self.n_trans, dim=-1)
         
         out = []
         theta = []
-        x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+        if len(x.size()) == 3:
+            x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         for i in range(self.n_trans):
             if scale is not None:
                 out.append(self.transformation(x, param_list[i], init[i], scale[i]))
@@ -147,6 +152,7 @@ class AffineNet(nn.Module):
         out = torch.cat(out, dim=1)
         out = out.view(out.size(0), out.size(1), -1).transpose(1, 2)
         self.theta = theta
+        
         
         return out
     
@@ -278,15 +284,17 @@ class STiT(nn.Module):
         
         
         if type == 'PE':
-            self.input = Rearrange('b c h w -> b (h w) c')                  
-            pt_dim = 3
-            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, 64, heads)
+            self.input = Rearrange('b c h w -> b (h w) c')
+            merge_size = 4
+            pt_dim = 3 
+            self.affine_net = AffineNet(self.num_patches, depth, pt_dim * (merge_size**2), 64, heads, patch_size=merge_size)
+            self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim * (merge_size**2)))
         else:
             self.input = nn.Identity()
             pt_dim = in_dim    
             self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads)
     
-        self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
+            self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
                       
         if not init_eps == 0.:
             self.scale_list = nn.ParameterList()  
@@ -330,9 +338,10 @@ class STiT(nn.Module):
 
 
     def forward(self, x):
-        x = self.input(x)
+        
         affine = self.affine_net(self.param_token, x, self.init_list, self.scale_list)
         self.theta = self.affine_net.theta
+        x = self.input(x)
         out = torch.cat([x, affine], dim=-1)      
         out = self.patch_merge(out)
         
