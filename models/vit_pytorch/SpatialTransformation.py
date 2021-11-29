@@ -124,8 +124,7 @@ class AffineNet(nn.Module):
             
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
-            nn.Linear(self.in_dim, n_output, bias=False),
-            nn.Tanh()
+            nn.Linear(self.in_dim, n_output)
         )
         
         self.transformation = Affine()
@@ -196,52 +195,6 @@ class PatchMerging(nn.Module):
         flops += (H // 2) * (W // 2) * 4 * self.dim * 2 * self.dim
         return flops
     
-    
-# class PatchMerging(nn.Module):
-#     r""" Patch Merging Layer.
-#     Args:
-#         input_resolution (tuple[int]): Resolution of input feature.
-#         dim (int): Number of input channels.
-#         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
-#     """
-
-#     def __init__(self, patch_size, dim, out_dim):
-#         super().__init__()
-        
-#         self.dim = dim
-#         self.reduction = nn.Linear(4 * dim, out_dim, bias=False)
-#         self.norm = nn.LayerNorm(4 * dim)
-
-#     def forward(self, x):
-#         """
-#         x: B, H*W, C
-#         """
-#         B, L, C = x.shape
-
-#         x = rearrange(x, 'b (h w) c -> b h w c', h = int(math.sqrt(L)))
-
-#         x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
-#         x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
-#         x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C
-#         x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C
-#         x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
-#         x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
-        
-#         x = self.norm(x)
-#         x = self.reduction(x)
-
-#         return x
-
-#     def extra_repr(self) -> str:
-#         return f"input_resolution={self.input_resolution}, dim={self.dim}"
-
-#     def flops(self):
-#         H, W = self.input_resolution
-#         flops = H * W * self.dim
-#         flops += (H // 2) * (W // 2) * 4 * self.dim * 2 * self.dim
-#         return flops
-    
-
 
 class Affine(nn.Module):
     def __init__(self, padding_mode='zeros'):
@@ -315,17 +268,17 @@ class STiT(nn.Module):
 
     def make_init(self, n, num_patches, init_noise=[0, 0]):                
         
-            ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
-            ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
-            ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
-            ratio_x = float((math.cos(n * math.pi))*ratio[0])
-            ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])             
+        ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
+        ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
+        ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
+        ratio_x = float((math.cos(n * math.pi))*ratio[0])
+        ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])             
+
+        out = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
+                            float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
     
-            out = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
-                                float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
-        
-            return out
-    
+        return out
+
     def _init_weights(self, m):
         if isinstance(m, (nn.Linear, nn.Conv2d)):
             # nn.init.xavier_normal_(m.weight)
