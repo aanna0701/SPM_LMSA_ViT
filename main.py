@@ -93,7 +93,7 @@ def init_parser():
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
-    parser.add_argument('--padding', default='zeros', choices=['zeros', 'border', 'reflection'])
+    parser.add_argument('--no_init', action='store_false')
     parser.add_argument('--init_noise_trans', default=1e-3, type=float)
     parser.add_argument('--init_noise_scale', default=1e-3, type=float)
     parser.add_argument('--merging_size', default=4, type=int)
@@ -202,7 +202,7 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, 
                     dropout=dropout, stochastic_depth=args.sd, is_base=False, eps=args.scale, merging_size=args.merging_size,
-                    padding_mode=args.padding, init_noise=[args.init_noise_trans, args.init_noise_scale])
+                    not_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale])
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
@@ -239,7 +239,7 @@ def main(args):
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=False,  merging_size=args.merging_size,
-                    eps=args.scale, padding_mode=args.padding, 
+                    eps=args.scale, not_init=args.no_init, 
                     init_noise=[args.init_noise_trans, args.init_noise_scale])
 
 
@@ -276,7 +276,7 @@ def main(args):
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
                                 is_base=False,  merging_size=args.merging_size, eps=args.scale, 
-                                padding_mode=args.padding, init_noise=[args.init_noise_trans, args.init_noise_scale])
+                                not_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale])
    
     elif args.model =='resnet':
         from models.conv_cifar_pytoch.resnet import resnet56

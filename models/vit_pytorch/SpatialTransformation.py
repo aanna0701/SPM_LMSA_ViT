@@ -47,17 +47,17 @@ class Attention(nn.Module):
 
         self.attend = nn.Softmax(dim = -1)
 
-        self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
-        self.mix_heads_post_attn = nn.Parameter(torch.randn(heads, heads))
+        # self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
+        # self.mix_heads_post_attn = nn.Parameter(torch.randn(heads, heads))
 
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         )
-        self.mask = torch.eye(num_patches, num_patches)
-        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        # self.mask = torch.eye(num_patches, num_patches)
+        # self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
         
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
         
 
     def forward(self, x, context = None):
@@ -68,19 +68,19 @@ class Attention(nn.Module):
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
         """ LMSA """
         ############################
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
 
-        dots[:, :,:, 0] = -987654321
+        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -987654321
         ###########################
         
-        dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
+        # dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
         attn = self.attend(dots)        
-        attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
+        # attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
@@ -149,7 +149,7 @@ class AffineNet(nn.Module):
             theta.append(self.transformation.theta)
                 
         out = torch.cat(out, dim=1)
-        out = out.view(out.size(0), out.size(1), -1).transpose(1, 2)
+        out = rearrange(out, 'b d h w -> b (h w) d')
         self.theta = theta
         
         
@@ -226,7 +226,7 @@ class Affine(nn.Module):
 
 class STiT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4):
+                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4, not_init=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -258,7 +258,7 @@ class STiT(nn.Module):
         
         self.init_list = list()
         for i in range(4):
-            self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device()))
+            self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device(), not_init))
   
         self.patch_merge = PatchMerging(patch_size, pt_dim*5, embed_dim)
     
@@ -266,16 +266,21 @@ class STiT(nn.Module):
             
         self.apply(self._init_weights)
 
-    def make_init(self, n, num_patches, init_noise=[0, 0]):                
-        
-        ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
-        ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
-        ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
-        ratio_x = float((math.cos(n * math.pi))*ratio[0])
-        ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])             
+    def make_init(self, n, num_patches, init_noise=[0, 0], not_init=False):                
+    
+        if not not_init:    
+            ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
+            ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
+            ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
+            ratio_x = float((math.cos(n * math.pi))*ratio[0])
+            ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])             
 
-        out = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
-                            float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
+            out = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
+                                float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
+
+        else:
+            out = torch.tensor([1, 0, 0,
+                                0, 1, 0])
     
         return out
 
