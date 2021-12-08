@@ -279,6 +279,7 @@ class STiT(nn.Module):
                                 float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
 
         else:
+            print(1)
             out = torch.tensor([0, 0, 0,
                                 0, 0, 0])
     
