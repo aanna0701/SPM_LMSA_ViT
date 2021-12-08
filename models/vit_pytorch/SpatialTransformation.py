@@ -204,9 +204,9 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        print('========')
-        print(scale)
-        print(theta[0])
+        # print('========')
+        # print(scale)
+        # print(theta[0])
         
         
         if scale is not None:
@@ -216,7 +216,7 @@ class Affine(nn.Module):
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
         theta = theta + init 
         self.theta = theta    
-        
+   
         print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
@@ -226,7 +226,7 @@ class Affine(nn.Module):
 
 class STiT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4, not_init=False):
+                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4, no_init=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -258,7 +258,7 @@ class STiT(nn.Module):
         
         self.init_list = list()
         for i in range(4):
-            self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device(), not_init))
+            self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device(), no_init))
   
         self.patch_merge = PatchMerging(patch_size, pt_dim*5, embed_dim)
     
@@ -266,9 +266,8 @@ class STiT(nn.Module):
             
         self.apply(self._init_weights)
 
-    def make_init(self, n, num_patches, init_noise=[0, 0], not_init=False):                
-    
-        if not not_init:    
+    def make_init(self, n, num_patches, init_noise=[0, 0], no_init=False):                
+        if no_init:    
             ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
             ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
             ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
@@ -279,7 +278,6 @@ class STiT(nn.Module):
                                 float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
 
         else:
-            print(1)
             out = torch.tensor([0, 0, 0,
                                 0, 0, 0])
     
