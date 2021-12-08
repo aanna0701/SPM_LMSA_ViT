@@ -839,7 +839,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-LR[{args.lr}]-MergeSize[{args.merging_size}]-Init[{args.init_noise_trans}, {args.init_noise_scale}]-Scale[{args.scale}]-Sim[{args.lam}]-Padding[{args.padding}]-{args.dataset}-Seed{args.seed}"
+    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-LR[{args.lr}]-MergeSize[{args.merging_size}]-Init[{args.init_noise_trans}, {args.init_noise_scale}]-Scale[{args.scale}]-Sim[{args.lam}]-{args.dataset}-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)
