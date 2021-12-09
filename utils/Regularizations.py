@@ -37,15 +37,15 @@ def CosineSimiliarity(x):
 
 def Identity(x):
         
-    loss = 0
     length = len(x)
     
-    for x in x:
-        
-        res = x - torch.tensor([[1, 0, 0],
-                                [0, 1, 0]]).cuda(torch.cuda.current_device())
-        
-        loss += torch.norm(res)  
+    iden = torch.tensor([[1, 0, 0], [0, 1, 0]]).cuda(torch.cuda.current_device())
+    iden = iden.expand(*x.size())
+    
+    res = x - iden
+    
+    loss = torch.norm(res, dim=(1, 2))
+    loss = torch.sum(loss)
                 
     return loss / length
 
