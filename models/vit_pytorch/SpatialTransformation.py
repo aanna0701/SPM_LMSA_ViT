@@ -54,9 +54,7 @@ class Attention(nn.Module):
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         )
-        # self.mask = torch.eye(num_patches, num_patches)
-        # self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
-        
+       
         # self.scale = nn.Parameter(self.scale*torch.ones(heads))
         
 
@@ -75,7 +73,7 @@ class Attention(nn.Module):
         # scale = self.scale
         # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
 
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -987654321
+        # dots[:, :, :, 0] = -987654321
         ###########################
         
         # dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
