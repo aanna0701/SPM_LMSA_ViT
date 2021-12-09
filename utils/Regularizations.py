@@ -6,34 +6,24 @@ import math
 
 def CosineSimiliarity(x):
     
-    batch = x[0].size(0)
-    
-    out = 0
-    
-    for x in x:
+    batch = x.size(0)
                 
-        avg = x.mean(dim=0, keepdim= True)
-        x_ = x - avg
-        
-        x_ = x_.view(batch, -1)
-        
-        norm = torch.norm(x_, dim=-1, keepdim= True)
-        
-        norm = torch.div(x_, norm)
-        
-        sim = einsum('b n, d n -> b d', norm, norm)
-        mask = 1 - torch.eye(batch).cuda(torch.cuda.current_device())
-        
-        masked_sim = torch.mul(sim, mask) / math.sqrt(batch)
-        
-        norm = torch.norm(masked_sim)
-        
-        norm = norm.unsqueeze(-1)
-        
-        out = out + norm
-        
+    avg = x.mean(dim=0, keepdim=True) # mean along batch
+    x_ = x - avg    # (b, 2, 3)
+    
+    x_ = x_.view(batch, -1) # (b, 6)
+    
+    norm = torch.norm(x_, dim=-1, p=2, keepdim=True) # (b, 1) 
+    norm = torch.div(x_, norm)  # batch-wise Normalization / (b, 6)
+    
+    sim = einsum('b n, d n -> b d', norm, norm) # (b, b)
+    mask = 1 - torch.eye(batch).cuda(torch.cuda.current_device())
+    
+    masked_sim = torch.mul(sim, mask) / math.sqrt(batch)
+    
+    norm = torch.norm(masked_sim)
             
-    return out / 4
+    return norm
 
 def Identity(x):
         

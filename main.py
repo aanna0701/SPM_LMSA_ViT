@@ -598,10 +598,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                 if args.lam != 0.:            
                     theta = list(map(CosineSimiliarity, model.theta))
-        
-                    theta = torch.cat(theta)
                 
-                    loss +=  args.lam * torch.sum(theta) 
+                    loss +=  args.lam * sum(theta) 
                 
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -620,10 +618,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                                
                 if args.lam != 0.:  
                     theta = list(map(CosineSimiliarity, model.theta))
-                       
-                    theta = torch.cat(theta)
                     
-                    loss +=  args.lam * torch.sum(theta)
+                    loss +=  args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -646,9 +642,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.lam != 0.: 
                     theta = list(map(CosineSimiliarity, model.theta))
                     
-                    theta = torch.cat(theta)
-                    
-                    loss +=  args.lam * torch.sum(theta)
+                    loss +=  args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -665,10 +659,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                  
                 if args.lam != 0.:
                     theta = list(map(CosineSimiliarity, model.theta))
-                    
-                    theta = torch.cat(theta)
                 
-                    loss +=  args.lam * torch.sum(theta)
+                    loss +=  args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -694,15 +686,12 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     
                     if args.lam != 0.:
                         theta = list(map(CosineSimiliarity, model.theta))
-                        
-                        theta = torch.cat(theta)
                     
-                        loss +=  args.lam * torch.sum(theta)   
+                        loss +=  args.lam * sum(theta)   
                             
                     if args.gam != 0.:            
                         theta = list(map(Identity, model.theta))
-
-                    
+                        
                         loss +=  args.gam * sum(theta)    
           
                         
@@ -720,9 +709,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     
                         theta = list(map(CosineSimiliarity, model.theta))
                         
-                        theta = torch.cat(theta)
-                        
-                        loss += args.lam * torch.sum(theta)      
+                        loss += args.lam * sum(theta)      
                             
                     if args.gam != 0.:            
                         theta = list(map(Identity, model.theta))
@@ -742,9 +729,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                     theta = list(map(CosineSimiliarity, model.theta))
                     
-                    theta = torch.cat(theta)
-                
-                    loss += args.lam * torch.sum(theta)
+                    loss += args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -765,9 +750,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             
                 theta = list(map(CosineSimiliarity, model.theta))
                 
-                theta = torch.cat(theta)
-                
-                loss += args.lam * torch.sum(theta)
+                loss += args.lam * sum(theta)
             
             if args.gam != 0.:            
                 theta = list(map(Identity, model.theta))
@@ -827,10 +810,8 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             if args.lam != 0.:
             
                 theta = list(map(CosineSimiliarity, model.theta))
-                    
-                theta = torch.cat(theta)
                 
-                loss += args.lam * torch.sum(theta)
+                loss += args.lam * sum(theta)
                 
             if args.gam != 0.:            
                 theta = list(map(Identity, model.theta))
