@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
-
+from math import sqrt
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
@@ -47,38 +47,39 @@ class Attention(nn.Module):
 
         self.attend = nn.Softmax(dim = -1)
 
-        # self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
-        # self.mix_heads_post_attn = nn.Parameter(torch.randn(heads, heads))
+        self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
+        self.mix_heads_post_attn = nn.Parameter(torch.randn(heads, heads))
 
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         )
        
-        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        self.scale = nn.Parameter(self.scale*torch.ones(heads))
         
 
     def forward(self, x, context = None):
         b, n, _, h = *x.shape, self.heads
+        
         
         context = x if not exists(context) else torch.cat((x, context), dim = 1)
 
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
         """ LMSA """
         ############################
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        scale = self.scale
+        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
 
-        # dots[:, :, :, 0] = -987654321
+        dots[:, :, :, 0] = -987654321
         ###########################
         
-        # dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
+        dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
         attn = self.attend(dots)        
-        # attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
+        attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
@@ -112,17 +113,27 @@ class AffineNet(nn.Module):
         self.n_trans = n_trans
         n_output = 6*self.n_trans
         self.patch_size = patch_size
-        self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
+        # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
+        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim)
         
         if patch_size is not None:       
-            self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
+            # self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
+            self.depth_wise_conv = nn.Sequential(
+                nn.Conv2d(self.in_dim, self.in_dim, patch_size, patch_size//2, patch_size//4, groups=self.in_dim),
+                Rearrange('b c h w -> b (h w) c')
+            )
   
         else:
-            self.rearrange = nn.Identity()
+            # self.rearrange = nn.Identity()
+            self.depth_wise_conv = nn.Sequential(
+                Rearrange('b (h w) c -> b c h w', h=int(sqrt(num_patches))),
+                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+                Rearrange('b c h w -> b (h w) c')
+            )
             
         self.mlp_head = nn.Sequential(
-            nn.LayerNorm(self.in_dim*(patch_size**2)),
-            nn.Linear(self.in_dim*(patch_size**2), n_output)
+            nn.LayerNorm(self.in_dim),
+            nn.Linear(self.in_dim, n_output)
         )
         
         self.transformation = Affine()
@@ -133,7 +144,7 @@ class AffineNet(nn.Module):
     def forward(self, param_token, x, init, scale=None):
         # print(x.shape)
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
-        param_attd = self.param_transformer(param_token, self.rearrange(x))
+        param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
         param = self.mlp_head(param_attd[:, 0])
         param_list = torch.chunk(param, self.n_trans, dim=-1)
         
@@ -246,7 +257,7 @@ class STiT(nn.Module):
             merge_size = merging_size
             pt_dim = 32 
             self.affine_net = AffineNet(self.num_patches, depth, pt_dim, 64, heads, patch_size=merge_size)
-            self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim * ((merge_size)**2)))
+            self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
