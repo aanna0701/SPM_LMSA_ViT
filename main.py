@@ -98,6 +98,7 @@ def init_parser():
     parser.add_argument('--init_noise_trans', default=1e-3, type=float)
     parser.add_argument('--init_noise_scale', default=1e-3, type=float)
     parser.add_argument('--merging_size', default=4, type=int)
+    parser.add_argument('--pe_dim', default=64, type=int)
     
     
     # Mixup params

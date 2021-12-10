@@ -252,11 +252,11 @@ class STiT(nn.Module):
         
         
         if type == 'PE':
-            self.input = nn.Conv2d(3, 32, (3, 3), 2, 1)
+            self.input = nn.Conv2d(3, in_dim, (3, 3), 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')           
             merge_size = merging_size
-            pt_dim = 32 
-            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, 64, heads, patch_size=merge_size)
+            pt_dim = in_dim 
+            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads, patch_size=merge_size)
             self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
         else:
             self.input = nn.Identity()
