@@ -202,7 +202,7 @@ def main(args):
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
-                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, 
+                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=False, eps=args.scale, merging_size=args.merging_size,
                     no_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale])
 
@@ -240,7 +240,7 @@ def main(args):
         
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
-                    stochastic_depth=args.sd, is_base=False,  merging_size=args.merging_size,
+                    stochastic_depth=args.sd, is_base=False,  merging_size=args.merging_size, pe_dim=args.pe_dim,
                     eps=args.scale, no_init=args.no_init, 
                     init_noise=[args.init_noise_trans, args.init_noise_scale])
 
@@ -277,7 +277,7 @@ def main(args):
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=False,  merging_size=args.merging_size, eps=args.scale, 
+                                is_base=False,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim,
                                 no_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale])
    
     elif args.model =='resnet':
