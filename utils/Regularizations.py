@@ -37,7 +37,7 @@ def Identity(x):
     loss = torch.norm(res, dim=(1, 2))
     loss = torch.sum(loss)
                 
-    return loss / length
+    return loss
 
 # def CosineSimiliarity(x):
     

@@ -605,7 +605,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
                 
-                    loss +=  args.gam * (sum(theta) / len(theta))   
+                    loss +=  args.gam * sum(theta)   
                     
                                    
                         
@@ -625,7 +625,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
                 
-                    loss +=  args.gam * (sum(theta) / len(theta))   
+                    loss +=  args.gam * sum(theta)   
         
                     
         
@@ -648,7 +648,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
                 
-                    loss +=  args.gam * (sum(theta) / len(theta))   
+                    loss +=  args.gam * sum(theta)   
                     
             
             else:
@@ -666,7 +666,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
                 
-                    loss +=  args.gam * (sum(theta) / len(theta))   
+                    loss +=  args.gam * sum(theta)   
         
         
         # Both Cutmix and Mixup
@@ -693,7 +693,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     if args.gam != 0.:            
                         theta = list(map(Identity, model.theta))
                         
-                        loss +=  args.gam * (sum(theta) / len(theta))     
+                        loss +=  args.gam * sum(theta)     
           
                         
                 
@@ -715,7 +715,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     if args.gam != 0.:            
                         theta = list(map(Identity, model.theta))
                     
-                        loss +=  args.gam * (sum(theta) / len(theta))                         
+                        loss +=  args.gam * sum(theta)                         
             
                         
             
@@ -735,7 +735,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
                 
-                    loss +=  args.gam * (sum(theta) / len(theta))   
+                    loss +=  args.gam * sum(theta)   
            
                         
         
@@ -756,7 +756,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             if args.gam != 0.:            
                 theta = list(map(Identity, model.theta))
             
-                loss +=  args.gam * (sum(theta) / len(theta))   
+                loss +=  args.gam * sum(theta)   
     
                 
                 
@@ -817,7 +817,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             if args.gam != 0.:            
                 theta = list(map(Identity, model.theta))
             
-                loss +=  args.gam * (sum(theta) / len(theta))   
+                loss +=  args.gam * sum(theta)   
             
                 
             
