@@ -126,7 +126,6 @@ class AffineNet(nn.Module):
         else:
             # self.rearrange = nn.Identity()
             self.depth_wise_conv = nn.Sequential(
-                Rearrange('b (h w) c -> b c h w', h=int(sqrt(num_patches))),
                 nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
                 Rearrange('b c h w -> b (h w) c')
             )
@@ -219,9 +218,9 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        print('========')
-        print(scale)
-        print(theta[0])
+        # print('========')
+        # print(scale)
+        # print(theta[0])
         
         
         if scale is not None:
@@ -232,7 +231,7 @@ class Affine(nn.Module):
         theta = theta + init 
         self.theta = theta    
    
-        print(theta[0])
+        # print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
