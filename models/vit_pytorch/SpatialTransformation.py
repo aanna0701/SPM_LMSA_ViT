@@ -107,19 +107,19 @@ class Transformer(nn.Module):
         return x    
 
 class AffineNet(nn.Module):
-    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, patch_size=None):
+    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, merging_size=2):
         super().__init__()
         self.in_dim = in_dim
         self.n_trans = n_trans
         n_output = 6*self.n_trans
-        self.patch_size = patch_size
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
         self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim)
         
-        if patch_size is not None:       
+        if merging_size == 4:       
             # self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
             self.depth_wise_conv = nn.Sequential(
-                nn.Conv2d(self.in_dim, self.in_dim, patch_size, patch_size//2, patch_size//4, groups=self.in_dim),
+                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
                 Rearrange('b c h w -> b (h w) c')
             )
   
@@ -253,10 +253,9 @@ class STiT(nn.Module):
         
         if type == 'PE':
             self.input = nn.Conv2d(3, in_dim, (3, 3), 2, 1)
-            self.rearrange = Rearrange('b c h w -> b (h w) c')           
-            merge_size = merging_size
+            self.rearrange = Rearrange('b c h w -> b (h w) c')         
             pt_dim = in_dim 
-            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads, patch_size=merge_size)
+            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads, merging_size=merging_size)
             self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
         else:
             self.input = nn.Identity()
@@ -569,10 +568,10 @@ class STiT(nn.Module):
 #         if type == 'PE':
 #             # self.input = Rearrange('b c h w -> b (h w) c')
 #             self.input = Rearrange('b c h w -> b (h w) c')
-#             merge_size = merging_size
+#             merging_size = merging_size
 #             pt_dim = 3 
-#             self.affine_net = AffineNet(self.num_patches, depth, pt_dim, 64, heads, patch_size=merge_size)
-#             self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim * (merge_size**2)))
+#             self.affine_net = AffineNet(self.num_patches, depth, pt_dim, 64, heads, patch_size=merging_size)
+#             self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim * (merging_size**2)))
 #         else:
 #             self.input = nn.Identity()
 #             pt_dim = in_dim    
