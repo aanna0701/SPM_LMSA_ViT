@@ -113,7 +113,7 @@ class AffineNet(nn.Module):
         self.n_trans = n_trans
         n_output = 6*self.n_trans
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
-        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim)
+        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, self.in_dim//heads, self.in_dim)
         
         if merging_size == 4:       
             # self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
@@ -253,16 +253,13 @@ class STiT(nn.Module):
         if type == 'PE':
             self.input = nn.Conv2d(3, in_dim, (3, 3), 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')         
-            pt_dim = in_dim 
-            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads, merging_size=merging_size)
-            self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
+            self.affine_net = AffineNet(self.num_patches, depth, in_dim, in_dim, heads, merging_size=merging_size)
+            self.param_token = nn.Parameter(torch.rand(1, 1, in_dim))
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            pt_dim = in_dim    
-            self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads)
-    
-            self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
+            self.affine_net = AffineNet(self.num_patches, depth, in_dim, in_dim, heads)    
+            self.param_token = nn.Parameter(torch.rand(1, 1, in_dim))
                       
         if not init_eps == 0.:
             self.scale_list = nn.ParameterList()  
@@ -275,7 +272,7 @@ class STiT(nn.Module):
         for i in range(4):
             self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device(), no_init))
   
-        self.patch_merge = PatchMerging(patch_size//2, pt_dim, embed_dim)
+        self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)
         self.theta = None    
             
         self.apply(self._init_weights)
@@ -568,15 +565,15 @@ class STiT(nn.Module):
 #             # self.input = Rearrange('b c h w -> b (h w) c')
 #             self.input = Rearrange('b c h w -> b (h w) c')
 #             merging_size = merging_size
-#             pt_dim = 3 
-#             self.affine_net = AffineNet(self.num_patches, depth, pt_dim, 64, heads, patch_size=merging_size)
-#             self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim * (merging_size**2)))
+#             in_dim = 3 
+#             self.affine_net = AffineNet(self.num_patches, depth, in_dim, 64, heads, patch_size=merging_size)
+#             self.param_token = nn.Parameter(torch.rand(1, 1, in_dim * (merging_size**2)))
 #         else:
 #             self.input = nn.Identity()
-#             pt_dim = in_dim    
-#             self.affine_net = AffineNet(self.num_patches, depth, pt_dim, pt_dim, heads)
+#             in_dim = in_dim    
+#             self.affine_net = AffineNet(self.num_patches, depth, in_dim, in_dim, heads)
     
-#             self.param_token = nn.Parameter(torch.rand(1, 1, pt_dim))
+#             self.param_token = nn.Parameter(torch.rand(1, 1, in_dim))
                       
 #         if not init_eps == 0.:
 #             self.scale_list = nn.ParameterList()  
@@ -589,7 +586,7 @@ class STiT(nn.Module):
 #         for i in range(4):
 #             self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device(), no_init))
   
-#         self.patch_merge = PatchMerging(patch_size, pt_dim, embed_dim)
+#         self.patch_merge = PatchMerging(patch_size, in_dim, embed_dim)
 #         self.theta = None    
             
 #         self.apply(self._init_weights)
