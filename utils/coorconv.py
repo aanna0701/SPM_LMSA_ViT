@@ -67,7 +67,7 @@ class AddCoords1D(nn.Module):
         Args:
             input_tensor: shape(batch, channel, x_dim, y_dim)
         """
-        
+
         batch_size, n, _ = input_tensor.size()
         t_dim = int(sqrt(n)) 
         xx_channel = torch.arange(t_dim).repeat(1, t_dim, 1)
@@ -82,14 +82,14 @@ class AddCoords1D(nn.Module):
         xx_channel = xx_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
         yy_channel = yy_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
         
-        input_tensor = rearrange(input_tensor, 'b (h w) d -> b d h w', h = t_dim)
+        input_tensor = rearrange(input_tensor, 'b (h w) d -> b d h w', h = t_dim)     
         
+
         ret = torch.cat([
             input_tensor,
             xx_channel.type_as(input_tensor),
             yy_channel.type_as(input_tensor)], dim=1)
       
-        
         if self.with_r:
             rr = torch.sqrt(torch.pow(xx_channel.type_as(input_tensor) - 0.5, 2) + torch.pow(yy_channel.type_as(input_tensor) - 0.5, 2))
             ret = torch.cat([ret, rr], dim=1)
@@ -101,7 +101,7 @@ class AddCoords1D(nn.Module):
 
 class CoordLinear(nn.Module):
 
-    def __init__(self, in_channels, out_channels, bias=True, with_r=False, **kwargs):
+    def __init__(self, in_channels, out_channels, bias=True, with_r=False, is_cls_token=True, **kwargs):
         super().__init__()
         self.addcoords = AddCoords1D(with_r=with_r)
         in_size = in_channels+2
@@ -109,9 +109,10 @@ class CoordLinear(nn.Module):
             in_size += 1
         self.linear = nn.Linear(in_size, out_channels, bias=bias)
         self.cls_linear = nn.Linear(in_channels, out_channels, bias=bias)
+        self.is_cls_token = is_cls_token
 
-    def forward(self, x, is_cls_token=True):
-        if is_cls_token:
+    def forward(self, x):
+        if self.is_cls_token:
             cls_token = self.cls_linear(x[:, (0,)])
             ret = self.addcoords(x[:, 1:])
             ret = self.linear(ret)        
