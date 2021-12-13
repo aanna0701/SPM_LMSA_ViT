@@ -43,7 +43,7 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
-        self.to_kv = CoordLinear(dim, inner_dim * 2, bias = False)
+        self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
 
         self.attend = nn.Softmax(dim = -1)
 
@@ -118,18 +118,15 @@ class AffineNet(nn.Module):
         if merging_size == 4:       
             # self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
             self.depth_wise_conv = nn.Sequential(
-                # CoordConv(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
-                # CoordConv(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
-                CoordConv(self.in_dim, self.in_dim, 3, 2, 1),
-                CoordConv(self.in_dim, self.in_dim, 3, 2, 1),
+                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
                 Rearrange('b c h w -> b (h w) c')
             )
   
         else:
             # self.rearrange = nn.Identity()
             self.depth_wise_conv = nn.Sequential(
-                # CoordConv(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
-                CoordConv(self.in_dim, self.in_dim, 3, 2, 1),
+                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
                 Rearrange('b c h w -> b (h w) c')
             )
             
@@ -139,8 +136,8 @@ class AffineNet(nn.Module):
         )
         
         self.transformation = Affine()
-        self.pre_linear = CoordConv(self.in_dim, hidden_dim, (1, 1))
-        self.post_linear = CoordConv(hidden_dim, self.in_dim, (1, 1))
+        self.pre_linear = nn.Conv2d(self.in_dim, hidden_dim, (1, 1))
+        self.post_linear = nn.Conv2d(hidden_dim, self.in_dim, (1, 1))
 
         self.theta = list()
     def forward(self, param_token, x, init, scale=None):
@@ -186,7 +183,7 @@ class PatchMerging(nn.Module):
         self.merging = Rearrange('b (h p1) (w p2) c -> b (h w) (p1 p2 c)', p1=patch_size, p2 = patch_size)
         self.dim = dim
         self.patch_dim = dim * (patch_size ** 2)
-        self.reduction = CoordLinear(self.patch_dim, out_dim, bias=False)
+        self.reduction = nn.Linear(self.patch_dim, out_dim, bias=False)
         self.norm = nn.LayerNorm(self.patch_dim)
 
     def forward(self, x):
@@ -199,8 +196,7 @@ class PatchMerging(nn.Module):
         x = self.merging(x)
         
         x = self.norm(x)
-        
-        x = self.reduction(x, is_cls_token=False)
+        x = self.reduction(x)
 
         return x
 
@@ -255,7 +251,7 @@ class STiT(nn.Module):
         
         
         if type == 'PE':
-            self.input = CoordConv(3, in_dim, (3, 3), 2, 1)
+            self.input = nn.Conv2d(3, in_dim, (3, 3), 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')         
             self.affine_net = AffineNet(self.num_patches, depth, in_dim, in_dim, heads, merging_size=merging_size)
             self.param_token = nn.Parameter(torch.rand(1, 1, in_dim))
