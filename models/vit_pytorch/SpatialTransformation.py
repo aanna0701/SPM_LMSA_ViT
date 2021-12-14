@@ -10,7 +10,7 @@ from math import sqrt
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils.coorconv import CoordConv, CoordLinear
+from utils.coordconv import CoordConv, CoordLinear
 
 def exists(val):
     return val is not None
@@ -55,7 +55,7 @@ class Attention(nn.Module):
             nn.Dropout(dropout)
         )
        
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
         
 
     def forward(self, x, context = None):
@@ -67,14 +67,14 @@ class Attention(nn.Module):
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
         """ LMSA """
         ############################
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        # scale = self.scale
+        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
 
-        dots[:, :, :, 0] = -987654321
+        # dots[:, :, :, 0] = -987654321
         ###########################
         
         dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
