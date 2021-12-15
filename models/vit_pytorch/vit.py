@@ -31,46 +31,62 @@ class PreNorm(nn.Module):
         return self.fn(self.norm(x), **kwargs)
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, hidden_dim, dropout = 0.):
+    def __init__(self, dim, hidden_dim, dropout = 0., is_coord=False):
         super().__init__()
         
-        self.net = nn.Sequential(
-            CoordLinear(dim, hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            CoordLinear(hidden_dim, dim),
-            nn.Dropout(dropout)
-        )
+        if is_coord:
+            self.net = nn.Sequential(
+                CoordLinear(dim, hidden_dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                CoordLinear(hidden_dim, dim),
+                nn.Dropout(dropout)
+            )
+            
+        else:
+            self.net = nn.Sequential(
+                nn.Linear(dim, hidden_dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim, dim),
+                nn.Dropout(dropout)
+            )            
   
-        
     def forward(self, x):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_coord=False, is_LSA=False):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
         self.scale = dim_head ** -0.5
-        # self.scale = nn.Parameter(self.scale*torch.ones(heads))
-
+        
         self.attend = nn.Softmax(dim = -1)
-        self.to_qkv = CoordLinear(dim, inner_dim * 3, bias = False)
+        self.to_qkv = CoordLinear(dim, inner_dim * 3, bias = False) if is_coord else nn.Linear(dim, inner_dim * 3, bias = False)
         init_weights(self.to_qkv)
         
- 
 
-        self.to_out = nn.Sequential(
-            CoordLinear(inner_dim, dim),
-            nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
-        
-        
-        self.mask = torch.eye(num_patches+1, num_patches+1)
-        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
-        self.inf = float('-inf')
+        if is_coord:
+            self.to_out = nn.Sequential(
+                CoordLinear(inner_dim, dim),
+                nn.Dropout(dropout)
+            ) if project_out else nn.Identity()
+            
+        else:            
+            self.to_out = nn.Sequential(
+                nn.Linear(inner_dim, dim),
+                nn.Dropout(dropout)
+            ) if project_out else nn.Identity()
+            
+        if is_LSA:
+            self.scale = nn.Parameter(self.scale*torch.ones(heads))    
+            self.mask = torch.eye(num_patches+1, num_patches+1)
+            self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        else:
+            self.mask = None
         
         self.value = 0
         self.avg_h = None
@@ -81,14 +97,13 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
       
-
-        dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        if self.mask is None:
+            dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        # scale = self.scale
-        # dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
-    
-        
-        # dots[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+        else:
+            scale = self.scale
+            dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -987654321
 
         attn = self.attend(dots)
 
@@ -100,7 +115,7 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout = 0., stochastic_depth=0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout = 0., stochastic_depth=0., is_coord=False, is_LSA=False):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.hidden_states = {}
@@ -108,8 +123,8 @@ class Transformer(nn.Module):
 
         for i in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
-                PreNorm(dim, FeedForward(dim, dim * mlp_dim_ratio, dropout = dropout))
+                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_coord=is_coord, is_LSA=is_LSA)),
+                PreNorm(dim, FeedForward(dim, dim * mlp_dim_ratio, dropout = dropout, is_coord=is_coord))
             ]))            
             
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -124,7 +139,7 @@ class Transformer(nn.Module):
 
 class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
-                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=64,
+                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=64, is_coord=False, is_LSA=False,
                  is_base=True, eps=0., no_init=False, init_noise=[1e-3, 1e-3], merging_size=4):
         super().__init__()
         image_height, image_width = pair(img_size)
@@ -137,10 +152,17 @@ class ViT(nn.Module):
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         if is_base:
-        
+           self.to_patch_embedding = nn.Sequential(
+                Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+                nn.Linear(patch_dim, dim)
+            )
+            
+           
+           
+        elif is_coord:    
             self.to_patch_embedding = nn.Sequential(
                 Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-                CoordLinear(patch_dim, dim, is_cls_token=False)
+                CoordLinear(patch_dim, dim, exist_cls_token=False)
             )
             
         else:
@@ -151,7 +173,7 @@ class ViT(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout, stochastic_depth)
+        self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout, stochastic_depth, is_coord=is_coord, is_LSA=is_LSA)
 
         self.pool = pool
         self.to_latent = nn.Identity()

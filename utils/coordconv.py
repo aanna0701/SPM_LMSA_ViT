@@ -102,7 +102,7 @@ class AddCoords1D(nn.Module):
 
 class CoordLinear(nn.Module):
 
-    def __init__(self, in_channels, out_channels, bias=True, with_r=False, is_cls_token=True, **kwargs):
+    def __init__(self, in_channels, out_channels, bias=True, with_r=False, exist_cls_token=True, **kwargs):
         super().__init__()
         self.addcoords = AddCoords1D(with_r=with_r)
         in_size = in_channels+2
@@ -110,12 +110,13 @@ class CoordLinear(nn.Module):
             in_size += 1
         self.linear = nn.Linear(in_size, out_channels, bias=bias)
         
-        self.is_cls_token = is_cls_token
-        if is_cls_token:
+        self.exist_cls_token = exist_cls_token
+        if exist_cls_token:
             self.cls_linear = nn.Linear(in_channels, out_channels, bias=bias) 
 
+
     def forward(self, x):
-        if self.is_cls_token:
+        if self.exist_cls_token:
             cls_token = self.cls_linear(x[:, (0,)]) # (b, 1, d')
             ret = self.addcoords(x[:, 1:])  # (b, n, d+2) or (b, n, d+3)
             ret = self.linear(ret)          # (b, n, d')
