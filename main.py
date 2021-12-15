@@ -74,7 +74,7 @@ def init_parser():
 
     parser.add_argument('--depth', type=int, help='disable cuda')
 
-    parser.add_argument('--tag', type=str, help='tag')
+    parser.add_argument('--tag', type=str, help='tag', default='')
 
     parser.add_argument('--seed', type=int, help='seed')
 
