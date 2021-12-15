@@ -170,8 +170,8 @@ class ViT(nn.Module):
                                            init_eps=eps, init_noise=init_noise, merging_size=merging_size ,no_init=no_init)
         
             
-
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        if not is_coord:
+            self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout, stochastic_depth, is_coord=is_coord, is_LSA=is_LSA)
@@ -209,7 +209,8 @@ class ViT(nn.Module):
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
       
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
+        if not self.is_coord:
+            x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
         x = self.transformer(x)
