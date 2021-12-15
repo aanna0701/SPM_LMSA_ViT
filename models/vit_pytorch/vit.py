@@ -168,6 +168,7 @@ class ViT(nn.Module):
         else:
             self.to_patch_embedding = STiT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE',
                                            init_eps=eps, init_noise=init_noise, merging_size=merging_size ,no_init=no_init)
+        
             
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -186,6 +187,7 @@ class ViT(nn.Module):
 
  
         self.is_base = is_base
+        self.is_coord = is_coord
         self.theta = None
         self.scale = None   
         
@@ -197,7 +199,7 @@ class ViT(nn.Module):
         
         x = self.to_patch_embedding(img)
             
-        if not self.is_base:        
+        if not self.is_base and not self.is_coord:        
             self.theta = self.to_patch_embedding.theta
             self.scale = self.to_patch_embedding.scale_list
         

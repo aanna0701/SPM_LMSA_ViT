@@ -97,9 +97,11 @@ def init_parser():
     parser.add_argument('--no_init', action='store_false')
     parser.add_argument('--init_noise_trans', default=1e-3, type=float)
     parser.add_argument('--init_noise_scale', default=1e-3, type=float)
-    parser.add_argument('--merging_size', default=4, type=int)
+    parser.add_argument('--merging_size', default=2, type=int)
     parser.add_argument('--pe_dim', default=64, type=int)
     parser.add_argument('--is_base', action='store_true')
+    parser.add_argument('--is_coord', action='store_true')
+    parser.add_argument('--is_LSA', action='store_true')
     
     
     # Mixup params
@@ -205,7 +207,7 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
-                    no_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale])
+                    no_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale], is_coord=args.is_coord, is_LSA=args.is_LSA)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
@@ -242,7 +244,7 @@ def main(args):
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=args.is_base,  merging_size=args.merging_size, pe_dim=args.pe_dim,
-                    eps=args.scale, no_init=args.no_init, 
+                    eps=args.scale, no_init=args.no_init, is_coord=args.is_coord, is_LSA=args.is_LSA,
                     init_noise=[args.init_noise_trans, args.init_noise_scale])
 
 
@@ -278,7 +280,7 @@ def main(args):
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim,
+                                is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim, is_coord=args.is_coord, is_LSA=args.is_LSA,
                                 no_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale])
    
     elif args.model =='resnet':
@@ -872,7 +874,28 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-LR[{args.lr}]-MergeSize[{args.merging_size}]-Iden[{args.gam}]-Pe_dim[{args.pe_dim}]-Sim[{args.lam}]-{args.dataset}-Seed{args.seed}"
+    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-{args.dataset}-LR[{args.lr}]"
+
+    if args.is_base:
+        model_name += "-Base"
+    else:
+        model_name += "-STT"
+ 
+    if args.is_coord:
+        model_name += "-Coord"
+ 
+    if args.is_LSA:
+        model_name += "-LSA"
+ 
+    if args.gam > 0.:
+        model_name += f"-Iden[{args.gam}]"
+ 
+    if args.lam > 0.:
+        model_name += f"-Sim[{args.lam}]"
+         
+    # model_name += "-Pe_dim[{args.pe_dim}]"
+    # model_name += "-Merge[{args.merging_size}]"
+    model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)
