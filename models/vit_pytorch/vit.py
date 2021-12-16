@@ -4,7 +4,7 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from utils.relative_norm_residuals import compute_relative_norm_residuals
-from .SpatialTransformation import STiT
+from .SpatialTransformation import STT
 from utils.coordconv import CoordLinear
 # helpers
 
@@ -152,21 +152,19 @@ class ViT(nn.Module):
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         if is_base:
-           self.to_patch_embedding = nn.Sequential(
+           if is_coord:    
+                self.to_patch_embedding = nn.Sequential(
+                    Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+                    CoordLinear(patch_dim, dim, exist_cls_token=False)
+                )   
+           else:
+               self.to_patch_embedding = nn.Sequential(
                 Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
                 nn.Linear(patch_dim, dim)
             )
             
-           
-           
-        elif is_coord:    
-            self.to_patch_embedding = nn.Sequential(
-                Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-                CoordLinear(patch_dim, dim, exist_cls_token=False)
-            )
-            
         else:
-            self.to_patch_embedding = STiT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE',
+            self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE',
                                            init_eps=eps, init_noise=init_noise, merging_size=merging_size ,no_init=no_init)
         
             
@@ -345,7 +343,7 @@ class ViT(nn.Module):
 #             )
             
 #         else:
-#             self.to_patch_embedding = STiT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE',
+#             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE',
 #                                            init_eps=eps, init_noise=init_noise, merging_size=merging_size ,no_init=no_init)
             
 

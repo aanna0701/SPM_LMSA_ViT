@@ -238,7 +238,7 @@ class Affine(nn.Module):
         return F.grid_sample(x, grid, padding_mode=self.mode)
      
 
-class STiT(nn.Module):
+class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
                  init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4, no_init=False):
         super().__init__()
