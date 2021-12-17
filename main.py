@@ -13,6 +13,7 @@ from colorama import Fore, Style
 from torchsummary import summary
 from utils.losses import LabelSmoothingCrossEntropy
 import os
+from utils.sampler import RASampler
 # import models.create_model as m
 from utils.logger_dict import Logger_dict
 from utils.print_progress import progress_bar
@@ -358,7 +359,7 @@ def main(args):
         logger.debug('Mixup used')
         print('*'*80 + Style.RESET_ALL)
     if args.ra > 1:        
-        from utils.sampler import RASampler
+        
         print(Fore.YELLOW+'*'*80)
         logger.debug(f'Repeated Aug({args.ra}) used')
         print('*'*80 + Style.RESET_ALL)
@@ -487,7 +488,7 @@ def main(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,  num_workers=args.workers, pin_memory=True,
-        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, 3, shuffle=True, drop_last=True))
+        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, args.ra, shuffle=True, drop_last=True))
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
     '''
