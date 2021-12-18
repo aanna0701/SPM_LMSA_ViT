@@ -10,7 +10,7 @@ from math import sqrt
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils.coordconv import CoordConv, CoordLinear
+from ...utils.coordconv import CoordConv, CoordLinear
 
 def exists(val):
     return val is not None
