@@ -21,7 +21,7 @@ from .datasets import build_dataset
 from .engine import train_one_epoch, evaluate
 from .losses import DistillationLoss
 from .samplers import RASampler
-import models
+from . import models
 from . import utils 
 
 
