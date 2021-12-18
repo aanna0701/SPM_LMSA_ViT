@@ -59,12 +59,9 @@ class CoordConv(nn.Module):
     
 class AddCoords1D(nn.Module):
     
-    def __init__(self, num_patches, with_r=False):
+    def __init__(self, with_r=False):
         super().__init__()
         self.with_r = with_r
-        self.spatial_dim = int(sqrt(num_patches))
-        self.xx = nn.Parameter(torch.rand(1, 1, self.spatial_dim))
-        self.yy = nn.Parameter(torch.rand(1, self.spatial_dim, 1))
         
     def forward(self, input_tensor):
         """
@@ -73,26 +70,21 @@ class AddCoords1D(nn.Module):
         """
 
         batch_size, n, _ = input_tensor.size()
-        # t_dim = int(sqrt(n)) 
-        # xx_channel = torch.arange(t_dim).repeat(1, t_dim, 1)
-        # yy_channel = xx_channel.clone().transpose(1, 2)
-        xx_channel = self.xx.repeat(1, self.spatial_dim, 1)
-        yy_channel = self.yy.repeat(1, 1, self.spatial_dim)
+        t_dim = int(sqrt(n)) 
+        xx_channel = torch.arange(t_dim).repeat(1, t_dim, 1)
+        yy_channel = xx_channel.clone().transpose(1, 2)
 
-        # xx_channel = xx_channel.float() / (self.spatial_dim - 1)
-        # yy_channel = yy_channel.float() / (self.spatial_dim - 1)
+        xx_channel = xx_channel.float() / (t_dim - 1)
+        yy_channel = yy_channel.float() / (t_dim - 1)
 
-        # xx_channel = xx_channel * 2 - 1
-        # yy_channel = yy_channel * 2 - 1
-        
-        print(xx_channel)
-        print(yy_channel)
+        xx_channel = xx_channel * 2 - 1
+        yy_channel = yy_channel * 2 - 1
 
         xx_channel = xx_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
         yy_channel = yy_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
         
-        input_tensor = rearrange(input_tensor, 'b (h w) d -> b d h w', h = self.spatial_dim)     
-                
+        input_tensor = rearrange(input_tensor, 'b (h w) d -> b d h w', h = t_dim)     
+        
 
         ret = torch.cat([
             input_tensor,
@@ -110,9 +102,9 @@ class AddCoords1D(nn.Module):
 
 class CoordLinear(nn.Module):
 
-    def __init__(self, num_patches, in_channels, out_channels, bias=True, with_r=False, exist_cls_token=True, **kwargs):
+    def __init__(self, in_channels, out_channels, bias=True, with_r=False, exist_cls_token=True, **kwargs):
         super().__init__()
-        self.addcoords = AddCoords1D(num_patches, with_r=with_r)
+        self.addcoords = AddCoords1D(with_r=with_r)
         in_size = in_channels+2
         if with_r:
             in_size += 1

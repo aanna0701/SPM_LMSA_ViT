@@ -113,22 +113,27 @@ class AffineNet(nn.Module):
         self.n_trans = n_trans
         n_output = 6*self.n_trans
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
-        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, self.in_dim//heads, self.in_dim)
+        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, self.in_dim//heads, self.in_dim*2)
         
-        if merging_size == 4:       
-            # self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
-            self.depth_wise_conv = nn.Sequential(
-                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
-                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
-                Rearrange('b c h w -> b (h w) c')
-            )
+        # if merging_size == 4:       
+        #     # self.rearrange = Rearrange('b c (h p_h) (w p_w) -> b (h w) (c p_h p_w)', p_h=patch_size, p_w=patch_size)
+        #     self.depth_wise_conv = nn.Sequential(
+        #         nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+        #         nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+        #         Rearrange('b c h w -> b (h w) c')
+        #     )
   
-        else:
-            # self.rearrange = nn.Identity()
-            self.depth_wise_conv = nn.Sequential(
-                nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
-                Rearrange('b c h w -> b (h w) c')
-            )
+        # else:
+        #     # self.rearrange = nn.Identity()
+        #     self.depth_wise_conv = nn.Sequential(
+        #         nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+        #         Rearrange('b c h w -> b (h w) c')
+        #     )
+
+        self.depth_wise_conv = nn.Sequential(
+            nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+            Rearrange('b c h w -> b (h w) c')
+        )
             
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
