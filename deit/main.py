@@ -22,7 +22,7 @@ from .engine import train_one_epoch, evaluate
 from .losses import DistillationLoss
 from .samplers import RASampler
 import models
-import utils
+from . import utils 
 
 
 def get_args_parser():
