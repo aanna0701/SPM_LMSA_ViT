@@ -31,15 +31,15 @@ class PreNorm(nn.Module):
         return self.fn(self.norm(x), **kwargs)
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, num_patches, hidden_dim, dropout = 0., is_coord=False):
+    def __init__(self, dim, hidden_dim, dropout = 0., is_coord=False):
         super().__init__()
         
         if is_coord:
             self.net = nn.Sequential(
-                CoordLinear(num_patches, dim, hidden_dim),
+                CoordLinear(dim, hidden_dim),
                 nn.GELU(),
                 nn.Dropout(dropout),
-                CoordLinear(num_patches, hidden_dim, dim),
+                CoordLinear(hidden_dim, dim),
                 nn.Dropout(dropout)
             )
             
@@ -65,13 +65,13 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
         
         self.attend = nn.Softmax(dim = -1)
-        self.to_qkv = CoordLinear(num_patches, dim, inner_dim * 3, bias = False) if is_coord else nn.Linear(dim, inner_dim * 3, bias = False)
+        self.to_qkv = CoordLinear(dim, inner_dim * 3, bias = False) if is_coord else nn.Linear(dim, inner_dim * 3, bias = False)
         init_weights(self.to_qkv)
         
 
         if is_coord:
             self.to_out = nn.Sequential(
-                CoordLinear(num_patches, inner_dim, dim),
+                CoordLinear(inner_dim, dim),
                 nn.Dropout(dropout)
             ) if project_out else nn.Identity()
             
@@ -124,7 +124,7 @@ class Transformer(nn.Module):
         for i in range(depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_coord=is_coord, is_LSA=is_LSA)),
-                PreNorm(dim, FeedForward(dim, num_patches, dim * mlp_dim_ratio, dropout = dropout, is_coord=is_coord))
+                PreNorm(dim, FeedForward(dim, dim * mlp_dim_ratio, dropout = dropout, is_coord=is_coord))
             ]))            
             
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -155,7 +155,7 @@ class ViT(nn.Module):
            if is_coord:    
                 self.to_patch_embedding = nn.Sequential(
                     Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-                    CoordLinear(num_patches, patch_dim, dim, exist_cls_token=False)
+                    CoordLinear(patch_dim, dim, exist_cls_token=False)
                 )   
            else:
                self.to_patch_embedding = nn.Sequential(
