@@ -131,7 +131,7 @@ class AffineNet(nn.Module):
         #     )
 
         self.depth_wise_conv = nn.Sequential(
-            nn.Conv2d(self.in_dim, self.in_dim, 3, 2, 1, groups=self.in_dim),
+            nn.Conv2d(self.in_dim, self.in_dim, 4, 4, groups=self.in_dim),
             Rearrange('b c h w -> b (h w) c')
         )
             
