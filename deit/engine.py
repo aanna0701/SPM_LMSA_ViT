@@ -12,7 +12,7 @@ import torch
 from timm.data import Mixup
 from timm.utils import accuracy, ModelEma
 
-from losses import DistillationLoss
+from .losses import DistillationLoss
 import utils
 
 
