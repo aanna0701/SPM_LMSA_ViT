@@ -131,7 +131,7 @@ class AffineNet(nn.Module):
         #     )
 
         self.depth_wise_conv = nn.Sequential(
-            nn.Conv2d(self.in_dim, self.in_dim, 4, 4, groups=self.in_dim),
+            nn.Conv2d(self.in_dim, self.in_dim, merging_size, merging_size, groups=self.in_dim),
             Rearrange('b c h w -> b (h w) c')
         )
             
@@ -161,9 +161,9 @@ class AffineNet(nn.Module):
         x = torch.chunk(x, self.n_trans, dim=1)
         for i in range(self.n_trans):
             if scale is not None:
-                out.append(self.transformation(x[i], param_list[i], init[i], scale[i]))
+                out.append(self.transformation(x[i], param_list[i], init, scale[i]))
             else:
-                out.append(self.transformation(x[i], param_list[i], init[i]))
+                out.append(self.transformation(x[i], param_list[i], init))
             theta.append(self.transformation.theta)
                 
         out = torch.cat(out, dim=1)
@@ -223,11 +223,12 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        # print('========')
-        # print(scale)
-        # print(theta[0])
+        print('========')
+        print(scale)
+        print(theta[0])
         
         
+        theta = F.tanh(theta)
         if scale is not None:
             theta = torch.mul(theta, scale)
         
@@ -236,7 +237,7 @@ class Affine(nn.Module):
         theta = theta + init 
         self.theta = theta    
    
-        # print(theta[0])
+        print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
@@ -245,7 +246,7 @@ class Affine(nn.Module):
 
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4, no_init=False):
+                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -273,30 +274,34 @@ class STT(nn.Module):
     
         else: self.scale_list = None  
         
-        self.init_list = list()
-        for i in range(4):
-            self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device(), no_init))
+        # self.init_list = list()
+        # for i in range(4):
+        #     self.init_list.append(self.make_init(i, self.num_patches, init_noise=init_noise).cuda(torch.cuda.current_device(), no_init))
   
+        self.init = self.make_init().cuda(torch.cuda.current_device())
+
         self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)
         self.theta = None    
             
         self.apply(self._init_weights)
 
-    def make_init(self, n, num_patches, init_noise=[0, 0], no_init=False):                
-        if no_init:    
-            ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
-            ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
-            ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
-            ratio_x = float((math.cos(n * math.pi))*ratio[0])
-            ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])             
+    # def make_init(self, n, num_patches, init_noise=[0, 0], no_init=False):                
+        # if no_init:    
+        #     ratio = np.random.normal(1/num_patches, init_noise[0], size=2)
+        #     ratio_scale_a = np.random.normal(1, init_noise[1], size=2)
+        #     ratio_scale_b = np.random.normal(0, init_noise[1], size=2)
+        #     ratio_x = float((math.cos(n * math.pi))*ratio[0])
+        #     ratio_y = float((math.sin(((n//2) * 2 + 1) * math.pi / 2))*ratio[1])             
 
-            out = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
-                                float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
+        #     out = torch.tensor([float(ratio_scale_a[1]), float(ratio_scale_b[0]), ratio_x, 
+        #                         float(ratio_scale_b[1]), float(ratio_scale_a[0]), ratio_y])
 
-        else:
-            out = torch.tensor([0, 0, 0,
-                                0, 0, 0])
-    
+        # else:
+        #     out = torch.tensor([0, 0, 0,
+        #                         0, 0, 0])
+    def make_init(self,):                
+        out = torch.tensor([1, 0, 0,
+                            0, 1, 0])
         return out
 
     def _init_weights(self, m):
@@ -313,7 +318,7 @@ class STT(nn.Module):
     def forward(self, x):
         
         x = self.input(x)
-        affine = self.affine_net(self.param_token, x, self.init_list, self.scale_list)
+        affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
         x = self.rearrange(x)
         out = x + affine

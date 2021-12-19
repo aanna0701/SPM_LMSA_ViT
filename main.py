@@ -95,7 +95,7 @@ def init_parser():
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
-    parser.add_argument('--no_init', action='store_false')
+
     parser.add_argument('--init_noise_trans', default=1e-3, type=float)
     parser.add_argument('--init_noise_scale', default=1e-3, type=float)
     parser.add_argument('--merging_size', default=2, type=int)
@@ -208,7 +208,7 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
-                    no_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale], is_coord=args.is_coord, is_LSA=args.is_LSA)
+                    init_noise=[args.init_noise_trans, args.init_noise_scale], is_coord=args.is_coord, is_LSA=args.is_LSA)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
@@ -245,7 +245,7 @@ def main(args):
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=args.is_base,  merging_size=args.merging_size, pe_dim=args.pe_dim,
-                    eps=args.scale, no_init=args.no_init, is_coord=args.is_coord, is_LSA=args.is_LSA,
+                    eps=args.scale, is_coord=args.is_coord, is_LSA=args.is_LSA,
                     init_noise=[args.init_noise_trans, args.init_noise_scale])
 
 
@@ -282,7 +282,7 @@ def main(args):
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
                                 is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim, is_coord=args.is_coord, is_LSA=args.is_LSA,
-                                no_init=args.no_init, init_noise=[args.init_noise_trans, args.init_noise_scale])
+                                init_noise=[args.init_noise_trans, args.init_noise_scale])
    
     elif args.model =='resnet':
         from models.conv_cifar_pytoch.resnet import resnet56
