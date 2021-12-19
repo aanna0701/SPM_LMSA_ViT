@@ -895,7 +895,7 @@ if __name__ == '__main__':
         model_name += f"-Sim[{args.lam}]"
          
     # model_name += "-Pe_dim[{args.pe_dim}]"
-    # model_name += "-Merge[{args.merging_size}]"
+    model_name += "-Merge[{args.merging_size}]"
     model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
