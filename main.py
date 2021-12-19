@@ -893,6 +893,9 @@ if __name__ == '__main__':
  
     if args.lam > 0.:
         model_name += f"-Sim[{args.lam}]"
+ 
+    if args.scale > 0.:
+        model_name += f"-Scale[{args.scale}]"
          
     # model_name += "-Pe_dim[{args.pe_dim}]"
     model_name += f"-Merge[{args.merging_size}]"
