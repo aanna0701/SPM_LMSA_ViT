@@ -488,7 +488,7 @@ def main(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,  num_workers=args.workers, pin_memory=True,
-        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, args.ra, shuffle=True, drop_last=True))
+        batch_sampler=RASampler(len(train_dataset), args.batch_size, 1, args.ra, shuffle=True, drop_last=True))
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
     '''
