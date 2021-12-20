@@ -197,7 +197,7 @@ class ViT(nn.Module):
         
         x = self.to_patch_embedding(img)
             
-        if not self.is_base and not self.is_coord:        
+        if not self.is_base:        
             self.theta = self.to_patch_embedding.theta
             self.scale = self.to_patch_embedding.scale_list
         
