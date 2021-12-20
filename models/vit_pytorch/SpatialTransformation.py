@@ -113,17 +113,16 @@ class AffineNet(nn.Module):
         self.n_trans = n_trans
         n_output = 6*self.n_trans
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
-        self.param_transformer = Transformer(self.in_dim, num_patches, depth, heads, self.in_dim//heads, self.in_dim*2)
-       
+        self.param_transformer = Transformer(hidden_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim*2)       
 
         self.depth_wise_conv = nn.Sequential(
-            nn.Conv2d(self.in_dim, self.in_dim, merging_size, merging_size, groups=self.in_dim),
+            nn.Conv2d(hidden_dim, hidden_dim, merging_size, merging_size, groups=hidden_dim),
             Rearrange('b c h w -> b (h w) c')
         )
             
         self.mlp_head = nn.Sequential(
-            nn.LayerNorm(self.in_dim),
-            nn.Linear(self.in_dim, n_output)
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, n_output)
         )
         
         self.transformation = Affine()
@@ -133,6 +132,7 @@ class AffineNet(nn.Module):
         self.theta = list()
     def forward(self, param_token, x, init, scale=None):
         # print(x.shape)
+        x = self.pre_linear(x)
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
         param = self.mlp_head(param_attd[:, 0])
@@ -141,9 +141,8 @@ class AffineNet(nn.Module):
         out = []
         theta = []
         if len(x.size()) == 3:
-            x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+            x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))        
         
-        x = self.pre_linear(x)
         x = torch.chunk(x, self.n_trans, dim=1)
         for i in range(self.n_trans):
             if scale is not None:
@@ -209,9 +208,9 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        print('========')
-        print(scale)
-        print(theta[0])
+        # print('========')
+        # print(scale)
+        # print(theta[0])
         
         
         theta = F.tanh(theta)
@@ -223,7 +222,7 @@ class Affine(nn.Module):
         theta = theta + init 
         self.theta = theta    
    
-        print(theta[0])
+        # print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
@@ -231,7 +230,7 @@ class Affine(nn.Module):
      
 
 class STT(nn.Module):
-    def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
+    def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=64, embed_dim=96, depth=2, heads=4, type='PE', 
                  init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
@@ -245,13 +244,12 @@ class STT(nn.Module):
         if type == 'PE':
             # self.input = nn.Conv2d(3, in_dim, (3, 3), 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')         
-            self.affine_net = AffineNet(self.num_patches, depth, 3, in_dim, heads, merging_size=merging_size)
-            self.param_token = nn.Parameter(torch.rand(1, 1, in_dim))
         else:
             # self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            self.affine_net = AffineNet(self.num_patches, depth, in_dim, in_dim, heads)    
-            self.param_token = nn.Parameter(torch.rand(1, 1, in_dim))
+            
+        self.affine_net = AffineNet(self.num_patches, depth, in_dim, pa_dim, heads, merging_size=merging_size)
+        self.param_token = nn.Parameter(torch.rand(1, 1, pa_dim))
                       
         if not init_eps == 0.:
             self.scale_list = nn.ParameterList()  
@@ -262,7 +260,7 @@ class STT(nn.Module):
         
         self.init = self.make_init().cuda(torch.cuda.current_device())
 
-        self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)
+        self.patch_merge = PatchMerging(patch_size, in_dim, embed_dim)
         self.theta = None    
             
         self.apply(self._init_weights)
