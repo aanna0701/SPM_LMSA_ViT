@@ -36,7 +36,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0.):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_LSA=False):
         super().__init__()
         inner_dim = dim_head *  heads
         self.heads = heads
@@ -54,29 +54,28 @@ class Attention(nn.Module):
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         )
-       
+        self.is_LSA = is_LSA
         self.scale = nn.Parameter(self.scale*torch.ones(heads))
         
 
-    def forward(self, x, context = None):
+    def forward(self, x, context):
         b, n, _, h = *x.shape, self.heads
         
-        
-        context = x if not exists(context) else torch.cat((x, context), dim = 1)
+        if not self.is_LSA:
+            context = torch.cat((x, context), dim = 1)
+        else:    
+            context = context
 
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        # dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+        if not self.is_LSA:
+            dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
         
-        """ LMSA """
-        ############################
-        scale = self.scale
-        dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
+        else:
+            scale = self.scale
+            dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
 
-        dots[:, :, :, 0] = -987654321
-        ###########################
-        
         dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
         attn = self.attend(dots)        
         attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
@@ -87,18 +86,17 @@ class Attention(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0.):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., is_LSA=False):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.layer_dropout = layer_dropout
 
         for ind in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_LSA=is_LSA)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
-        
-        
+                
     def forward(self, x, context = None):
 
         for attn, ff in self.layers:
@@ -107,13 +105,13 @@ class Transformer(nn.Module):
         return x    
 
 class AffineNet(nn.Module):
-    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, merging_size=2):
+    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, merging_size=2, is_LSA=False):
         super().__init__()
         self.in_dim = in_dim
         self.n_trans = n_trans
         n_output = 6*self.n_trans
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
-        self.param_transformer = Transformer(hidden_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim*2)       
+        self.param_transformer = Transformer(hidden_dim, num_patches, depth, heads, hidden_dim//heads, self.in_dim*2, is_LSA=is_LSA)       
 
         self.depth_wise_conv = nn.Sequential(
             nn.Conv2d(hidden_dim, hidden_dim, merging_size, merging_size, groups=hidden_dim),
@@ -210,8 +208,7 @@ class Affine(nn.Module):
     def forward(self, x, theta, init, scale=None):
         # print('========')
         # print(scale)
-        # print(theta[0])
-        
+        # print(theta[0])     
         
         theta = F.tanh(theta)
         if scale is not None:
@@ -231,7 +228,7 @@ class Affine(nn.Module):
 
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=64, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4):
+                 init_eps=0., is_LSA=False, merging_size=4):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -248,7 +245,7 @@ class STT(nn.Module):
             # self.input = nn.Identity()
             self.rearrange = nn.Identity()
             
-        self.affine_net = AffineNet(self.num_patches, depth, in_dim, pa_dim, heads, merging_size=merging_size)
+        self.affine_net = AffineNet(self.num_patches, depth, in_dim, pa_dim, heads, merging_size=merging_size, is_LSA=is_LSA)
         self.param_token = nn.Parameter(torch.rand(1, 1, pa_dim))
                       
         if not init_eps == 0.:
