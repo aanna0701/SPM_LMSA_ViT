@@ -241,11 +241,14 @@ class STT(nn.Module):
         
         
         if type == 'PE':
-            # self.input = nn.Conv2d(3, in_dim, (3, 3), 2, 1)
-            self.rearrange = Rearrange('b c h w -> b (h w) c')         
+            in_dim = pa_dim
+            self.input = nn.Conv2d(3, in_dim, 3, 2, 1)
+            self.rearrange = Rearrange('b c h w -> b (h w) c')     
+            self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)    
         else:
-            # self.input = nn.Identity()
+            self.input = nn.Identity()
             self.rearrange = nn.Identity()
+            self.patch_merge = PatchMerging(patch_size, in_dim, embed_dim)
             
         self.affine_net = AffineNet(self.num_patches, depth, in_dim, pa_dim, heads, merging_size=merging_size, is_LSA=is_LSA)
         self.param_token = nn.Parameter(torch.rand(1, 1, pa_dim))
@@ -259,7 +262,6 @@ class STT(nn.Module):
         
         self.init = self.make_init().cuda(torch.cuda.current_device())
 
-        self.patch_merge = PatchMerging(patch_size, in_dim, embed_dim)
         self.theta = None    
             
         self.apply(self._init_weights)
@@ -281,7 +283,7 @@ class STT(nn.Module):
 
     def forward(self, x):
         
-        # x = self.input(x)
+        x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
         x = self.rearrange(x)
