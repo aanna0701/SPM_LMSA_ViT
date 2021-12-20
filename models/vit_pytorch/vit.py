@@ -140,7 +140,7 @@ class Transformer(nn.Module):
 class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
                  dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pa_dim=64, is_coord=False, is_LSA=False,
-                 is_base=True, eps=0., init_noise=[1e-3, 1e-3], merging_size=4):
+                 is_base=True, eps=0., merging_size=4):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -165,7 +165,7 @@ class ViT(nn.Module):
             
         else:
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=channels, pa_dim=pa_dim, embed_dim=dim, type='PE',
-                                           init_eps=eps, init_noise=init_noise, merging_size=merging_size)
+                                           init_eps=eps, is_LSA=is_LSA, merging_size=merging_size)
         
             
         if not is_coord:
