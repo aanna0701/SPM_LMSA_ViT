@@ -125,7 +125,7 @@ class AffineNet(nn.Module):
         
         self.transformation = Affine()
         self.pre_linear = nn.Conv2d(self.in_dim, hidden_dim, (1, 1))
-        self.post_linear = nn.Conv2d(hidden_dim*4, self.in_dim, (1, 1))
+        self.post_linear = nn.Conv2d(hidden_dim, self.in_dim, (1, 1))
 
         self.theta = list()
     def forward(self, param_token, x, init, scale=None):
@@ -142,12 +142,12 @@ class AffineNet(nn.Module):
         out = []
         theta = []       
         
-        # x = torch.chunk(x, self.n_trans, dim=1)
+        x = torch.chunk(x, self.n_trans, dim=1)
         for i in range(self.n_trans):
             if scale is not None:
-                out.append(self.transformation(x, param_list[i], init, scale[i]))
+                out.append(self.transformation(x[i], param_list[i], init, scale[i]))
             else:
-                out.append(self.transformation(x, param_list[i], init))
+                out.append(self.transformation(x[i], param_list[i], init))
             theta.append(self.transformation.theta)
                 
         out = torch.cat(out, dim=1)
