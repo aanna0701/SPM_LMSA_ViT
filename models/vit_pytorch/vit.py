@@ -165,7 +165,7 @@ class ViT(nn.Module):
             
         else:
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=channels, pa_dim=pa_dim, embed_dim=dim, type='PE',
-                                           init_eps=eps, is_LSA=is_LSA, merging_size=merging_size)
+                                           init_eps=eps, is_LSA=True, merging_size=merging_size)
         
             
         if not is_coord:
