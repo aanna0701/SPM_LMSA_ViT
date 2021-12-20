@@ -7,7 +7,7 @@ from utils.relative_norm_residuals import compute_relative_norm_residuals
 from .SpatialTransformation import STT
 from utils.coordconv import CoordLinear
 # helpers
-
+ 
 def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
