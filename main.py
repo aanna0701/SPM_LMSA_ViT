@@ -896,7 +896,7 @@ if __name__ == '__main__':
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
          
-    # model_name += "-Pa_dim[{args.pa_dim}]"
+    model_name += f"-Pa_dim[{args.pa_dim}]"
     model_name += f"-Merge[{args.merging_size}]"
     model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
