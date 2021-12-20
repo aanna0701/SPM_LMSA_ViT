@@ -14,6 +14,7 @@ from utils.coordconv import CoordConv, CoordLinear
 
 def exists(val):
     return val is not None
+
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
@@ -30,6 +31,7 @@ class PreNorm(nn.Module):
         flops += self.dim
         
         return flops 
+    
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
@@ -51,6 +53,7 @@ class FeedForward(nn.Module):
         flops += self.dim * self.hidden_dim
         
         return flops
+    
 class Attention(nn.Module):
     def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_LSA=False, is_coord=False):
         super().__init__()
@@ -61,10 +64,14 @@ class Attention(nn.Module):
         self.num_patches = num_patches
         self.is_coord = is_coord
         self.to_q = nn.Linear(self.dim, self.inner_dim, bias = False)
+        
         if not self.is_coord:
             self.to_kv = nn.Linear(self.dim, self.inner_dim * 2, bias = False)
         else:
-            self.to_kv = CoordLinear(self.dim, self.inner_dim * 2, bias = False, exist_class_t=False)
+            if is_LSA:
+                self.to_kv = CoordLinear(self.dim, self.inner_dim * 2, exist_cls_token=False, bias = False)
+            else:
+                self.to_kv = CoordLinear(self.dim, self.inner_dim * 2, bias = False)
         
         self.attend = nn.Softmax(dim = -1)
         self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
@@ -82,7 +89,7 @@ class Attention(nn.Module):
             context = torch.cat((x, context), dim = 1)
         else:    
             context = context
-
+            
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
@@ -115,6 +122,7 @@ class Attention(nn.Module):
         flops += self.inner_dim * self.dim
         
         return flops
+    
 class Transformer(nn.Module):
     def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., is_LSA=False, is_coord=False):
         super().__init__()
@@ -142,6 +150,7 @@ class Transformer(nn.Module):
             flops += ff.flops()
         
         return flops
+    
 class AffineNet(nn.Module):
     def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, merging_size=2, is_LSA=False, is_coord=False):
         super().__init__()
@@ -212,6 +221,7 @@ class AffineNet(nn.Module):
             flops += self.num_patches*self.in_dim*(self.hidden_dim+2)   # post-linear
         
         return flops    
+    
 class PatchMerging(nn.Module):
     r""" Patch Merging Layer.
     Args:
@@ -248,6 +258,7 @@ class PatchMerging(nn.Module):
         flops += (self.num_patches//(self.patch_size**2))*self.patch_dim
         
         return flops
+    
 class Affine(nn.Module):
     def __init__(self, padding_mode='zeros'):
         super().__init__()
@@ -274,6 +285,7 @@ class Affine(nn.Module):
         grid = F.affine_grid(theta, x.size())
         
         return F.grid_sample(x, grid, padding_mode=self.mode)
+    
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=64, embed_dim=96, depth=2, heads=4, type='PE', 
                  init_eps=0., is_LSA=False, merging_size=4, is_coord=False):
