@@ -125,11 +125,14 @@ class AffineNet(nn.Module):
         
         self.transformation = Affine()
         self.pre_linear = nn.Conv2d(self.in_dim, hidden_dim, (1, 1))
-        self.post_linear = nn.Conv2d(hidden_dim, self.in_dim, (1, 1))
+        self.post_linear = nn.Conv2d(hidden_dim*4, self.in_dim, (1, 1))
 
         self.theta = list()
     def forward(self, param_token, x, init, scale=None):
         # print(x.shape)
+        if len(x.size()) == 3:
+            x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1)))) 
+            
         x = self.pre_linear(x)
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
@@ -137,20 +140,19 @@ class AffineNet(nn.Module):
         param_list = torch.chunk(param, self.n_trans, dim=-1)
         
         out = []
-        theta = []
-        if len(x.size()) == 3:
-            x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))        
+        theta = []       
         
-        x = torch.chunk(x, self.n_trans, dim=1)
+        # x = torch.chunk(x, self.n_trans, dim=1)
         for i in range(self.n_trans):
             if scale is not None:
-                out.append(self.transformation(x[i], param_list[i], init, scale[i]))
+                out.append(self.transformation(x, param_list[i], init, scale[i]))
             else:
-                out.append(self.transformation(x[i], param_list[i], init))
+                out.append(self.transformation(x, param_list[i], init))
             theta.append(self.transformation.theta)
                 
         out = torch.cat(out, dim=1)
         out = self.post_linear(out)
+        
         out = rearrange(out, 'b d h w -> b (h w) d')
         self.theta = theta
         
