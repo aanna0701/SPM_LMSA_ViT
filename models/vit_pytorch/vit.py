@@ -172,18 +172,14 @@ class Transformer(nn.Module):
         return flops
 class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
-                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pa_dim=64, is_coord=False, is_LSA=False,
+                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=64, is_coord=False, is_LSA=False,
                  is_base=True, eps=0., merging_size=4):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
-
-        assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
-
         self.num_patches = (image_height // patch_height) * (image_width // patch_width)
         self.patch_dim = channels * patch_height * patch_width
         self.dim = dim
-        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
         self.num_classes = num_classes
         self.is_base = is_base
         self.is_coord = is_coord
@@ -200,7 +196,7 @@ class ViT(nn.Module):
             )
             
         else:
-            self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=channels, pa_dim=pa_dim, embed_dim=dim, type='PE',
+            self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE',
                                            init_eps=eps, is_LSA=True, merging_size=merging_size)
                     
         if not self.is_coord:
@@ -209,8 +205,7 @@ class ViT(nn.Module):
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.dim))
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(self.dim, self.num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout, stochastic_depth, is_coord=is_coord, is_LSA=is_LSA)
-        self.pool = pool
-        self.to_latent = nn.Identity()
+
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.dim),
@@ -239,14 +234,9 @@ class ViT(nn.Module):
             x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
-        x = self.transformer(x)
-
-        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
-
-        x = self.to_latent(x)
+        x = self.transformer(x)      
         
-        
-        return self.mlp_head(x)
+        return self.mlp_head(x[:, 0])
 
     def flops(self):
         flops = 0
@@ -368,7 +358,7 @@ class ViT(nn.Module):
 
 # class ViT(nn.Module):
 #     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
-#                  dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pa_dim=64,
+#                  dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=64,
 #                  is_base=True, eps=0., no_init=False, init_noise=[1e-3, 1e-3], merging_size=4):
 #         super().__init__()
 #         image_height, image_width = pair(img_size)
@@ -388,7 +378,7 @@ class ViT(nn.Module):
 #             )
             
 #         else:
-#             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pa_dim, embed_dim=dim, type='PE',
+#             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE',
 #                                            init_eps=eps, init_noise=init_noise, merging_size=merging_size ,no_init=no_init)
             
 

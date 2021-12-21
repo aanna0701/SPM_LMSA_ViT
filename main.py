@@ -99,7 +99,7 @@ def init_parser():
     parser.add_argument('--init_noise_trans', default=1e-3, type=float)
     parser.add_argument('--init_noise_scale', default=1e-3, type=float)
     parser.add_argument('--merging_size', default=2, type=int)
-    parser.add_argument('--pa_dim', default=64, type=int)
+    parser.add_argument('--pe_dim', default=64, type=int)
     parser.add_argument('--is_base', action='store_true')
     parser.add_argument('--is_coord', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
@@ -206,7 +206,7 @@ def main(args):
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
-                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pa_dim=args.pa_dim,
+                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
                     is_coord=args.is_coord, is_LSA=args.is_LSA)
 
@@ -244,7 +244,7 @@ def main(args):
         
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
-                    stochastic_depth=args.sd, is_base=args.is_base,  merging_size=args.merging_size, pa_dim=args.pa_dim,
+                    stochastic_depth=args.sd, is_base=args.is_base,  merging_size=args.merging_size, pe_dim=args.pe_dim,
                     eps=args.scale, is_coord=args.is_coord, is_LSA=args.is_LSA)
 
 
@@ -280,7 +280,7 @@ def main(args):
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pa_dim=args.pa_dim, is_coord=args.is_coord, is_LSA=args.is_LSA,
+                                is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim, is_coord=args.is_coord, is_LSA=args.is_LSA,
                                 )
    
     elif args.model =='resnet':
@@ -896,7 +896,7 @@ if __name__ == '__main__':
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
          
-    model_name += f"-Pa_dim[{args.pa_dim}]"
+    model_name += f"-Pe_dim[{args.pe_dim}]"
     model_name += f"-Merge[{args.merging_size}]"
     model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)

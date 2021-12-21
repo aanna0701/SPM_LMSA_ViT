@@ -20,16 +20,13 @@ class PreNorm(nn.Module):
         super().__init__()
         self.dim = dim
         self.norm = nn.LayerNorm(dim)
-        self.fn = fn
-        
+        self.fn = fn        
     def forward(self, x, **kwargs):
-        return self.fn(self.norm(x), **kwargs)
-    
+        return self.fn(self.norm(x), **kwargs)    
     def flops(self):
         flops = 0
         flops += self.fn.flops()
-        flops += self.dim
-        
+        flops += self.dim        
         return flops 
     
 class FeedForward(nn.Module):
@@ -45,8 +42,7 @@ class FeedForward(nn.Module):
             nn.Dropout(dropout)
         )
     def forward(self, x):
-        return self.net(x)
-    
+        return self.net(x)    
     def flops(self):
         flops = 0
         flops += self.dim * self.hidden_dim
@@ -63,8 +59,7 @@ class Attention(nn.Module):
         self.dim  = dim
         self.num_patches = num_patches
         self.is_coord = is_coord
-        self.to_q = nn.Linear(self.dim, self.inner_dim, bias = False)
-        
+        self.to_q = nn.Linear(self.dim, self.inner_dim, bias = False)        
         if not self.is_coord:
             self.to_kv = nn.Linear(self.dim, self.inner_dim * 2, bias = False)
         else:
@@ -80,7 +75,8 @@ class Attention(nn.Module):
                 nn.Linear(self.inner_dim, self.dim),
                 nn.Dropout(dropout))
         self.is_LSA = is_LSA
-        self.scale = nn.Parameter(self.scale*torch.ones(heads))
+        if self.is_LSA:
+            self.scale = nn.Parameter(self.scale*torch.ones(heads))
 
     def forward(self, x, context):
         b, n, _, h = *x.shape, self.heads
@@ -89,10 +85,10 @@ class Attention(nn.Module):
             context = torch.cat((x, context), dim = 1)
         else:    
             context = context
-            
+                        
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
-
+        
         if not self.is_LSA:
             dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale        
         else:
@@ -106,14 +102,17 @@ class Attention(nn.Module):
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
-    
     def flops(self):
         flops = 0
         flops += self.dim * self.inner_dim 
         if not self.is_coord:
             flops += self.dim * self.inner_dim * 2 * self.num_patches
         else:
-            flops += (self.dim+2) * self.inner_dim * 2 * self.num_patches
+            if self.is_LSA:
+                flops += (self.dim+2) * self.inner_dim * 2 * self.num_patches
+            else:    
+                flops += (self.dim+2) * self.inner_dim * 2 * self.num_patches
+                flops += self.dim * self.inner_dim * 2 
         flops += self.inner_dim * self.num_patches
         flops += self.inner_dim * self.num_patches
         flops += self.num_patches   # scaling
@@ -131,20 +130,19 @@ class Transformer(nn.Module):
 
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_LSA=is_LSA, is_coord=is_coord)),
+                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, 
+                                       is_LSA=is_LSA, is_coord=is_coord)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
                 
     def forward(self, x, context = None):
-
         for attn, ff in self.layers:
             x = attn(x, context = context) + x
             x = ff(x) + x
         return x  
     
     def flops(self):
-        flops = 0
-        
+        flops = 0        
         for (attn, ff) in self.layers:       
             flops += attn.flops()
             flops += ff.flops()
@@ -162,14 +160,14 @@ class AffineNet(nn.Module):
         self.merging_size = merging_size
         self.is_coord = is_coord
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
-        self.param_transformer = Transformer(self.in_dim, self.num_patches//(self.merging_size**2), depth, heads, self.hidden_dim//heads, self.in_dim*2, is_LSA=is_LSA, is_coord=is_coord)       
+        self.param_transformer = Transformer(self.in_dim, self.num_patches//(self.merging_size**2), depth, heads, self.in_dim//heads, self.in_dim*2, is_LSA=is_LSA, is_coord=is_coord)       
         self.depth_wise_conv = nn.Sequential(
             nn.Conv2d(self.in_dim, self.in_dim, self.merging_size, self.merging_size, groups=self.in_dim),
             Rearrange('b c h w -> b (h w) c')
         )
         self.mlp_head = nn.Sequential(
-            nn.LayerNorm(self.hidden_dim),
-            nn.Linear(self.hidden_dim, self.n_output)
+            nn.LayerNorm(self.in_dim),
+            nn.Linear(self.in_dim, self.n_output)
         )  
         self.transformation = Affine()
         if not self.is_coord:
@@ -178,8 +176,8 @@ class AffineNet(nn.Module):
         else:
             self.pre_linear = CoordConv(self.in_dim, self.hidden_dim, 1)
             self.post_linear = CoordConv(self.hidden_dim, self.in_dim, 1)
-
         self.theta = list()
+        
     def forward(self, param_token, x, init, scale=None):
         # print(x.shape)
         if len(x.size()) == 3:
@@ -201,6 +199,7 @@ class AffineNet(nn.Module):
             else:
                 out.append(self.transformation(x[i], param_list[i], init))
             theta.append(self.transformation.theta)
+            
         out = torch.cat(out, dim=1)
         out = self.post_linear(out)        
         out = rearrange(out, 'b d h w -> b (h w) d')
@@ -287,7 +286,7 @@ class Affine(nn.Module):
         return F.grid_sample(x, grid, padding_mode=self.mode)
     
 class STT(nn.Module):
-    def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=64, embed_dim=96, depth=2, heads=4, type='PE', 
+    def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
                  init_eps=0., is_LSA=False, merging_size=4, is_coord=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
@@ -297,21 +296,19 @@ class STT(nn.Module):
         self.num_patches = img_size**2
         self.in_dim = in_dim
         self.type = type
-        self.pa_dim = pa_dim
         
         if self.type == 'PE':
-            self.in_dim = self.pa_dim
-            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')     
-            self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.pa_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
+            self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
             self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim)    
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            self.affine_net = AffineNet((self.num_patches**2), depth, self.in_dim, self.pa_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
-            self.patch_merge = PatchMerging((self.num_patches**2), patch_size, self.in_dim, embed_dim)
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
+            self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim)
         
-        self.param_token = nn.Parameter(torch.rand(1, 1, self.pa_dim))
+        self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
                       
         if not init_eps == 0.:
             self.scale_list = nn.ParameterList()  
@@ -351,8 +348,13 @@ class STT(nn.Module):
     
     def flops(self):
         flops = 0
-        
-        flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2) if self.type=='PE' else 0
+        if self.type=='PE':
+            if not self.is_coord:
+                flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+            else:    
+                flops_input = (3**2)*(3+2)*self.in_dim*((self.img_size//2)**2)
+        else:
+            flops_input = 0
         flops += flops_input
         flops += self.affine_net.flops()   
         flops += self.patch_merge.flops() 
