@@ -298,7 +298,7 @@ class STT(nn.Module):
         self.type = type
         
         if self.type == 'PE':
-            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
+            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')     
             self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
             self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim)    
