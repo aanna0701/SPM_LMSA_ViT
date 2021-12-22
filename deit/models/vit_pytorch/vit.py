@@ -1,10 +1,10 @@
 import torch
 from torch import nn, einsum
-from utils.drop_path import DropPath
+from utils_.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from .SpatialTransformation import STT
-from utils.coordconv import CoordLinear
+from utils_.coordconv import CoordLinear
 # helpers
  
 def pair(t):
