@@ -33,7 +33,11 @@ def get_shared_folder() -> Path:
         p = Path(os.getcwd()+'/shared'+"/experiments")
         p.mkdir(exist_ok=True)
         return p
-    raise RuntimeError("No shared folder available")
+    else:
+        os.makedirs(os.getcwd()+'/shared', exist_ok=True)
+        p = Path(os.getcwd()+'/shared'+"/experiments")
+        p.mkdir(exist_ok=True)
+        return p
 
 
 def get_init_file():
