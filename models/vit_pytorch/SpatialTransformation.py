@@ -160,7 +160,6 @@ class AffineNet(nn.Module):
         self.merging_size = merging_size
         self.is_coord = is_coord
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
-        self.norm = nn.GroupNorm(1, self.in_dim)
         self.param_transformer = Transformer(self.in_dim, self.num_patches//(self.merging_size**2), depth, heads, self.in_dim//heads, self.in_dim*2, is_LSA=is_LSA, is_coord=is_coord)       
         self.depth_wise_conv = nn.Sequential(
             nn.Conv2d(self.in_dim, self.in_dim, self.merging_size, self.merging_size, groups=self.in_dim),
@@ -184,7 +183,6 @@ class AffineNet(nn.Module):
         # print(x.shape)
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1)))) 
-        x = self.norm(x)   
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
         param = self.mlp_head(param_attd[:, 0])

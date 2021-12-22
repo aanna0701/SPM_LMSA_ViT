@@ -10,7 +10,7 @@ from math import sqrt
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils_.coordconv import CoordConv, CoordLinear
+from utils.coordconv import CoordConv, CoordLinear
 
 def exists(val):
     return val is not None
@@ -176,14 +176,13 @@ class AffineNet(nn.Module):
         else:
             self.pre_linear = CoordConv(self.in_dim, self.hidden_dim, 1)
             self.post_linear = CoordConv(self.hidden_dim, self.in_dim, 1)
-        self.norm = nn.GroupNorm(1, self.in_dim)
+        
         self.theta = list()
         
     def forward(self, param_token, x, init, scale=None):
         # print(x.shape)
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1)))) 
-        x = self.norm(x)   
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
         param = self.mlp_head(param_attd[:, 0])
@@ -300,7 +299,7 @@ class STT(nn.Module):
         
         if self.type == 'PE':
             # self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
-            self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
+            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')     
             self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
             self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 

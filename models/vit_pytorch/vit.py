@@ -206,7 +206,6 @@ class ViT(nn.Module):
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(self.dim, self.num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout, stochastic_depth, is_coord=is_coord, is_LSA=is_LSA)
 
-
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.dim),
             nn.Linear(self.dim, self.num_classes)
