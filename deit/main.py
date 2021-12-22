@@ -243,7 +243,7 @@ def main(args):
         model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
                     mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=64,
                     dropout=args.drop, stochastic_depth=args.drop_path, is_base=True, eps=0, merging_size=4,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA)
+                    is_coord=False, is_LSA=False)
     else:
         model = create_model(
             args.model,
