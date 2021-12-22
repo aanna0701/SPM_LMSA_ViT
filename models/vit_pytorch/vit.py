@@ -64,12 +64,12 @@ class FeedForward(nn.Module):
     def flops(self):
         flops = 0
         if not self.is_coord:
-            flops += self.dim * self.hidden_dim * (self.num_tokens+1)
-            flops += self.dim * self.hidden_dim * (self.num_tokens+1)
+            flops += self.dim * self.hidden_dim * (self.num_patches+1)
+            flops += self.dim * self.hidden_dim * (self.num_patches+1)
         else:
-            flops += (self.dim+2) * self.hidden_dim * self.num_tokens
+            flops += (self.dim+2) * self.hidden_dim * self.num_patches
             flops += self.dim * self.hidden_dim
-            flops += self.dim * (self.hidden_dim+2) * self.num_tokens
+            flops += self.dim * (self.hidden_dim+2) * self.num_patches
             flops += self.dim * self.hidden_dim
         
         return flops
