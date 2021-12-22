@@ -22,12 +22,12 @@ from engine import train_one_epoch, evaluate
 from losses import DistillationLoss
 from samplers import RASampler
 import models
-import utils 
+import utils
 
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
-    parser.add_argument('--batch-size', default=64, type=int)
+    parser.add_argument('--batch-size', default=256, type=int)
     parser.add_argument('--epochs', default=300, type=int)
 
     # Model parameters
@@ -62,7 +62,7 @@ def get_args_parser():
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
                         help='LR scheduler (default: "cosine"')
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                         help='learning rate (default: 5e-4)')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
                         help='learning rate noise on/off epoch percentages')
@@ -70,9 +70,9 @@ def get_args_parser():
                         help='learning rate noise limit percent (default: 0.67)')
     parser.add_argument('--lr-noise-std', type=float, default=1.0, metavar='STDDEV',
                         help='learning rate noise std-dev (default: 1.0)')
-    parser.add_argument('--warmup-lr', type=float, default=1e-6, metavar='LR',
+    parser.add_argument('--warmup-lr', type=float, default=5e-7, metavar='LR',
                         help='warmup learning rate (default: 1e-6)')
-    parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
+    parser.add_argument('--min-lr', type=float, default=5e-6, metavar='LR',
                         help='lower lr bound for cyclic schedulers that hit 0 (1e-5)')
 
     parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
@@ -169,6 +169,7 @@ def get_args_parser():
 
 
 def main(args):
+    utils.init_distributed_mode(args)
 
     print(args)
 
@@ -178,7 +179,7 @@ def main(args):
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
-    seed = args.seed
+    seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
     # random.seed(seed)
@@ -188,9 +189,32 @@ def main(args):
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
     dataset_val, _ = build_dataset(is_train=False, args=args)
 
-    
+    if True:  # args.distributed:
+        num_tasks = utils.get_world_size()
+        global_rank = utils.get_rank()
+        if args.repeated_aug:
+            sampler_train = RASampler(
+                dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+        else:
+            sampler_train = torch.utils.data.DistributedSampler(
+                dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+        if args.dist_eval:
+            if len(dataset_val) % num_tasks != 0:
+                print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
+                      'This will slightly alter validation results as extra duplicate entries are added to achieve '
+                      'equal num of samples per-process.')
+            sampler_val = torch.utils.data.DistributedSampler(
+                dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+        else:
+            sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+    else:
+        sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+
     data_loader_train = torch.utils.data.DataLoader(
-        dataset_train,
+        dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
@@ -198,7 +222,7 @@ def main(args):
     )
 
     data_loader_val = torch.utils.data.DataLoader(
-        dataset_val,
+        dataset_val, sampler=sampler_val,
         batch_size=int(1.5 * args.batch_size),
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
@@ -214,22 +238,21 @@ def main(args):
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
     print(f"Creating model: {args.model}")
-    # model = create_model(
-    #     args.model,
-    #     pretrained=False,
-    #     num_classes=args.nb_classes,
-    #     drop_rate=args.drop,
-    #     drop_path_rate=args.drop_path,
-    #     drop_block_rate=None,
-    # )
+    model = create_model(
+        args.model,
+        pretrained=False,
+        num_classes=args.nb_classes,
+        drop_rate=args.drop,
+        drop_path_rate=args.drop_path,
+        drop_block_rate=None,
+    )
+
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT     
         model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
-                    mlp_dim_ratio=2, depth=12, heads=3, dim_head=192//3, pe_dim=64,
+                    mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=64,
                     dropout=args.drop, stochastic_depth=args.drop_path, is_base=args.is_base, eps=0, merging_size=4,
-                    no_init=True, is_coord=args.is_coord, is_LSA=args.is_LSA)
-
-
+                    is_coord=args.is_coord, is_LSA=args.is_LSA)
 
 
     if args.finetune:
@@ -280,10 +303,13 @@ def main(args):
             resume='')
 
     model_without_ddp = model
+    if args.distributed:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
-    linear_scaled_lr = args.lr * args.batch_size / 512.0
+    linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
     args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
@@ -351,6 +377,8 @@ def main(args):
     start_time = time.time()
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
+        if args.distributed:
+            data_loader_train.sampler.set_epoch(epoch)
 
         train_stats = train_one_epoch(
             model, criterion, data_loader_train,
