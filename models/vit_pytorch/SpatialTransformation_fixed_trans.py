@@ -23,7 +23,7 @@ class AffineNet(nn.Module):
         self.patch_size = patch_size
           
         self.shift = patch_size//2
-        
+        self.norm = nn.GroupNorm(1, self.in_dim)
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
             nn.Linear(self.in_dim, n_output)
@@ -39,15 +39,12 @@ class AffineNet(nn.Module):
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         
+        x = self.norm(x)
         x = self.pre_linear(x)
-
-
         """ 4 diagonal directions """
         # #############################
          
-        c = x.size(1)
-        
-        
+        c = x.size(1)     
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
         
         x[:, :c//4] = x_pad[:, :c//4, :-self.shift*2, :-self.shift*2]

@@ -20,13 +20,13 @@ class AffineNet(nn.Module):
         
         self.pre_linear = nn.Conv2d(self.in_dim, hidden_dim, (1, 1))
         self.post_linear = nn.Conv2d(hidden_dim, self.in_dim, (1, 1))
-
+        self.norm = nn.GroupNorm(1, self.in_dim)
         self.theta = list()
     def forward(self, x):
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
+        x = self.norm(x)
         x = self.pre_linear(x)
-        
         out = self.post_linear(x)
         out = rearrange(out, 'b d h w -> b (h w) d')
  
