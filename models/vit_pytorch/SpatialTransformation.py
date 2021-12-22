@@ -299,6 +299,7 @@ class STT(nn.Module):
         self.is_coord = is_coord
         
         if self.type == 'PE':
+            # self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
             self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')     
             self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
@@ -350,10 +351,11 @@ class STT(nn.Module):
     def flops(self):
         flops = 0
         if self.type=='PE':
-            if not self.is_coord:
-                flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            else:    
-                flops_input = (3**2)*(3+2)*self.in_dim*((self.img_size//2)**2)
+            flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+            # if not self.is_coord:
+            #     flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+            # else:    
+            #     flops_input = (3**2)*(3+2)*self.in_dim*((self.img_size//2)**2)
         else:
             flops_input = 0
         flops += flops_input
