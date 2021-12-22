@@ -58,7 +58,7 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
         self.dim  = dim
         self.num_patches = num_patches
-        self.is_coord = is_coord
+        # self.is_coord = is_coord
         self.to_q = nn.Linear(self.dim, self.inner_dim, bias = False)        
         if not self.is_coord:
             self.to_kv = nn.Linear(self.dim, self.inner_dim * 2, bias = False)
@@ -300,7 +300,7 @@ class STT(nn.Module):
         
         if self.type == 'PE':
             # self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
-            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
+            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')     
             self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
             self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim)    
