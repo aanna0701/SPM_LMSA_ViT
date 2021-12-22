@@ -58,7 +58,7 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
         self.dim  = dim
         self.num_patches = num_patches
-        # self.is_coord = is_coord
+        self.is_coord = is_coord
         self.to_q = nn.Linear(self.dim, self.inner_dim, bias = False)        
         if not self.is_coord:
             self.to_kv = nn.Linear(self.dim, self.inner_dim * 2, bias = False)
@@ -135,7 +135,7 @@ class Transformer(nn.Module):
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
                 
-    def forward(self, x, context = None):
+    def forward(self, x, context):
         for attn, ff in self.layers:
             x = attn(x, context = context) + x
             x = ff(x) + x
@@ -163,6 +163,7 @@ class AffineNet(nn.Module):
         self.param_transformer = Transformer(self.in_dim, self.num_patches//(self.merging_size**2), depth, heads, self.in_dim//heads, self.in_dim*2, is_LSA=is_LSA, is_coord=is_coord)       
         self.depth_wise_conv = nn.Sequential(
             nn.Conv2d(self.in_dim, self.in_dim, self.merging_size, self.merging_size, groups=self.in_dim),
+            nn.GroupNorm(1,self.in_dim),
             Rearrange('b c h w -> b (h w) c')
         )
         self.mlp_head = nn.Sequential(
@@ -176,13 +177,15 @@ class AffineNet(nn.Module):
         else:
             self.pre_linear = CoordConv(self.in_dim, self.hidden_dim, 1)
             self.post_linear = CoordConv(self.hidden_dim, self.in_dim, 1)
+        self.norm1 = nn.GroupNorm(1, self.in_dim)
+        self.norm2 = nn.GroupNorm(1, self.hidden_dim)
         self.theta = list()
         
     def forward(self, param_token, x, init, scale=None):
         # print(x.shape)
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1)))) 
-            
+        x = self.norm1(x)   
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
         param = self.mlp_head(param_attd[:, 0])
@@ -198,9 +201,9 @@ class AffineNet(nn.Module):
                 out.append(self.transformation(x[i], param_list[i], init, scale[i]))
             else:
                 out.append(self.transformation(x[i], param_list[i], init))
-            theta.append(self.transformation.theta)
-            
+            theta.append(self.transformation.theta)            
         out = torch.cat(out, dim=1)
+        out = self.norm2(out)
         out = self.post_linear(out)        
         out = rearrange(out, 'b d h w -> b (h w) d')
         self.theta = theta
@@ -303,13 +306,13 @@ class STT(nn.Module):
             self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')     
             self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
-            self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim)    
+            self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+           
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
-            self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim)
-        
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim*2, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
+            self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim*2, embed_dim)
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
                       
         if not init_eps == 0.:
@@ -333,7 +336,7 @@ class STT(nn.Module):
             trunc_normal_(m.weight, std=.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
-        elif isinstance(m, (nn.LayerNorm)):
+        elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
