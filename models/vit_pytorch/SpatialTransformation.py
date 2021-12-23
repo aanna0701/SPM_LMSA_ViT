@@ -286,7 +286,7 @@ class Affine(nn.Module):
     
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., is_LSA=False, merging_size=4, is_coord=False):
+                 init_eps=0., is_LSA=False, merging_size=4, is_coord=False, n_trans=4):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -311,13 +311,15 @@ class STT(nn.Module):
                 )
                 self.rearrange = nn.Identity()
                 
-            self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
+            self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
+                                        is_LSA=is_LSA, is_coord=is_coord, n_trans=n_trans)
             self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
            
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim*2, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim*2, heads, merging_size=merging_size, 
+                                        is_LSA=is_LSA, is_coord=is_coord, n_trans=n_trans)
             self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim*2, embed_dim)
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
                       
