@@ -309,7 +309,7 @@ class STT(nn.Module):
                     CoordLinear(3*(7**2), self.in_dim, exist_cls_token=False)
                 )
 
-            # self.rearrange = Rearrange('b c h w -> b (h w) c')     
+            self.rearrange = Rearrange('b c h w -> b (h w) c')     
             self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
             self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim) 
            
@@ -350,7 +350,7 @@ class STT(nn.Module):
         x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
-        # x = self.rearrange(x)
+        x = self.rearrange(x)
         out = x + affine
         out = self.patch_merge(out)
         
