@@ -85,10 +85,10 @@ class WindowAttention(nn.Module):
         self.scale = qk_scale or head_dim ** -0.5
         """ LMSA """
         #########################
-        self.scale = nn.Parameter(self.scale*torch.ones(self.num_heads))
-        self.mask = torch.eye((window_size[0]**2), (window_size[0]**2))
-        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
-        self.inf = float('-inf')
+        # self.scale = nn.Parameter(self.scale*torch.ones(self.num_heads))
+        # self.mask = torch.eye((window_size[0]**2), (window_size[0]**2))
+        # self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+        # self.inf = float('-inf')
         #########################
 
         # define a parameter table of relative position bias
@@ -128,14 +128,14 @@ class WindowAttention(nn.Module):
 
         """ Base """
         #########################
-        # q = q * self.scale
+        q = q * self.scale
         #########################
         
         
         """ LMSA """
         #########################
-        scale = self.scale
-        q = torch.mul(q, scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((B_, self.num_heads, 1, 1)))
+        # scale = self.scale
+        # q = torch.mul(q, scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((B_, self.num_heads, 1, 1)))
         #########################
         
         attn = (q @ k.transpose(-2, -1))
@@ -151,13 +151,13 @@ class WindowAttention(nn.Module):
             attn = attn.view(-1, self.num_heads, N, N)
             """ LMSA """
             #########################
-            attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+            # attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
             #########################
             attn = self.softmax(attn)
         else:
             """ LMSA """
             #########################
-            attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+            # attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
             #########################
             attn = self.softmax(attn)
 

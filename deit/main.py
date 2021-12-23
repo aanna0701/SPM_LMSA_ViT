@@ -27,7 +27,7 @@ import utils
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
-    parser.add_argument('--batch-size', default=256, type=int)
+    parser.add_argument('--batch-size', default=1024, type=int)
     parser.add_argument('--epochs', default=300, type=int)
 
     # Model parameters
@@ -154,7 +154,7 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--dist-eval', action='store_true', default=False, help='Enabling distributed evaluation')
-    parser.add_argument('--num_workers', default=2, type=int)
+    parser.add_argument('--num_workers', default=4, type=int)
     parser.add_argument('--pin-mem', action='store_true',
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no-pin-mem', action='store_false', dest='pin_mem',
@@ -244,6 +244,31 @@ def main(args):
                     mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=64,
                     dropout=args.drop, stochastic_depth=args.drop_path, is_base=True, eps=0, merging_size=4,
                     is_coord=False, is_LSA=False)
+    
+    elif args.model == 'pit':
+        from models.vit_pytorch.vit import PiT 
+        patch_size = 8
+        channel = 96
+        heads = (2, 4, 8)
+        depth = (2, 6, 4)    
+        model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=args.channel, 
+                    mlp_dim_ratio=4, depth=depth, heads=args.heads, dim_head=channel//heads[0], dropout=0, 
+                    stochastic_depth=args.drop_path, is_base=True)
+
+    elif args.model == 'swin':
+        from models.vit_pytorch.vit import SwinTransformer  
+        depths = [2, 6, 4]
+        num_heads = [3, 6, 12]
+        mlp_ratio = 2
+        window_size = 4
+        patch_size = 8   
+        
+        model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=args.drop_path, 
+                                patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
+                                num_classes=args.nb_classes, is_base=True
+                                )
+        
+        
     else:
         model = create_model(
             args.model,
