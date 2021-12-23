@@ -299,8 +299,17 @@ class STT(nn.Module):
         
         if self.type == 'PE':
             # self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
-            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
-            self.rearrange = Rearrange('b c h w -> b (h w) c')     
+            if not is_coord:
+                self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+            else:
+                self.input = nn.Sequential(
+                    nn.Unfold(kernel_size=3, stride = 2, padding = 1),
+                    Rearrange('b c n -> b n c'),
+                    nn.LayerNorm(3*(3**2)),
+                    CoordLinear(3*(3**2), self.in_dim, exist_cls_token=False)
+                )
+
+            # self.rearrange = Rearrange('b c h w -> b (h w) c')     
             self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
             self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
            
@@ -341,7 +350,7 @@ class STT(nn.Module):
         x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
-        x = self.rearrange(x)
+        # x = self.rearrange(x)
         out = x + affine
         out = self.patch_merge(out)
         
@@ -350,11 +359,11 @@ class STT(nn.Module):
     def flops(self):
         flops = 0
         if self.type=='PE':
-            flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            # if not self.is_coord:
-            #     flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            # else:    
-            #     flops_input = (3**2)*(3+2)*self.in_dim*((self.img_size//2)**2)
+            # flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+            if not self.is_coord:
+                flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+            else:    
+                flops_input = 3*(2**2)*((self.img_size//2)**2) + 3*(2**2)*self.in_dim*((self.img_size//2)**2)
         else:
             flops_input = 0
         flops += flops_input

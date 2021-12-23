@@ -103,6 +103,7 @@ def init_parser():
     parser.add_argument('--is_base', action='store_true')
     parser.add_argument('--is_coord', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
+    parser.add_argument('--is_coordSTT', action='store_true')
     
     
     # Mixup params
@@ -208,7 +209,7 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA)
+                    is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
@@ -245,7 +246,7 @@ def main(args):
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=args.is_base,  merging_size=args.merging_size, pe_dim=args.pe_dim,
-                    eps=args.scale, is_coord=args.is_coord, is_LSA=args.is_LSA)
+                    eps=args.scale, is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT)
 
 
     elif args.model =='t2t':
@@ -280,7 +281,8 @@ def main(args):
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim, is_coord=args.is_coord, is_LSA=args.is_LSA,
+                                is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim, 
+                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT
                                 )
    
     elif args.model =='resnet':
@@ -880,7 +882,10 @@ if __name__ == '__main__':
     if args.is_base:
         model_name += "-Base"
     else:
-        model_name += "-STT"
+        if args.is_coordSTT:
+            model_name += "-CoordSTT"
+        else:
+            model_name += "-STT"
  
     if args.is_coord:
         model_name += "-Coord"
@@ -896,6 +901,8 @@ if __name__ == '__main__':
  
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
+        
+
          
     model_name += f"-Pe_dim[{args.pe_dim}]"
     model_name += f"-Merge[{args.merging_size}]"
