@@ -903,8 +903,7 @@ if __name__ == '__main__':
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
         
-
-         
+    model_name += f"-N_trans[{args.n_trans}]"
     model_name += f"-Pe_dim[{args.pe_dim}]"
     model_name += f"-Merge[{args.merging_size}]"
     model_name += f"-Seed{args.seed}"
