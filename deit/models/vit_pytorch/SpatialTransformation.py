@@ -300,7 +300,7 @@ class STT(nn.Module):
         if self.type == 'PE':
             # self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
             if not is_coord:
-                self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+                self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
             else:
                 self.input = nn.Sequential(
                     nn.Unfold(kernel_size=7, stride = 4, padding = 2),
