@@ -9,7 +9,7 @@ import torch.backends.cudnn as cudnn
 import json
 
 from pathlib import Path
-
+from torchsummary import summary
 from timm.data import Mixup
 from timm.models import create_model
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
@@ -316,6 +316,7 @@ def main(args):
 
         model.load_state_dict(checkpoint_model, strict=False)
 
+    summary(model, (3, args.input_size, args.input_size))
     model.to(device)
 
     model_ema = None
