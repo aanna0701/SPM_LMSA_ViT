@@ -5,6 +5,7 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from .SpatialTransformation import STT
 from utils.coordconv import CoordLinear
+from utils.iRPE import build_rpe, get_rpe_config
 # helpers
  
 def pair(t):
@@ -75,7 +76,7 @@ class FeedForward(nn.Module):
         return flops
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_coord=False, is_LSA=False):
+    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_coord=False, is_LSA=False, is_rpe=False):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
@@ -88,6 +89,20 @@ class Attention(nn.Module):
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = CoordLinear(self.dim, self.inner_dim * 3, bias = False) if self.is_coord else nn.Linear(self.dim, self.inner_dim * 3, bias = False)
         init_weights(self.to_qkv)
+        
+        self.is_rpe = is_rpe
+        self.rpe_q, self.rpe_k, self.rpe_v = None, None, None
+        if is_rpe:
+            self.is_rpe = is_rpe
+            rpe_config = get_rpe_config(
+                ratio=1.9,
+                method="product",
+                mode='ctx',
+                shared_head=True,
+                skip=1,
+                rpe_on='qkv',
+            )
+            self.rpe_q, self.rpe_k, self.rpe_v = build_rpe(rpe_config, head_dim=dim_head, num_heads=heads)
         
         if is_coord:
             self.to_out = nn.Sequential(
@@ -111,17 +126,45 @@ class Attention(nn.Module):
         b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
-      
-        if self.mask is None:
-            dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
-        
-        else:
-            scale = self.scale
-            dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
-            dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -987654321
 
+        if not self.is_rpe:
+            if self.mask is None:
+                dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+            
+            else:
+                scale = self.scale
+                dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1)))
+                dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -987654321
+
+        else:
+            if self.mask is None:
+                q = q * self.scale
+                dots = einsum('b h i d, b h j d -> b h i j', q, k)
+                # image relative position on keys
+                if self.rpe_k is not None:
+                    dots += self.rpe_k(q)
+                    
+                if self.rpe_q is not None:
+                    dots += self.rpe_q(k * self.scale).transpose(2, 3)
+            
+            else:
+                scale = self.scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((b, h, 1, 1))
+                q = torch.mul(q, scale)
+                dots = einsum('b h i d, b h j d -> b h i j', q, k)
+                
+                if self.rpe_k is not None:
+                    dots += self.rpe_k(q)
+                    
+                if self.rpe_q is not None:
+                    dots += self.rpe_q(torch.mul(k, self.scale)).transpose(2, 3)
+                dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -987654321
+        
         attn = self.attend(dots)
-        out = einsum('b h i j, b h j d -> b h i d', attn, v)     
+        out = einsum('b h i j, b h j d -> b h i d', attn, v) 
+        
+        if self.rpe_v is not None:
+            out += self.rpe_v(attn)
+            
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
     
@@ -144,14 +187,15 @@ class Attention(nn.Module):
         return flops
 
 class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout = 0., stochastic_depth=0., is_coord=False, is_LSA=False):
+    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout = 0., stochastic_depth=0., 
+                 is_coord=False, is_LSA=False, is_rpe=False):
         super().__init__()
         self.layers = nn.ModuleList([])
         self.scale = {}
 
         for i in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(num_patches, dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_coord=is_coord, is_LSA=is_LSA)),
+                PreNorm(num_patches, dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_coord=is_coord, is_LSA=is_LSA, is_rpe=is_rpe)),
                 PreNorm(num_patches, dim, FeedForward(dim, num_patches, dim * mlp_dim_ratio, dropout = dropout, is_coord=is_coord))
             ]))            
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
@@ -173,7 +217,7 @@ class Transformer(nn.Module):
 class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, pool = 'cls', channels = 3, 
                  dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=64, is_coord=False, is_LSA=False,
-                 is_base=True, eps=0., merging_size=4, is_coordSTT=False, n_trans=4, STT_head=4, STT_depth=2):
+                 is_base=True, eps=0., merging_size=4, is_coordSTT=False, n_trans=4, STT_head=4, STT_depth=2, is_rpe=False, is_ape=False):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -183,6 +227,7 @@ class ViT(nn.Module):
         self.num_classes = num_classes
         self.is_base = is_base
         self.is_coord = is_coord
+        self.is_ape = is_ape
         if self.is_base:
            if self.is_coord:    
                 self.to_patch_embedding = nn.Sequential(
@@ -199,12 +244,13 @@ class ViT(nn.Module):
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
                                            ,init_eps=eps, is_LSA=True, is_coord=is_coordSTT, merging_size=merging_size, n_trans=n_trans)
                     
-        if not self.is_coord:
+        if is_ape:
             self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches + 1, self.dim))
             
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.dim))
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(self.dim, self.num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout, stochastic_depth, is_coord=is_coord, is_LSA=is_LSA)
+        self.transformer = Transformer(self.dim, self.num_patches, depth, heads, dim_head, mlp_dim_ratio, dropout, 
+                                       stochastic_depth, is_coord=is_coord, is_LSA=is_LSA, is_rpe=is_rpe)
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.dim),
@@ -229,7 +275,7 @@ class ViT(nn.Module):
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
       
         x = torch.cat((cls_tokens, x), dim=1)
-        if not self.is_coord:
+        if self.is_ape:
             x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
