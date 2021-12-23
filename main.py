@@ -104,6 +104,8 @@ def init_parser():
     parser.add_argument('--is_coord', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
     parser.add_argument('--is_coordSTT', action='store_true')
+    parser.add_argument('--STT_head', default=4, type=int)
+    parser.add_argument('--STT_depth', default=2, type=int)
     
     
     # Mixup params
@@ -209,7 +211,8 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT, n_trans=args.n_trans)
+                    is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT, n_trans=args.n_trans,
+                    STT_head=args.STT_head, STT_depth=args.STT_depth)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
@@ -903,6 +906,8 @@ if __name__ == '__main__':
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
         
+    model_name += f"-STT_head[{args.STT_head}]"
+    model_name += f"-STT_depth[{args.STT_depth}]"
     model_name += f"-N_trans[{args.n_trans}]"
     model_name += f"-Pe_dim[{args.pe_dim}]"
     model_name += f"-Merge[{args.merging_size}]"
