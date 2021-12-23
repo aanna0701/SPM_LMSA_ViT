@@ -204,6 +204,10 @@ def main(args):
     
     # ViTs
     
+    if not args.is_rpe and not args.is_coord:
+        args.is_ape = True
+    
+    
     dropout = False
     if args.dropout:
         dropout = args.dropout
