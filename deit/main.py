@@ -316,8 +316,8 @@ def main(args):
 
         model.load_state_dict(checkpoint_model, strict=False)
 
-    summary(model, (3, args.input_size, args.input_size))
     model.to(device)
+    summary(model, (3, args.input_size, args.input_size))
 
     model_ema = None
     if args.model_ema:
