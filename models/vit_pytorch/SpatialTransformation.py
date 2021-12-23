@@ -301,6 +301,7 @@ class STT(nn.Module):
             # self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1) if not is_coord else CoordConv(3, self.in_dim, 3, 2, 1)
             if not is_coord:
                 self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+                self.rearrange = Rearrange('b c h w -> b (h w) c')  
             else:
                 self.input = nn.Sequential(
                     nn.Unfold(kernel_size=3, stride = 2, padding = 1),
@@ -308,8 +309,8 @@ class STT(nn.Module):
                     nn.LayerNorm(3*(3**2)),
                     CoordLinear(3*(3**2), self.in_dim, exist_cls_token=False)
                 )
-
-            self.rearrange = Rearrange('b c h w -> b (h w) c')     
+                self.rearrange = nn.Identity()
+                
             self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, is_LSA=is_LSA, is_coord=is_coord)
             self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
            
