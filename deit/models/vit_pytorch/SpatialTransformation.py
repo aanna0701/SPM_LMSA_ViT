@@ -269,13 +269,18 @@ class STT(nn.Module):
         self.type = type
         
         if self.type == 'PE':
-            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
-            self.rearrange = Rearrange('b c h w -> b (h w) c')  
-            
-                
-            self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
-                                        is_LSA=is_LSA, n_trans=n_trans)
-            self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+            if not img_size >= 224:
+                self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+                self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
+                                            is_LSA=is_LSA, n_trans=n_trans)
+                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+            else:
+                self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
+                self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
+                                            is_LSA=is_LSA, n_trans=n_trans)
+                self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim)     
            
         else:
             self.input = nn.Identity()
