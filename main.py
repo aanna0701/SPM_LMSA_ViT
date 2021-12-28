@@ -96,17 +96,14 @@ def init_parser():
     parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
 
-    parser.add_argument('--init_noise_trans', default=1e-3, type=float)
-    parser.add_argument('--init_noise_scale', default=1e-3, type=float)
     parser.add_argument('--merging_size', default=2, type=int)
-    parser.add_argument('--pe_dim', default=64, type=int)
+    parser.add_argument('--pe_dim', default=128, type=int)
     parser.add_argument('--is_base', action='store_true')
     parser.add_argument('--is_coord', action='store_true')
     parser.add_argument('--is_rpe', action='store_true')
     parser.add_argument('--is_ape', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
-    parser.add_argument('--is_coordSTT', action='store_true')
-    parser.add_argument('--STT_head', default=2, type=int)
+    parser.add_argument('--STT_head', default=16, type=int)
     parser.add_argument('--STT_depth', default=1, type=int)
     
     
@@ -217,7 +214,7 @@ def main(args):
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT, n_trans=args.n_trans,
+                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans,
                     STT_head=args.STT_head, STT_depth=args.STT_depth, is_rpe=args.is_rpe, is_ape=args.is_ape)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
@@ -255,7 +252,7 @@ def main(args):
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=args.is_base,  merging_size=args.merging_size, pe_dim=args.pe_dim,
-                    eps=args.scale, is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT,
+                    eps=args.scale, is_coord=args.is_coord, is_LSA=args.is_LSA, 
                     n_trans=args.n_trans, is_rpe=args.is_rpe, is_ape=args.is_ape)
 
 
@@ -292,7 +289,7 @@ def main(args):
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
                                 is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  pe_dim=args.pe_dim, 
-                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_coordSTT=args.is_coordSTT, is_rpe=args.is_rpe, is_ape=args.is_ape
+                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_rpe=args.is_rpe, is_ape=args.is_ape
                                 )
    
     elif args.model =='resnet':
@@ -893,10 +890,7 @@ if __name__ == '__main__':
     if args.is_base:
         model_name += "-Base"
     else:
-        if args.is_coordSTT:
-            model_name += "-CoordSTT"
-        else:
-            model_name += "-STT"
+        model_name += "-STT"
  
     if args.is_coord:
         model_name += "-Coord"
