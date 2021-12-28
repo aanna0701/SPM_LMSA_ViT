@@ -158,7 +158,7 @@ class Attention(nn.Module):
                 if self.rpe_q is not None:
                     print(self.scale.shape)
                     print(k.shape)
-                    dots += self.rpe_q(torch.mul(k, self.scale)).transpose(2, 3)
+                    dots += self.rpe_q(torch.mul(k, scale)).transpose(2, 3)
                 dots[:, :, self.mask[:, 0], self.mask[:, 1]] = -987654321
         
         attn = self.attend(dots)
