@@ -2,15 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
-import numpy as np
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
-from math import sqrt
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils.coordconv import CoordConv, CoordLinear
 
 def exists(val):
     return val is not None
