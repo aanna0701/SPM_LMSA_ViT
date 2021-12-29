@@ -90,10 +90,10 @@ def init_parser():
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
-    parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
-    parser.add_argument('--gam', default=0, type=float, help='Regularizaer')
+    parser.add_argument('--n_trans', type=int, default=8, help='The num of trans')
+    parser.add_argument('--gam', default=0, type=float, help='Regularizer')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
-    parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
+    # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
 
     parser.add_argument('--merging_size', default=2, type=int)
@@ -103,7 +103,7 @@ def init_parser():
     parser.add_argument('--is_rpe', action='store_true')
     parser.add_argument('--is_ape', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
-    parser.add_argument('--STT_head', default=16, type=int)
+    parser.add_argument('--STT_head', default=4, type=int)
     parser.add_argument('--STT_depth', default=1, type=int)
     
     
@@ -203,8 +203,7 @@ def main(args):
     
     if not args.is_rpe and not args.is_coord:
         args.is_ape = True
-    
-    
+            
     dropout = False
     if args.dropout:
         dropout = args.dropout
@@ -232,7 +231,7 @@ def main(args):
         else:
             patch_size = 16
             
-        model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
+        model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd, is_LSA=args.is_LSA, is_SPT=(not args.is_base))
     
     
     elif args.model == 'pit':
@@ -269,7 +268,6 @@ def main(args):
             patch_size = 7
         model = CvT(num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
         
-        
     elif args.model =='swin':
         from models.vit_pytorch.swin import SwinTransformer
         if img_size > 64:
@@ -284,7 +282,6 @@ def main(args):
             mlp_ratio = 2
             window_size = 4
             patch_size //= 2
-            
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
@@ -325,8 +322,6 @@ def main(args):
     logger.debug(f'Initial learning rate: {args.lr:.6f}')
     logger.debug(f"Start training for {args.epochs} epochs")
     print('*'*80+Style.RESET_ALL)
-    
-    
     
     '''
         Criterion
@@ -620,10 +615,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     theta = list(map(Identity, model.theta))
                 
                     loss +=  args.gam * sum(theta)   
-                    
-                                   
-                        
-                           
+                                     
             else:
                 mix = 'none'
                 mix_paramter = 0
@@ -640,8 +632,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     theta = list(map(Identity, model.theta))
                 
                     loss +=  args.gam * sum(theta)   
-        
-                    
         
         # Mixup only
         elif not args.cm and args.mu:
@@ -682,7 +672,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                     loss +=  args.gam * sum(theta)   
         
-        
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
             r = np.random.rand(1)
@@ -707,9 +696,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     if args.gam != 0.:            
                         theta = list(map(Identity, model.theta))
                         
-                        loss +=  args.gam * sum(theta)     
-          
-                        
+                        loss +=  args.gam * sum(theta)         
                 
                 # Mixup
                 else:
@@ -731,8 +718,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     
                         loss +=  args.gam * sum(theta)                         
             
-                        
-            
             else:
                 mix = 'none'
                 mix_paramter = 0
@@ -751,8 +736,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                     loss +=  args.gam * sum(theta)   
            
-                        
-        
         # No Mix
         else:
             mix = 'none'
@@ -772,9 +755,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             
                 loss +=  args.gam * sum(theta)   
     
-                
-                
-
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
         n += images.size(0)
@@ -795,15 +775,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
         #     print('=======================')
         #     for j in range(4):
         #         print(model.scale[i][j].item())
-        
-
-
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
     writer.add_scalar("Loss/train", avg_loss, epoch)
     writer.add_scalar("Acc/train", avg_acc1, epoch)
-    
-
     
     return lr
 
