@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils.coordconv import CoordLinear
+from utils_.coordconv import CoordLinear
 
 def exists(val):
     return val is not None
