@@ -265,7 +265,7 @@ class Affine(nn.Module):
     
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., is_LSA=False, merging_size=4, n_trans=4, is_coord=False):
+                 init_eps=0., is_LSA=False, merging_size=4, n_trans=4, is_coord=False, exist_cls_token=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -274,6 +274,7 @@ class STT(nn.Module):
         self.num_patches = img_size**2
         self.in_dim = in_dim
         self.type = type
+        self.exist_cls_token = exist_cls_token
         
         if self.type == 'PE':
             if not img_size >= 224:
@@ -295,6 +296,9 @@ class STT(nn.Module):
             self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
                                         is_LSA=is_LSA, n_trans=n_trans)
             self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2, is_coord=is_coord)
+
+            self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
+        
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
                       
         if not init_eps == 0.:
@@ -324,6 +328,12 @@ class STT(nn.Module):
 
     def forward(self, x):
         
+        if self.type=='Pool':
+            if self.cls_proj is not None:
+                cls = x[:, (0, )]
+                x = x[:, 1:]
+                cls = self.cls_proj(cls)
+            
         x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
@@ -331,19 +341,24 @@ class STT(nn.Module):
         out = x + affine
         out = self.patch_merge(out)
         
+        if self.type=='Pool':
+            if self.cls_proj is not None:
+                out = torch.cat([cls, out], dim=1)
+        
         return out
     
     def flops(self):
         flops = 0
         if self.type=='PE':
-            # flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
             flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            
         else:
-            flops_input = 0
+            if self.cls_proj is not None:
+                flops_input = self.in_dim * self.in_dim*2
+      
         flops += flops_input
         flops += self.affine_net.flops()   
         flops += self.patch_merge.flops() 
+        
         
         return flops
     

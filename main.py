@@ -250,9 +250,9 @@ def main(args):
         
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
-                    stochastic_depth=args.sd, is_base=args.is_base,  merging_size=args.merging_size, pe_dim=args.pe_dim,
-                    eps=args.scale, is_coord=args.is_coord, is_LSA=args.is_LSA, 
-                    n_trans=args.n_trans, is_rpe=args.is_rpe, is_ape=args.is_ape)
+                    stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
+                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans,
+                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
 
     elif args.model =='t2t':
