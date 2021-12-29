@@ -35,6 +35,7 @@ def Identity(x):
     res = x - iden
     
     loss = torch.norm(res, dim=(1, 2))
+    loss = torch.square(loss)
     loss = torch.sum(loss)
                 
     return loss

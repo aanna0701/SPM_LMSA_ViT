@@ -337,6 +337,10 @@ class CaiT(nn.Module):
 
     def forward(self, img):
         x = self.to_patch_embedding(img)
+        if not self.is_base:        
+            self.theta = self.to_patch_embedding.theta
+            self.scale = self.to_patch_embedding.scale_list
+        
         b, n, _ = x.shape
         if self.is_ape:
             x += self.pos_embedding[:, :n]

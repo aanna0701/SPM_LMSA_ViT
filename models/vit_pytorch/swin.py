@@ -619,6 +619,10 @@ class SwinTransformer(nn.Module):
         
         x = self.patch_embed(x)   
         
+        if not self.is_base:        
+            self.theta = self.patch_embed.theta
+            self.scale = self.patch_embed.scale_list
+        
         if self.is_ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)

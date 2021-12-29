@@ -321,6 +321,10 @@ class PiT(nn.Module):
     def forward(self, img):
         
         x = self.to_patch_embedding(img) 
+        
+        if not self.is_base:        
+            self.theta = self.to_patch_embedding.theta
+            self.scale = self.to_patch_embedding.scale_list
             
         b, n, _ = x.shape
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
