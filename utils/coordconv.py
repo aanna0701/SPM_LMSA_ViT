@@ -102,7 +102,7 @@ class AddCoords1D(nn.Module):
 
 class CoordLinear(nn.Module):
 
-    def __init__(self, in_channels, out_channels, bias=True, with_r=False, exist_cls_token=True, **kwargs):
+    def __init__(self, in_channels, out_channels, bias=True, with_r=False, exist_cls_token=True):
         super().__init__()
         self.addcoords = AddCoords1D(with_r=with_r)
         in_size = in_channels+2
