@@ -231,7 +231,7 @@ def main(args):
         else:
             patch_size = 16
             
-        model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd, is_LSA=args.is_LSA, is_SPT=(not args.is_base))
+        model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd, is_base=args.is_base, depth=args.depth, heads=args.heads,is_LSA=args.is_LSA, is_coord=args.is_coord)
     
     
     elif args.model == 'pit':
