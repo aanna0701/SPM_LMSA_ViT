@@ -631,13 +631,6 @@ class SwinTransformer(nn.Module):
 
     def flops(self):
         flops = 0
-        if self.is_base:
-            if self.is_coord:
-                flops += self.num_patches * (self.patch_dim+2) * self.dim
-            else:
-                flops += self.patch_embed.flops() 
-        else:
-            flops += self.patch_embed.flops()
         flops += self.patch_embed.flops()
         for i, layer in enumerate(self.layers):
             flops += layer.flops()
