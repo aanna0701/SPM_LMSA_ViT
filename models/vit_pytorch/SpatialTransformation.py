@@ -354,7 +354,8 @@ class STT(nn.Module):
         else:
             if self.cls_proj is not None:
                 flops_input = self.in_dim * self.in_dim*2
-      
+            else:
+                flops_input = 0      
         flops += flops_input
         flops += self.affine_net.flops()   
         flops += self.patch_merge.flops() 
