@@ -420,7 +420,7 @@ class BasicLayer(nn.Module):
             if is_base:
                 self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
             else:
-                self.downsample = STT(img_size=input_resolution[0], patch_size=2, in_dim=dim, embed_dim=dim, 
+                self.downsample = STT(img_size=input_resolution[0], patch_size=2, in_dim=dim, embed_dim=dim, is_coord=is_coord,
                                       type='Pool', heads=16, depth=1, init_eps=0, is_LSA=True, merging_size=2, n_trans=4)
                     
         else:
@@ -563,7 +563,7 @@ class SwinTransformer(nn.Module):
            
         else:
             self.patch_embed = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=embed_dim, 
-                                   type='PE', heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, 
+                                   type='PE', heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, is_coord=is_coord,
                                    merging_size=merging_size, n_trans=n_trans) 
             self.img_resolution = (img_size//patch_size, img_size//patch_size)  
         
