@@ -887,12 +887,13 @@ if __name__ == '__main__':
  
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
-        
-    model_name += f"-STT_head[{args.STT_head}]"
-    model_name += f"-STT_depth[{args.STT_depth}]"
-    model_name += f"-N_trans[{args.n_trans}]"
-    model_name += f"-Pe_dim[{args.pe_dim}]"
-    model_name += f"-Merge[{args.merging_size}]"
+    
+    if not args.is_base:
+        model_name += f"-STT_head[{args.STT_head}]"
+        model_name += f"-STT_depth[{args.STT_depth}]"
+        model_name += f"-N_trans[{args.n_trans}]"
+        model_name += f"-Pe_dim[{args.pe_dim}]"
+        model_name += f"-Merge[{args.merging_size}]"
     model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
