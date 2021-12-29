@@ -217,7 +217,7 @@ class PatchMerging(nn.Module):
         x: B, H*W, C
         """
         x = rearrange(x, 'b (h w) c -> b h w c', h = int(math.sqrt(self.num_patches)))
-        x = self.merging(x)        
+        x = self.merging(x)     
         x = self.norm(x)
         x = self.reduction(x)
 
@@ -286,9 +286,9 @@ class STT(nn.Module):
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim*2, heads, merging_size=merging_size, 
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
                                         is_LSA=is_LSA, n_trans=n_trans)
-            self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim*2, embed_dim)
+            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
                       
         if not init_eps == 0.:

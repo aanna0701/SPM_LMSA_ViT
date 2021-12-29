@@ -29,7 +29,7 @@ class PreNorm(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
     def forward(self, x, **kwargs):
-        return self.fn(self.norm(x), **kwargs)
+        return self.fn(self.norm(x), ** kwargs)
     def flops(self):
         flops = 0        
         flops += self.fn.flops()
