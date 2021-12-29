@@ -544,13 +544,22 @@ class SwinTransformer(nn.Module):
         self.mlp_ratio = mlp_ratio
         self.is_base = is_base
         self.is_coord = is_coord
+        self.patch_size = patch_size
+        self.dim = embed_dim
         
-        """ Base """
         if is_base:
-            self.patch_embed = PatchEmbed(
-                img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
-                norm_layer=norm_layer if self.patch_norm else None)     
-            self.img_resolution = self.patch_embed.patches_resolution
+            if self.is_coord:    
+                self.patch_embed = nn.Sequential(
+                    Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+                    CoordLinear(3*patch_size*patch_size, self.dim, exist_cls_token=False)
+                )
+                self.img_resolution = (img_size//patch_size, img_size//patch_size) 
+            
+            else:
+                self.patch_embed = PatchEmbed(
+                    img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
+                    norm_layer=norm_layer if self.patch_norm else None)     
+                self.img_resolution = self.patch_embed.patches_resolution
            
         else:
             self.patch_embed = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=embed_dim, 
@@ -631,7 +640,13 @@ class SwinTransformer(nn.Module):
 
     def flops(self):
         flops = 0
-        flops += self.patch_embed.flops()
+        if self.is_base:
+            if self.is_coord:
+                flops += (self.img_resolution[0]**2) * (3*self.patch_size*self.patch_size) * self.dim
+            else:
+                flops += self.patch_embed.flops()
+        else:
+            flops += self.patch_embed.flops()
         for i, layer in enumerate(self.layers):
             flops += layer.flops()
         flops += self.num_features * self.img_resolution[0] * self.img_resolution[1] # layer norm
