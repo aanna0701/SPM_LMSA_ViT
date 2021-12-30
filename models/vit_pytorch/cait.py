@@ -297,19 +297,19 @@ class CaiT(nn.Module):
         if is_base:
             patch_dim = 3 * patch_size ** 2
             
-            if is_coord:    
-                self.to_patch_embedding = nn.Sequential(
-                    Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-                    CoordLinear(patch_dim, dim, exist_cls_token=False)
-                ) 
-                self.pe_flops = (patch_dim+2) * dim * num_patches
+            # if is_coord:    
+            #     self.to_patch_embedding = nn.Sequential(
+            #         Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+            #         CoordLinear(patch_dim, dim, exist_cls_token=False)
+            #     ) 
+            #     self.pe_flops = (patch_dim+2) * dim * num_patches
             
-            else:
-                self.to_patch_embedding = nn.Sequential(
-                    Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-                    nn.Linear(patch_dim, dim),
-                )
-                self.pe_flops = patch_dim * dim * num_patches
+            # else:
+            self.to_patch_embedding = nn.Sequential(
+                Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+                nn.Linear(patch_dim, dim),
+            )
+            self.pe_flops = patch_dim * dim * num_patches
         
         else:  
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
