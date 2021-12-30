@@ -211,7 +211,7 @@ class PatchMerging(nn.Module):
         self.out_dim = out_dim
         self.patch_dim = dim * (patch_size ** 2)
         self.is_coord = is_coord
-        self.reduction = nn.Linear(self.patch_dim, self.out_dim, bias=False) if not is_coord else CoordLinear(self.patch_dim, self.out_dim, bias=False, exist_cls_token=False)
+        self.reduction = nn.Linear(self.patch_dim, self.out_dim, bias=False)
         self.norm = nn.LayerNorm(self.patch_dim)
         
 
@@ -228,10 +228,7 @@ class PatchMerging(nn.Module):
 
     def flops(self):
         flops = 0
-        if not self.is_coord:
-            flops += (self.num_patches//(self.patch_size**2))*self.patch_dim*self.out_dim
-        else:
-            flops += (self.num_patches//(self.patch_size**2))*(self.patch_dim+2)*self.out_dim
+        flops += (self.num_patches//(self.patch_size**2))*(self.patch_dim+2)*self.out_dim
         flops += (self.num_patches//(self.patch_size**2))*self.patch_dim
         
         return flops
