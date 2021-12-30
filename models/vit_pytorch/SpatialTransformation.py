@@ -298,7 +298,7 @@ class STT(nn.Module):
             self.rearrange = nn.Identity()
             self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, heads, merging_size=merging_size, 
                                         is_LSA=is_LSA, n_trans=n_trans)
-            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2, is_coord=is_coord)
+            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
             self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
         
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
