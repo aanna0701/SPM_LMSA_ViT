@@ -262,7 +262,7 @@ class Affine(nn.Module):
     
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., is_LSA=False, merging_size=4, n_trans=4, is_coord=False, exist_cls_token=False):
+                 init_eps=0., is_LSA=False, merging_size=4, n_trans=4, exist_cls_token=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -294,7 +294,7 @@ class STT(nn.Module):
                 self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim)   
            
         else:
-            self.input = nn.GroupNorm(1, self.in_dim)
+            self.input = nn.LayerNorm(self.in_dim)
             self.rearrange = nn.Identity()
             self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, heads, merging_size=merging_size, 
                                         is_LSA=is_LSA, n_trans=n_trans)

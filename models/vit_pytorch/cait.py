@@ -313,7 +313,7 @@ class CaiT(nn.Module):
         
         else:  
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
-                                           ,init_eps=eps, is_LSA=True, is_coord=is_coord, merging_size=merging_size, n_trans=n_trans)
+                                           ,init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans)
        
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)

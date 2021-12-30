@@ -281,7 +281,7 @@ class PiT(nn.Module):
 
         else:
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
-                                           ,init_eps=eps, is_LSA=True, is_coord=is_coord, merging_size=merging_size, n_trans=n_trans)
+                                           ,init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans)
             output_size = img_size // patch_size
         
         num_patches = output_size ** 2   
@@ -304,8 +304,8 @@ class PiT(nn.Module):
                     self.layers.append(Pool(output_size, dim))
                     output_size = conv_output_size(output_size, 3, 2, 1)
                 else:
-                    self.layers.append(STT(img_size=output_size, patch_size=2, in_dim=dim, embed_dim=dim, is_coord=is_coord,
-                                      type='Pool', heads=16, depth=1, init_eps=0, is_LSA=True, merging_size=2, n_trans=4, exist_cls_token=True))
+                    self.layers.append(STT(img_size=output_size, patch_size=2, in_dim=dim, embed_dim=dim, 
+                                      type='Pool', heads=16, depth=1, init_eps=0, is_LSA=True, merging_size=2, n_trans=int(n_trans * 2 ** (ind+1)), exist_cls_token=True))
                     output_size = output_size // 2
                 dim *= 2
                 

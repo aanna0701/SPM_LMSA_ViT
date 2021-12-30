@@ -394,7 +394,7 @@ class BasicLayer(nn.Module):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False,
-                 is_base=True, is_coord=False, is_LSA=False):
+                 is_base=True, is_coord=False, is_LSA=False, n_trans=4):
 
         super().__init__()
         self.dim = dim
@@ -420,8 +420,8 @@ class BasicLayer(nn.Module):
             if is_base:
                 self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
             else:
-                self.downsample = STT(img_size=input_resolution[0], patch_size=2, in_dim=dim, embed_dim=dim, is_coord=is_coord,
-                                      type='Pool', heads=16, depth=1, init_eps=0, is_LSA=True, merging_size=2, n_trans=4)
+                self.downsample = STT(img_size=input_resolution[0], patch_size=2, in_dim=dim, embed_dim=dim, 
+                                      type='Pool', heads=16, depth=1, init_eps=0, is_LSA=True, merging_size=2, n_trans=n_trans)
                     
         else:
             self.downsample = None
@@ -563,8 +563,7 @@ class SwinTransformer(nn.Module):
            
         else:
             self.patch_embed = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=embed_dim, 
-                                   type='PE', heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, is_coord=is_coord,
-                                   merging_size=merging_size, n_trans=n_trans) 
+                                   type='PE', heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans) 
             self.img_resolution = (img_size//patch_size, img_size//patch_size)  
         
         # absolute position embedding
@@ -595,7 +594,7 @@ class SwinTransformer(nn.Module):
                                qkv_bias=qkv_bias, qk_scale=qk_scale,
                                drop=drop_rate, attn_drop=attn_drop_rate,
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
-                               norm_layer=norm_layer, is_base=is_base, is_LSA=is_LSA, is_coord=is_coord,
+                               norm_layer=norm_layer, is_base=is_base, is_LSA=is_LSA, is_coord=is_coord, n_trans=int(n_trans * 2 ** (i_layer+1)),
                                downsample=True if (i_layer < self.num_layers - 1) else False,
                                use_checkpoint=use_checkpoint)
             self.layers.append(layer)
