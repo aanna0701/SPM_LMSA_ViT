@@ -887,7 +887,7 @@ if __name__ == '__main__':
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
     
-    if not args.is_base:
+    if not args.is_base and args.model=='vit':
         model_name += f"-STT_head[{args.STT_head}]"
         model_name += f"-STT_depth[{args.STT_depth}]"
         model_name += f"-N_trans[{args.n_trans}]"
