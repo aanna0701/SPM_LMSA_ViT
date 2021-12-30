@@ -859,7 +859,12 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.tag}-{args.dataset}-LR[{args.lr}]"
+    model_name = args.model
+    
+    if args.model=='vit':
+        model_name +=f"-{args.depth}-{args.heads}-{args.channel}"
+    
+    model_name +=f"-{args.tag}-{args.dataset}-LR[{args.lr}]"
 
     if args.is_base:
         model_name += "-Base"
@@ -887,7 +892,7 @@ if __name__ == '__main__':
     if args.scale > 0.:
         model_name += f"-Scale[{args.scale}]"
     
-    if not args.is_base and args.model=='vit':
+    if not args.is_base:
         model_name += f"-STT_head[{args.STT_head}]"
         model_name += f"-STT_depth[{args.STT_depth}]"
         model_name += f"-N_trans[{args.n_trans}]"
