@@ -282,7 +282,10 @@ class STT(nn.Module):
                                             is_LSA=is_LSA, n_trans=n_trans)
                 self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
             else:
-                self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
+                self.input = nn.Sequential(
+                    nn.Conv2d(3, self.in_dim, 7, 4, 2),
+                    nn.GroupNorm(1, self.in_dim)
+                )     
                 self.norm = nn.GroupNorm(1, self.in_dim)           
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
                 self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, heads, merging_size=merging_size, 
@@ -290,8 +293,7 @@ class STT(nn.Module):
                 self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim)   
            
         else:
-            self.input = nn.Identity()
-            self.norm = nn.GroupNorm(1, self.in_dim)
+            self.input = nn.GroupNorm(1, self.in_dim)
             self.rearrange = nn.Identity()
             self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
                                         is_LSA=is_LSA, n_trans=n_trans)
@@ -335,7 +337,7 @@ class STT(nn.Module):
                 cls = self.cls_proj(cls)
             
         x = self.input(x)
-        affine = self.affine_net(self.param_token, self.norm(x), self.init, self.scale_list)
+        affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
         x = self.rearrange(x)
         out = x + affine
@@ -351,15 +353,14 @@ class STT(nn.Module):
         flops = 0
         if self.type=='PE':
             flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            flops += self.in_dim * self.img_size//2
+            flops += self.in_dim * (self.img_size//2)
         else:
             if self.cls_proj is not None:
                 flops_input = self.in_dim * self.in_dim*2
             else:
-                flops_input = 0
-            flops += self.in_dim * self.img_size 
-                 
-        flops += flops_input        
+                flops_input = 0      
+            flops += self.in_dim * self.img_size
+        flops += flops_input
         flops += self.affine_net.flops()   
         flops += self.patch_merge.flops() 
                 
