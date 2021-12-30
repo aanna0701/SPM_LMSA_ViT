@@ -242,7 +242,7 @@ class ViT(nn.Module):
             
         else:
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
-                                           ,init_eps=eps, is_LSA=True, is_coord=is_coord, merging_size=merging_size, n_trans=n_trans)
+                                           ,init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans)
                     
         if is_ape:
             self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches + 1, self.dim))
