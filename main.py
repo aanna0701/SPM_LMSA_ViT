@@ -518,7 +518,6 @@ def main(args):
     # scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
     scheduler = build_scheduler(args, optimizer, len(train_loader))
     
-    
     summary(model, (3, img_size, img_size))
     
     # print(model)
@@ -607,7 +606,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                 if args.lam != 0.:            
                     theta = list(map(CosineSimiliarity, model.theta))
-                
+
                     loss +=  args.lam * sum(theta) 
                 
                 if args.gam != 0.:            

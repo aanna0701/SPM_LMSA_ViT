@@ -8,7 +8,6 @@ import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils.coordconv import CoordLinear
 
 def exists(val):
     return val is not None
@@ -242,9 +241,9 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        print('========')
-        print(scale)
-        print(theta[0])     
+        # print('========')
+        # print(scale)
+        # print(theta[0])     
         
         theta = F.tanh(theta)
         if scale is not None:
@@ -253,9 +252,9 @@ class Affine(nn.Module):
         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
         theta = theta + init 
-        self.theta = theta    
+        self.theta = torch.reshape(theta, (x.size(0), 1, 6))    
    
-        print(theta[0])
+        # print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
@@ -321,7 +320,7 @@ class STT(nn.Module):
         else: self.scale_list = None  
         
         self.init = self.make_init().cuda(torch.cuda.current_device())
-        self.theta = None                
+        self.theta = list()                
         self.apply(self._init_weights)
 
     def make_init(self,):                
@@ -349,7 +348,7 @@ class STT(nn.Module):
             
         x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
-        self.theta = self.affine_net.theta
+        self.theta.append(self.affine_net.theta)
         x = self.rearrange(x)
         out = x + affine
         out = self.patch_merge(affine)

@@ -5,25 +5,25 @@ import torch.nn.functional as F
 import math
 
 def CosineSimiliarity(x):
+    loss = 0
+    iden = torch.tensor([[1, 0, 0, 0, 1, 0]]).cuda(torch.cuda.current_device())     
+    x = torch.cat(x, dim=1)
+    iden = iden.expand(x.size(0), *iden.size())
+    matrix = torch.cat([iden, x], dim=1) 
+    norm = torch.norm(matrix, dim=-1, keepdim = True)
+    matrix = torch.div(matrix, norm)
+    similiarity = einsum('b n c, b l c -> b n l', matrix, matrix)
+    similiarity = torch.exp(similiarity[:, :, 1:])
+    positive = similiarity[:, (0,)]
+    negative = similiarity[:, 1:]
+    mask = 1 - torch.eye(negative.size(-1)).cuda(torch.cuda.current_device())
+    negative = torch.mul(negative, mask)
     
-    batch = x.size(0)
-                
-    avg = x.mean(dim=0, keepdim=True) # mean along batch
-    x_ = x - avg    # (b, 2, 3)
-    
-    x_ = x_.view(batch, -1) # (b, 6)
-    
-    norm = torch.norm(x_, dim=-1, p=2, keepdim=True) # (b, 1) 
-    norm = torch.div(x_, norm)  # batch-wise Normalization / (b, 6)
-    
-    sim = einsum('b n, d n -> b d', norm, norm) # (b, b)
-    mask = 1 - torch.eye(batch).cuda(torch.cuda.current_device())
-    
-    masked_sim = torch.mul(sim, mask) / math.sqrt(batch)
-    
-    norm = torch.norm(masked_sim)
+    numer = positive + torch.sum(negative, dim=1, keepdim = True)
+    results = -torch.log(torch.div(positive, numer))
+    results = torch.mean(results)
             
-    return norm
+    return results
 
 def Identity(x):
         
