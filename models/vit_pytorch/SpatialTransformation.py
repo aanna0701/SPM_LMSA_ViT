@@ -152,9 +152,7 @@ class AffineNet(nn.Module):
             nn.Linear(self.in_dim, self.n_output)
         )  
         self.transformation = Affine()
-        self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))
-        self.post_linear = nn.Conv2d(self.in_dim, self.in_dim, (1, 1))
-        
+        self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))        
     
         self.theta = list()
         
@@ -167,19 +165,19 @@ class AffineNet(nn.Module):
         param = self.mlp_head(param_attd[:, 0])
         param_list = torch.chunk(param, self.n_trans, dim=-1)
         
-        out = []
+        trans = []
         theta = []       
         
         x = self.pre_linear(x)
         # x = torch.chunk(x, self.n_trans, dim=1)
         for i in range(self.n_trans):
             if scale is not None:
-                out.append(self.transformation(x, param_list[i], init, scale[i]))
+                trans.append(self.transformation(x, param_list[i], init, scale[i]))
             else:
-                out.append(self.transformation(x, param_list[i], init))
+                trans.append(self.transformation(x, param_list[i], init))
             theta.append(self.transformation.theta)            
-        out = torch.cat(out, dim=1)
-        out = self.post_linear(out)        
+        trans = torch.cat(trans, dim=1)
+        out = torch.cat([x, trans], dim=1)
         out = rearrange(out, 'b d h w -> b (h w) d')
         self.theta = theta
         
@@ -191,7 +189,6 @@ class AffineNet(nn.Module):
         flops += self.param_transformer.flops()                 # parameter-transformer
         flops += self.in_dim + self.in_dim*self.n_output    # mlp head
         flops += self.num_patches*self.in_dim*self.hidden_dim    # pre-linear
-        flops += self.num_patches*self.in_dim*self.hidden_dim   # post-linear
         
         return flops    
     
@@ -272,6 +269,7 @@ class STT(nn.Module):
         self.in_dim = in_dim
         self.type = type
         self.exist_cls_token = exist_cls_token
+        hidden_dim = (in_dim//n_trans)*(n_trans+1)
         
         if self.type == 'PE':
             if not img_size >= 224:
@@ -279,26 +277,26 @@ class STT(nn.Module):
                     nn.Conv2d(3, self.in_dim, 3, 2, 1),
                     nn.GroupNorm(1, self.in_dim)
                 )       
-                self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                # self.rearrange = Rearrange('b c h w -> b (h w) c')      
                 self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, heads, merging_size=merging_size, 
                                             is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, hidden_dim, embed_dim) 
             else:
                 self.input = nn.Sequential(
                     nn.Conv2d(3, self.in_dim, 7, 4, 2),
                     nn.GroupNorm(1, self.in_dim)
                 )       
-                self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                # self.rearrange = Rearrange('b c h w -> b (h w) c')      
                 self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, heads, merging_size=merging_size, 
                                             is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim)   
+                self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, hidden_dim, embed_dim)   
            
         else:
             self.input = nn.LayerNorm(self.in_dim)
-            self.rearrange = nn.Identity()
+            # self.rearrange = nn.Identity()
             self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, heads, merging_size=merging_size, 
                                         is_LSA=is_LSA, n_trans=n_trans)
-            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
+            self.patch_merge = PatchMerging(self.num_patches, 2, hidden_dim, self.in_dim*2)
             self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
         
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
@@ -339,9 +337,9 @@ class STT(nn.Module):
         x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
-        x = self.rearrange(x)
-        out = x + affine
-        out = self.patch_merge(out)
+        # x = self.rearrange(x)
+        # out = x + affine
+        out = self.patch_merge(affine)
         
         if self.type=='Pool':
             if self.cls_proj is not None:
