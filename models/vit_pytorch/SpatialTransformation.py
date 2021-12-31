@@ -276,14 +276,24 @@ class STT(nn.Module):
         
         if self.type == 'PE':
             if not img_size >= 224:
-                self.input = nn.Sequential(
-                    nn.Conv2d(3, self.in_dim, 3, 2, 1),
-                    nn.GroupNorm(1, self.in_dim)
-                )       
-                self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, heads, merging_size=merging_size, 
-                                            is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+                if patch_size > 2:
+                    self.input = nn.Sequential(
+                        nn.Conv2d(3, self.in_dim, 3, 2, 1),
+                        nn.GroupNorm(1, self.in_dim)
+                    )       
+                    self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                    self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, heads, merging_size=merging_size, 
+                                                is_LSA=is_LSA, n_trans=n_trans)
+                    self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+                else:
+                    self.input = nn.Sequential(
+                        nn.Conv2d(3, self.in_dim, 3, 1, 1),
+                        nn.GroupNorm(1, self.in_dim)
+                    )       
+                    self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                    self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, heads, merging_size=merging_size, 
+                                                is_LSA=is_LSA, n_trans=n_trans)
+                    self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim) 
             else:
                 self.input = nn.Sequential(
                     nn.Conv2d(3, self.in_dim, 7, 4, 2),
@@ -354,8 +364,12 @@ class STT(nn.Module):
         flops = 0
         if self.type=='PE':
             # Patch Embedding
-            flops += (3**2)*3*self.in_dim*((self.img_size//2)**2)   # conv-pooling
-            flops += self.in_dim * (self.img_size//2)   # LayerNorm
+            if self.patch_size > 2:
+                flops += (3**2)*3*self.in_dim*((self.img_size//2)**2)   # conv-pooling
+                flops += self.in_dim * (self.img_size//2)   # LayerNorm
+            else:
+                flops += (3**2)*3*self.in_dim*((self.img_size)**2)   # conv-pooling
+                flops += self.in_dim * self.img_size   # LayerNorm
         else:
             # Pooling Layer
             if self.cls_proj is not None:
