@@ -228,13 +228,8 @@ class ViT(nn.Module):
         self.is_coord = is_coord
         self.is_ape = is_ape
         if self.is_base:
-           if self.is_coord:    
-                self.to_patch_embedding = nn.Sequential(
-                    Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-                    CoordLinear(self.patch_dim, self.dim, exist_cls_token=False)
-                )   
-           else:
-               self.to_patch_embedding = nn.Sequential(
+          
+            self.to_patch_embedding = nn.Sequential(
                 Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
                 nn.Linear(self.patch_dim, self.dim)
             )
@@ -286,10 +281,7 @@ class ViT(nn.Module):
         flops = 0
         
         if self.is_base:
-            if self.is_coord:
-                flops_pe = self.num_patches * (self.patch_dim+2) * self.dim
-            else:
-                flops_pe = self.num_patches * self.patch_dim * self.dim 
+            flops_pe = self.num_patches * self.patch_dim * self.dim 
         else:
             flops_pe = self.to_patch_embedding.flops()        
         flops += flops_pe        
