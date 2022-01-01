@@ -5,6 +5,7 @@ from torch import nn, einsum
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 import math
+from utils_.coordconv import CoordLinear
 from .SpatialTransformation import STT
 class RearrangeImage(nn.Module):
     def forward(self, x):

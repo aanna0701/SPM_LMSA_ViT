@@ -11,6 +11,7 @@ import torch.utils.checkpoint as checkpoint
 from timm.models.layers import to_2tuple, trunc_normal_
 from utils_.drop_path import DropPath
 import torch
+from utils_.coordconv import CoordLinear
 from .SpatialTransformation import STT
 
 class Mlp(nn.Module):
