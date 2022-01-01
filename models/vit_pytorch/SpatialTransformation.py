@@ -141,7 +141,6 @@ class AffineNet(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_patches = num_patches
         self.merging_size = merging_size
-        # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
         self.param_transformer = Transformer(self.in_dim, self.num_patches//(self.merging_size**2), depth, heads, self.in_dim//heads, self.in_dim*2, is_LSA=is_LSA)       
         self.depth_wise_conv = nn.Sequential(
             nn.Conv2d(self.in_dim, self.in_dim, self.merging_size, self.merging_size, groups=self.in_dim),
@@ -152,8 +151,10 @@ class AffineNet(nn.Module):
             nn.Linear(self.in_dim, self.n_output)
         )  
         self.transformation = Affine()
-        self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))
-        self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, (1, 1))
+        self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, 3, 1, 1)
+        self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, 3, 1, 1)
+        # self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))
+        # self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, (1, 1))
     
         self.theta = None
         
