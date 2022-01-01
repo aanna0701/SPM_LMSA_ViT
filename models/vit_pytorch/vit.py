@@ -229,12 +229,6 @@ class ViT(nn.Module):
         self.is_coord = is_coord
         self.is_ape = is_ape
         if self.is_base:
-        #    if self.is_coord:    
-        #         self.to_patch_embedding = nn.Sequential(
-        #             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-        #             CoordLinear(self.patch_dim, self.dim, exist_cls_token=False)
-        #         )   
-        #    else:
             self.to_patch_embedding = nn.Sequential(
                 Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
                 nn.Linear(self.patch_dim, self.dim)
@@ -256,7 +250,7 @@ class ViT(nn.Module):
             nn.LayerNorm(self.dim),
             nn.Linear(self.dim, self.num_classes)
         )
-        self.theta = None
+        self.theta = list()
         self.scale = None   
         
         self.apply(init_weights)
@@ -267,7 +261,7 @@ class ViT(nn.Module):
         x = self.to_patch_embedding(img)
             
         if not self.is_base:        
-            self.theta = self.to_patch_embedding.theta
+            self.theta.append(self.to_patch_embedding.theta)
             self.scale = self.to_patch_embedding.scale_list
         
         b, n, _ = x.shape

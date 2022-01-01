@@ -604,10 +604,11 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                 loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
                 
-                if args.lam != 0.:            
+                if args.lam != 0.:       
+                         
                     theta = list(map(CosineSimiliarity, model.theta))
 
-                    loss +=  args.lam * sum(theta) 
+                    loss = loss + args.lam * sum(theta) 
                 
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -622,9 +623,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 loss = criterion(output, target)
                                
                 if args.lam != 0.:  
+                    
                     theta = list(map(CosineSimiliarity, model.theta))
                     
-                    loss +=  args.lam * sum(theta)
+                    loss = loss + args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -645,7 +647,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.lam != 0.: 
                     theta = list(map(CosineSimiliarity, model.theta))
                     
-                    loss +=  args.lam * sum(theta)
+                    loss = loss + args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -663,7 +665,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 if args.lam != 0.:
                     theta = list(map(CosineSimiliarity, model.theta))
                 
-                    loss +=  args.lam * sum(theta)
+                    loss = loss + args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -689,7 +691,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     if args.lam != 0.:
                         theta = list(map(CosineSimiliarity, model.theta))
                     
-                        loss +=  args.lam * sum(theta)   
+                        loss = loss + args.lam * sum(theta)   
                             
                     if args.gam != 0.:            
                         theta = list(map(Identity, model.theta))
@@ -704,12 +706,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     output = model(images)
                     
                     loss = mixup_criterion(criterion, output, y_a, y_b, lam) 
-                    
                     if args.lam != 0.:
-                    
                         theta = list(map(CosineSimiliarity, model.theta))
                         
-                        loss += args.lam * sum(theta)      
+                        loss = loss + args.lam * sum(theta)      
                             
                     if args.gam != 0.:            
                         theta = list(map(Identity, model.theta))
@@ -727,7 +727,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                     theta = list(map(CosineSimiliarity, model.theta))
                     
-                    loss += args.lam * sum(theta)
+                    loss = loss + args.lam * sum(theta)
                     
                 if args.gam != 0.:            
                     theta = list(map(Identity, model.theta))
@@ -746,7 +746,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
             
                 theta = list(map(CosineSimiliarity, model.theta))
                 
-                loss += args.lam * sum(theta)
+                loss = loss + args.lam * sum(theta)
             
             if args.gam != 0.:            
                 theta = list(map(Identity, model.theta))
@@ -799,7 +799,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             
                 theta = list(map(CosineSimiliarity, model.theta))
                 
-                loss += args.lam * sum(theta)
+                loss = loss + args.lam * sum(theta)
                 
             if args.gam != 0.:            
                 theta = list(map(Identity, model.theta))
