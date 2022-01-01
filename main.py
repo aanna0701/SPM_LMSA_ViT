@@ -96,8 +96,8 @@ def init_parser():
     # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
 
-    parser.add_argument('--merging_size', default=2, type=int)
-    parser.add_argument('--pe_dim', default=128, type=int)
+    parser.add_argument('--merging_size', default=4, type=int)
+    parser.add_argument('--pe_dim', default=192, type=int)
     parser.add_argument('--is_base', action='store_true')
     parser.add_argument('--is_coord', action='store_true')
     parser.add_argument('--is_rpe', action='store_true')
