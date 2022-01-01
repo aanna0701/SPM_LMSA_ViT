@@ -250,19 +250,20 @@ class ViT(nn.Module):
             nn.LayerNorm(self.dim),
             nn.Linear(self.dim, self.num_classes)
         )
-        self.theta = list()
+        self.theta = None
         self.scale = None   
         
         self.apply(init_weights)
 
     def forward(self, img):
         # patch embedding
-        
+        theta = list()
+        scale = list()
         x = self.to_patch_embedding(img)
             
-        if not self.is_base:        
-            self.theta.append(self.to_patch_embedding.theta)
-            self.scale = self.to_patch_embedding.scale_list
+        if not self.is_base:     
+            theta.append(self.to_patch_embedding.theta)   
+            scale.append(self.to_patch_embedding.scale_list)
         
         b, n, _ = x.shape
         
@@ -273,7 +274,10 @@ class ViT(nn.Module):
             x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
-        x = self.transformer(x)      
+        x = self.transformer(x)    
+        
+        self.theta = theta 
+        self.scale = scale
         
         return self.mlp_head(x[:, 0])
 
