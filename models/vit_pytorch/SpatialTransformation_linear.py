@@ -142,8 +142,7 @@ class AffineNet(nn.Module):
         self.merging_size = merging_size
         self.param_transformer = nn.Sequential(
             Rearrange('b c h w -> b (c h w)'),
-            nn.Linear(in_dim*self.num_patches, self.in_dim*4),
-            nn.Linear(self.in_dim*4, self.in_dim*2),
+            nn.Linear(in_dim*self.num_patches, self.in_dim*2),
             nn.Linear(self.in_dim*2, self.in_dim)
         )
         
