@@ -142,7 +142,7 @@ class AffineNet(nn.Module):
         self.merging_size = merging_size
         self.param_transformer = nn.Sequential(            
             nn.Conv2d(in_dim, self.in_dim, 3, 2, 1),
-            nn.Conv2d(self.in_dim*2,in_dim,  3, 2, 1),
+            nn.Conv2d(self.in_dim,in_dim,  3, 2, 1),
             Rearrange('b c h w -> b (c h w)'),
         )
         
