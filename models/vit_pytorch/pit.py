@@ -264,21 +264,13 @@ class PiT(nn.Module):
         self.is_base = is_base
 
         if is_base:
-            # if not is_coord:
-            #     self.to_patch_embedding = nn.Sequential(
-            #         nn.Conv2d(3, dim, patch_size, patch_size),
-            #         Rearrange('b c h w -> b (h w) c')
-            #     )
-            #     output_size = img_size // patch_size
-            #     self.pe_flops = 3 * dim * patch_size*2 * patch_size*2 * output_size * output_size
-            # else:
             self.to_patch_embedding = nn.Sequential(
-                Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
-                CoordLinear(3*patch_size*patch_size, dim, exist_cls_token=False)
-            ) 
+                nn.Conv2d(3, dim, patch_size, patch_size),
+                Rearrange('b c h w -> b (h w) c')
+            )
             output_size = img_size // patch_size
-            self.pe_flops = (3*patch_size*patch_size+2)*dim*output_size
-
+            self.pe_flops = 3 * dim * patch_size*2 * patch_size*2 * output_size * output_size
+            
         else:
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
                                            ,init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans)

@@ -151,10 +151,8 @@ class AffineNet(nn.Module):
             nn.Linear(self.in_dim, self.n_output)
         )  
         self.transformation = Affine()
-        self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, 3, 1, 1)
-        self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, 3, 1, 1)
-        # self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))
-        # self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, (1, 1))
+        self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))
+        self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, (1, 1))
     
         self.theta = None
         
