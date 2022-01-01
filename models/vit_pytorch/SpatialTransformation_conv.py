@@ -272,10 +272,10 @@ class STT(nn.Module):
         
         if self.type == 'PE':
             if not img_size >= 224:
-                self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+                self.input = nn.Conv2d(3, self.in_dim, 3, 1, 1)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.affine_net = AffineNet(self.num_patches//4, self.in_dim, self.in_dim, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+                self.affine_net = AffineNet(self.num_patches, self.in_dim, self.in_dim, n_trans=n_trans)
+                self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim)
             else:
                 self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
@@ -331,7 +331,7 @@ class STT(nn.Module):
         flops = 0
         if self.type=='PE':
             # flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+            flops_input = (3**2)*3*self.in_dim*((self.img_size)**2)
             
         else:
             flops_input = 0

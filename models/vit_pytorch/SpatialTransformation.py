@@ -284,7 +284,7 @@ class STT(nn.Module):
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
                 self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
                                             is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//8, self.in_dim, embed_dim)   
+                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim)   
            
         else:
             self.input = nn.Identity()
@@ -346,7 +346,7 @@ class STT(nn.Module):
     def flops(self):
         flops = 0
         if self.type=='PE':
-            flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+            flops_input = (3**2)*3*self.in_dim*((self.img_size)**2)
         else:
             if self.cls_proj is not None:
                 flops_input = self.in_dim * self.in_dim*2
