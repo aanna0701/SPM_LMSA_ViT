@@ -605,16 +605,11 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
                 
                 if args.lam != 0.:       
-                         
-                    theta = list(map(CosineSimiliarity, model.theta))
+                
+                    theta = CosineSimiliarity(model.theta)
 
-                    loss = loss + args.lam * sum(theta) 
-                
-                if args.gam != 0.:            
-                    theta = list(map(Identity, model.theta))
-                
-                    loss +=  args.gam * sum(theta)   
-                                     
+                    loss = loss + args.lam * theta 
+                    print(1)                     
             else:
                 mix = 'none'
                 mix_paramter = 0
@@ -624,14 +619,9 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                                
                 if args.lam != 0.:  
                     
-                    theta = list(map(CosineSimiliarity, model.theta))
+                    theta = CosineSimiliarity(model.theta)
                     
-                    loss = loss + args.lam * sum(theta)
-                    
-                if args.gam != 0.:            
-                    theta = list(map(Identity, model.theta))
-                
-                    loss +=  args.gam * sum(theta)   
+                    loss = loss + args.lam * theta
         
         # Mixup only
         elif not args.cm and args.mu:
@@ -645,14 +635,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
                 
                 if args.lam != 0.: 
-                    theta = list(map(CosineSimiliarity, model.theta))
+                    theta = CosineSimiliarity(model.theta)
                     
-                    loss = loss + args.lam * sum(theta)
+                    loss = loss + args.lam * theta
                     
-                if args.gam != 0.:            
-                    theta = list(map(Identity, model.theta))
-                
-                    loss +=  args.gam * sum(theta)   
                     
             
             else:
@@ -663,14 +649,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 loss =  criterion(output, target)
                  
                 if args.lam != 0.:
-                    theta = list(map(CosineSimiliarity, model.theta))
+                    theta = CosineSimiliarity(model.theta)
                 
-                    loss = loss + args.lam * sum(theta)
+                    loss = loss + args.lam * theta
                     
-                if args.gam != 0.:            
-                    theta = list(map(Identity, model.theta))
-                
-                    loss +=  args.gam * sum(theta)   
         
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
@@ -689,14 +671,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
                     
                     if args.lam != 0.:
-                        theta = list(map(CosineSimiliarity, model.theta))
+                        theta = CosineSimiliarity(model.theta)
                     
-                        loss = loss + args.lam * sum(theta)   
-                            
-                    if args.gam != 0.:            
-                        theta = list(map(Identity, model.theta))
-                        
-                        loss +=  args.gam * sum(theta)         
+                        loss = loss + args.lam * theta   
+                                  
                 
                 # Mixup
                 else:
@@ -707,14 +685,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     
                     loss = mixup_criterion(criterion, output, y_a, y_b, lam) 
                     if args.lam != 0.:
-                        theta = list(map(CosineSimiliarity, model.theta))
+                        theta = CosineSimiliarity(model.theta)
                         
-                        loss = loss + args.lam * sum(theta)      
-                            
-                    if args.gam != 0.:            
-                        theta = list(map(Identity, model.theta))
-                    
-                        loss +=  args.gam * sum(theta)                         
+                        loss = loss + args.lam * theta      
+                                                 
             
             else:
                 mix = 'none'
@@ -725,14 +699,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
           
                 if args.lam != 0.:
                 
-                    theta = list(map(CosineSimiliarity, model.theta))
+                    theta = CosineSimiliarity(model.theta)
                     
-                    loss = loss + args.lam * sum(theta)
+                    loss = loss + args.lam * theta
                     
-                if args.gam != 0.:            
-                    theta = list(map(Identity, model.theta))
-                
-                    loss +=  args.gam * sum(theta)   
            
         # No Mix
         else:
@@ -744,14 +714,10 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                                 
             if args.lam != 0.:
             
-                theta = list(map(CosineSimiliarity, model.theta))
+                theta = CosineSimiliarity(model.theta)
                 
-                loss = loss + args.lam * sum(theta)
+                loss = loss + args.lam * theta
             
-            if args.gam != 0.:            
-                theta = list(map(Identity, model.theta))
-            
-                loss +=  args.gam * sum(theta)   
     
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
@@ -797,15 +763,10 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             
             if args.lam != 0.:
             
-                theta = list(map(CosineSimiliarity, model.theta))
+                theta = CosineSimiliarity(model.theta)
                 
-                loss = loss + args.lam * sum(theta)
+                loss = loss + args.lam * theta
                 
-            if args.gam != 0.:            
-                theta = list(map(Identity, model.theta))
-            
-                loss +=  args.gam * sum(theta)   
-            
                 
             
             acc = accuracy(output, target, (1, 5))
