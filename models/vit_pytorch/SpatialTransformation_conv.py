@@ -141,15 +141,11 @@ class AffineNet(nn.Module):
         self.num_patches = num_patches
         self.merging_size = merging_size
         self.param_transformer = nn.Sequential(            
-            nn.Conv2d(in_dim, self.in_dim*2, 3, 2, 1),
+            nn.Conv2d(in_dim, self.in_dim, 3, 2, 1),
             nn.Conv2d(self.in_dim*2,in_dim,  3, 2, 1),
             Rearrange('b c h w -> b (c h w)'),
         )
         
-        # self.depth_wise_conv = nn.Sequential(
-        #     nn.Conv2d(self.in_dim, self.in_dim, self.merging_size, self.merging_size, groups=self.in_dim),
-        #     Rearrange('b c h w -> b (h w) c')
-        # )
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim*(self.num_patches//16)),
             nn.Linear(self.in_dim*(self.num_patches//16), self.n_output)
