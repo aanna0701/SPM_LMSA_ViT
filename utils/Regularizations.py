@@ -19,7 +19,7 @@ def CosineSimiliarity(x):
         x_norm = torch.div(cat_iden, norm)
         similiarity = einsum('b n c, b l c -> b n l', x_norm, x_norm)
         exp = torch.exp(similiarity[:, :, 1:])
-        positive = exp[:, (0,)]
+        positive = 2*exp[:, (0,)]
         negative = exp[:, 1:]
         mask = 1 - torch.eye(num).cuda(torch.cuda.current_device())
         n = torch.mul(negative, mask)
@@ -28,12 +28,11 @@ def CosineSimiliarity(x):
         numer = positive + sum
         div = torch.div(positive, numer)
         results = -torch.log(div)
+        results = torch.sum(results, dim=-1)
         results = torch.mean(results)
         loss = loss + results
-        
-        # print(loss)
-    
-    return loss/len(x)
+            
+    return loss
 
 def Identity(x):
         

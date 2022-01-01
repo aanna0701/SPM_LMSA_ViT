@@ -165,9 +165,9 @@ class AffineNet(nn.Module):
         param = self.mlp_head(param_attd[:, 0])
         param_list = torch.chunk(param.unsqueeze(1), self.n_trans, dim=-1)
         
-        self.theta = param_list
+        # self.theta = param_list
         out = []
-         
+        theta = [] 
         
         x = self.pre_linear(x)
         x = torch.chunk(x, self.n_trans, dim=1)
@@ -176,7 +176,9 @@ class AffineNet(nn.Module):
                 out.append(self.transformation(x[i], param_list[i], init, scale[i]))
             else:
                 out.append(self.transformation(x[i], param_list[i], init))
+            theta.append(torch.reshape(self.transformation.theta, (self.transformation.theta.size(0), 1, -1)))
               
+        self.theta = theta
         out = torch.cat(out, dim=1)
         out = self.post_linear(out)        
         out = rearrange(out, 'b d h w -> b (h w) d')
@@ -240,9 +242,9 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        # print('========')
-        # print(scale)
-        # print(theta[0])     
+        print('========')
+        print(scale)
+        print(theta[0])     
         
         theta = F.tanh(theta.squeeze(1))
         if scale is not None:
@@ -253,7 +255,7 @@ class Affine(nn.Module):
         theta = theta + init 
         self.theta = theta    
    
-        # print(theta[0])
+        print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
