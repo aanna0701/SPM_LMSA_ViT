@@ -154,7 +154,7 @@ class AffineNet(nn.Module):
         )  
         self.transformation = Affine()
         self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))
-        self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, (1, 1))
+        # self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, (1, 1))
         self.apply(self._init_weights)
         self.theta = None
         
@@ -182,7 +182,7 @@ class AffineNet(nn.Module):
               
         self.theta = theta
         out = torch.cat(out, dim=1)
-        out = self.post_linear(out)        
+        # out = self.post_linear(out)        
         out = rearrange(out, 'b d h w -> b (h w) d')
      
         return out
@@ -204,7 +204,7 @@ class AffineNet(nn.Module):
         flops += self.param_transformer.flops()                 # parameter-transformer
         flops += self.in_dim + self.in_dim*self.n_output    # mlp head
         flops += self.num_patches*self.in_dim*self.hidden_dim    # pre-linear
-        flops += self.num_patches*self.in_dim*self.hidden_dim   # post-linear
+        # flops += self.num_patches*self.in_dim*self.hidden_dim   # post-linear
         
         return flops    
     
