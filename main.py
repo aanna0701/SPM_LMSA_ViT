@@ -91,7 +91,7 @@ def init_parser():
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--n_trans', type=int, default=8, help='The num of trans')
-    parser.add_argument('--gam', default=0, type=float, help='Regularizer')
+    # parser.add_argument('--gam', default=0, type=float, help='Regularizer')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
@@ -843,8 +843,8 @@ if __name__ == '__main__':
     if args.is_LSA:
         model_name += "-LSA"
  
-    if args.gam > 0.:
-        model_name += f"-Iden[{args.gam}]"
+    # if args.gam > 0.:
+        # model_name += f"-Iden[{args.gam}]"
  
     if args.lam > 0.:
         model_name += f"-Sim[{args.lam}]"
