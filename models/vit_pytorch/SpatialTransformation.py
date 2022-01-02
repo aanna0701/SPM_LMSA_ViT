@@ -60,8 +60,10 @@ class Attention(nn.Module):
         self.to_kv = nn.Linear(self.dim, self.inner_dim * 2, bias = False)
         
         self.attend = nn.Softmax(dim = -1)
-        self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
-        self.mix_heads_post_attn = nn.Parameter(torch.randn(heads, heads))        
+        self.mix_heads_pre_attn = nn.Parameter(torch.zeros(heads, heads))
+        self.mix_heads_post_attn = nn.Parameter(torch.zeros(heads, heads))        
+        # self.mix_heads_pre_attn = nn.Parameter(torch.rand(heads, heads))
+        # self.mix_heads_post_attn = nn.Parameter(torch.rand(heads, heads))        
         self.to_out = nn.Sequential(
                 nn.Linear(self.inner_dim, self.dim),
                 nn.Dropout(dropout))
@@ -153,7 +155,7 @@ class AffineNet(nn.Module):
         self.transformation = Affine()
         self.pre_linear = nn.Conv2d(self.in_dim, self.hidden_dim, (1, 1))
         self.post_linear = nn.Conv2d(self.hidden_dim, self.in_dim, (1, 1))
-    
+        self.apply(self._init_weights)
         self.theta = None
         
     def forward(self, param_token, x, init, scale=None):
@@ -164,7 +166,7 @@ class AffineNet(nn.Module):
         param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
         param = self.mlp_head(param_attd[:, 0])
         param_list = torch.chunk(param.unsqueeze(1), self.n_trans, dim=-1)
-        
+        # print(param)
         # self.theta = param_list
         out = []
         theta = [] 
@@ -183,8 +185,18 @@ class AffineNet(nn.Module):
         out = self.post_linear(out)        
         out = rearrange(out, 'b d h w -> b (h w) d')
      
-        
         return out
+    
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            nn.init.xavier_normal_(m.weight)
+            # torch.nn.init.zeros_(m.weight)
+            if m.bias is not None:
+                torch.nn.init.zeros_(m.bias)
+        elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
+            torch.nn.init.zeros_(m.bias)
+            nn.init.constant_(m.weight, 1.0)
+            # torch.nn.init.zeros_(m.weight)
     
     def flops(self):
         flops = 0
@@ -273,32 +285,36 @@ class STT(nn.Module):
         self.in_dim = in_dim
         self.type = type
         self.exist_cls_token = exist_cls_token
+        self.param_token = nn.Parameter(torch.zeros(1, 1, self.in_dim))
+        # self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
         
         if self.type == 'PE':
             if not img_size >= 224:
                 self.input = nn.Conv2d(3, self.in_dim, 3, 1, 1)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim) 
+                self.apply(self._init_weights)
                 self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
                                             is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim) 
+            
             else:
                 self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim)
+                self.apply(self._init_weights)               
                 self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
                                             is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim)   
+                   
            
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
+            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
+            self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
+            self.apply(self._init_weights)
             self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
                                         is_LSA=is_LSA, n_trans=n_trans)
-            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
-
-            self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
-        
-        self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
-                      
+            
         if not init_eps == 0.:
             self.scale_list = nn.ParameterList()  
             for _ in range(n_trans):
@@ -307,7 +323,7 @@ class STT(nn.Module):
         
         self.init = self.make_init().cuda(torch.cuda.current_device())
         self.theta = None                
-        self.apply(self._init_weights)
+        
 
     def make_init(self,):                
         out = torch.tensor([1, 0, 0,
