@@ -20,12 +20,10 @@ class AffineNet(nn.Module):
         
         self.pre_linear = nn.Conv2d(self.in_dim, hidden_dim, (1, 1))
         self.post_linear = nn.Conv2d(hidden_dim, self.in_dim, (1, 1))
-        self.norm = nn.GroupNorm(1, self.in_dim)
         self.theta = list()
     def forward(self, x):
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
-        x = self.norm(x)
         x = self.pre_linear(x)
         out = self.post_linear(x)
         out = rearrange(out, 'b d h w -> b (h w) d')
@@ -76,7 +74,7 @@ class PatchMerging(nn.Module):
      
 
 class STT(nn.Module):
-    def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=64, embed_dim=96, depth=2, heads=4, type='PE', 
+    def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=96, embed_dim=96, depth=2, heads=4, type='PE', n_trans=0,
                  init_eps=0., merging_size=4, is_LSA=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
