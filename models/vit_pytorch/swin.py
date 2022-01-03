@@ -394,7 +394,8 @@ class BasicLayer(nn.Module):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False,
-                 is_base=True, is_coord=False, is_LSA=False, n_trans=4, init_eps=0, pool_heads=4):
+                 is_base=True, is_coord=False, is_LSA=False, n_trans=4, init_eps=0, pool_heads=4,
+                 STT_depth=1):
 
         super().__init__()
         self.dim = dim
@@ -421,7 +422,8 @@ class BasicLayer(nn.Module):
                 self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
             else:
                 self.downsample = STT(img_size=input_resolution[0], patch_size=2, in_dim=dim, embed_dim=dim, 
-                                      type='Pool', heads=pool_heads, depth=1, init_eps=init_eps, is_LSA=True, n_trans=n_trans)
+                                      type='Pool', heads=pool_heads, depth=STT_depth, init_eps=init_eps, is_LSA=True, 
+                                      n_trans=n_trans, hidden_dim = dim)
                     
         else:
             self.downsample = None
@@ -529,8 +531,8 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, patch_norm=True,
-                 use_checkpoint=False, is_base=True, pe_dim=128, is_coord=False, is_LSA=False,
-                 eps=0., merging_size=2, n_trans=8, STT_head=4, STT_depth=1, is_ape=False
+                 use_checkpoint=False, is_base=True, hidden_dim=128, is_coord=False, is_LSA=False,
+                 eps=0., n_trans=8, STT_head=4, STT_depth=1, is_ape=False
                  ,**kwargs):
         super().__init__()
            
@@ -554,7 +556,7 @@ class SwinTransformer(nn.Module):
             self.img_resolution = self.patch_embed.patches_resolution
            
         else:
-            self.patch_embed = STT(img_size=img_size, patch_size=patch_size, in_dim=3, embed_dim=embed_dim, 
+            self.patch_embed = STT(img_size=img_size, patch_size=patch_size, in_dim=3, embed_dim=embed_dim, hidden_dim=hidden_dim,
                                    type='PE', heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, n_trans=n_trans) 
             self.img_resolution = (img_size//patch_size, img_size//patch_size)  
         

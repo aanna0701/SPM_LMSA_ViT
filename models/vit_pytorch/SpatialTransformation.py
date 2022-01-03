@@ -61,9 +61,7 @@ class Attention(nn.Module):
         
         self.attend = nn.Softmax(dim = -1)
         self.mix_heads_pre_attn = nn.Parameter(torch.zeros(heads, heads))
-        self.mix_heads_post_attn = nn.Parameter(torch.zeros(heads, heads))        
-        # self.mix_heads_pre_attn = nn.Parameter(torch.rand(heads, heads))
-        # self.mix_heads_post_attn = nn.Parameter(torch.rand(heads, heads))        
+        self.mix_heads_post_attn = nn.Parameter(torch.zeros(heads, heads))         
         self.to_out = nn.Sequential(
                 nn.Linear(self.inner_dim, self.dim),
                 nn.Dropout(dropout))
@@ -147,16 +145,20 @@ class Transformer(nn.Module):
         return flops
     
 class AffineNet(nn.Module):
-    def __init__(self, num_patches, depth, in_dim, heads, n_trans=4,is_LSA=False):
+    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4,is_LSA=False):
         super().__init__()
         self.in_dim = in_dim
         self.n_trans = n_trans
         self.n_output = 6*self.n_trans
         self.num_patches = num_patches
-        self.param_transformer = Transformer(in_dim, self.n_output, self.num_patches, depth, heads, self.n_output//heads, self.in_dim*2, is_LSA=is_LSA)   
-        self.transformation = Affine()
+        self.hidden_dim = hidden_dim
         if in_dim != 3:
             self.pre_linear = nn.Conv2d(self.in_dim, self.in_dim//n_trans, (1, 1))
+            self.in_dim = self.in_dim//n_trans
+        self.param_transformer = Transformer(in_dim, hidden_dim, self.num_patches, depth, heads, hidden_dim//heads, hidden_dim*2, is_LSA=is_LSA)   
+        self.transformation = Affine()
+        self.linear_param = nn.Linear(hidden_dim, self.n_output)
+        
         self.theta = None
         
     def forward(self, param_token, x, init, scale=None):
@@ -164,7 +166,8 @@ class AffineNet(nn.Module):
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1)))) 
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, x)
-        param_list = torch.chunk(param_attd[:, 0].unsqueeze(1), self.n_trans, dim=-1)
+        param = self.linear_param(param_attd[:, 0])
+        param_list = torch.chunk(param.unsqueeze(1), self.n_trans, dim=-1)
         out = []
         theta = [] 
         
@@ -188,7 +191,8 @@ class AffineNet(nn.Module):
         flops = 0
         flops += self.param_transformer.flops()                 # parameter-transformer
         if self.in_dim !=3 :
-            flops += self.num_patches*self.in_dim*self.in_dim    # pre-linear
+            flops += self.num_patches*self.in_dim*self.in_dim//n_trans   # pre-linear
+        flops += self.hidden_dim * self.n_output
         
         return flops    
     
@@ -258,8 +262,8 @@ class Affine(nn.Module):
         return F.grid_sample(x, grid, padding_mode=self.mode)
     
 class STT(nn.Module):
-    def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., is_LSA=False, merging_size=4, n_trans=4, exist_cls_token=False):
+    def __init__(self, img_size=224, patch_size=2, in_dim=3, hidden_dim=96, embed_dim=96, depth=2, heads=4, type='PE', 
+                 init_eps=0., is_LSA=False, n_trans=4, exist_cls_token=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -269,32 +273,22 @@ class STT(nn.Module):
         self.in_dim = in_dim
         self.type = type
         self.exist_cls_token = exist_cls_token
-        self.param_token = nn.Parameter(torch.zeros(1, 1, n_trans*6))
-        # self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
+        self.param_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
         
         if self.type == 'PE':
-            if not img_size >= 224:
-                # self.input = nn.Conv2d(3, self.in_dim, 3, 1, 1)
-                self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim*(n_trans+1), embed_dim) 
-    
-                self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, heads, 
-                                            is_LSA=is_LSA, n_trans=n_trans)
             
-            else:
-                # self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
-                self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim*(n_trans+1), embed_dim)
-                   
-                self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, heads, 
+            self.rearrange = Rearrange('b c h w -> b (h w) c')      
+            self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim*(n_trans+1), embed_dim) 
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, hidden_dim, heads, 
                                             is_LSA=is_LSA, n_trans=n_trans)
+        
                    
         else:
             # self.input = nn.Identity()
             self.rearrange = nn.Identity()
             self.patch_merge = PatchMerging(self.num_patches, 2, (self.in_dim//n_trans)*(n_trans+1), self.in_dim*2)
             self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
-            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, heads, is_LSA=is_LSA, n_trans=n_trans)
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, hidden_dim, heads, is_LSA=is_LSA, n_trans=n_trans)
             
         if not init_eps == 0.:
             self.scale_list = nn.ParameterList()  
@@ -329,11 +323,8 @@ class STT(nn.Module):
                 x = x[:, 1:]
                 cls = self.cls_proj(cls)
             
-        # x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
-        # x = self.rearrange(x)
-        # out = x + affine
         out = self.patch_merge(affine)
         
         if self.type=='Pool':
