@@ -216,8 +216,8 @@ class Transformer(nn.Module):
         return flops
 class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, channels = 3, 
-                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., hidden_dim=128, is_coord=False, is_LSA=False,
-                 is_base=True, eps=0., merging_size=2, n_trans=8, STT_head=4, STT_depth=1, is_rpe=False, is_ape=False):
+                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=128, is_coord=False, is_LSA=False,
+                 is_base=True, eps=0., down_sizing=2, n_trans=8, STT_head=4, STT_depth=1, is_rpe=False, is_ape=False):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -235,8 +235,8 @@ class ViT(nn.Module):
             )
             
         else:
-            self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=3, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
-                                           ,init_eps=eps, is_LSA=True, hidden_dim = hidden_dim, n_trans=n_trans)
+            self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
+                                           ,init_eps=eps, is_LSA=True, down_sizing=down_sizing, n_trans=n_trans)
                     
         if is_ape:
             self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches + 1, self.dim))
