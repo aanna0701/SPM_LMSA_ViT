@@ -421,7 +421,7 @@ class BasicLayer(nn.Module):
                 self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
             else:
                 self.downsample = STT(img_size=input_resolution[0], patch_size=2, in_dim=dim, embed_dim=dim, 
-                                      type='Pool', heads=16, depth=1, init_eps=init_eps, is_LSA=True, merging_size=2, n_trans=n_trans)
+                                      type='Pool', heads=16, depth=1, init_eps=init_eps, is_LSA=True, n_trans=n_trans)
                     
         else:
             self.downsample = None
@@ -554,8 +554,8 @@ class SwinTransformer(nn.Module):
             self.img_resolution = self.patch_embed.patches_resolution
            
         else:
-            self.patch_embed = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=embed_dim, 
-                                   type='PE', heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans) 
+            self.patch_embed = STT(img_size=img_size, patch_size=patch_size, in_dim=3, embed_dim=embed_dim, 
+                                   type='PE', heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, n_trans=n_trans) 
             self.img_resolution = (img_size//patch_size, img_size//patch_size)  
         
         # absolute position embedding
