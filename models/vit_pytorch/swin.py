@@ -394,7 +394,7 @@ class BasicLayer(nn.Module):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, downsample=False, use_checkpoint=False,
-                 is_base=True, is_coord=False, is_LSA=False, n_trans=4, init_eps=0):
+                 is_base=True, is_coord=False, is_LSA=False, n_trans=4, init_eps=0, pool_heads=4):
 
         super().__init__()
         self.dim = dim
@@ -421,7 +421,7 @@ class BasicLayer(nn.Module):
                 self.downsample = PatchMerging(input_resolution, dim=dim, norm_layer=norm_layer)
             else:
                 self.downsample = STT(img_size=input_resolution[0], patch_size=2, in_dim=dim, embed_dim=dim, 
-                                      type='Pool', heads=16, depth=1, init_eps=init_eps, is_LSA=True, n_trans=n_trans)
+                                      type='Pool', heads=pool_heads, depth=1, init_eps=init_eps, is_LSA=True, n_trans=n_trans)
                     
         else:
             self.downsample = None
@@ -587,7 +587,7 @@ class SwinTransformer(nn.Module):
                                drop=drop_rate, attn_drop=attn_drop_rate,
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer, init_eps=eps,
-                               is_base=is_base, is_LSA=is_LSA, is_coord=is_coord, n_trans=int(n_trans * 2 ** (i_layer+1)),
+                               is_base=is_base, is_LSA=is_LSA, is_coord=is_coord, n_trans=int(n_trans * 2 ** (i_layer+1)), pool_heads=int(STT_head * 2 ** (i_layer+1)),
                                downsample=True if (i_layer < self.num_layers - 1) else False,
                                use_checkpoint=use_checkpoint)
             self.layers.append(layer)
