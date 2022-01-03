@@ -118,7 +118,7 @@ class Transformer(nn.Module):
         for _ in range(depth):
             if not i == 0:
                 self.in_dim = dim
-                dim *= 2
+                
             self.layers.append(nn.ModuleList([
                 nn.Conv2d(self.in_dim, dim, 3, 2, 1),
                 PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_LSA=is_LSA)),
