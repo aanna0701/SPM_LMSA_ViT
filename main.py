@@ -285,7 +285,7 @@ def main(args):
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
                                 is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
-                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_rpe=args.is_rpe, is_ape=args.is_ape
+                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_rpe=args.is_rpe, is_ape=args.is_ape, STT_head=args.STT_head, STT_depth=args.STT_depth,
                                 )
    
     elif args.model =='resnet':
