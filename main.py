@@ -90,14 +90,14 @@ def init_parser():
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
-    parser.add_argument('--n_trans', type=int, default=8, help='The num of trans')
+    parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
     # parser.add_argument('--gam', default=0, type=float, help='Regularizer')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
 
-    parser.add_argument('--merging_size', default=4, type=int)
-    parser.add_argument('--hidden_dim', default=192, type=int)
+    parser.add_argument('--down_sizing', default=2, type=int)
+    parser.add_argument('--pe_dim', default=96, type=int)
     parser.add_argument('--is_base', action='store_true')
     parser.add_argument('--is_coord', action='store_true')
     parser.add_argument('--is_rpe', action='store_true')
@@ -211,9 +211,9 @@ def main(args):
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
         model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
-                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, hidden_dim=args.hidden_dim,
-                    dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, 
+                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
+                    dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, 
+                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, down_sizing=args.down_sizing,
                     STT_head=args.STT_head, STT_depth=args.STT_depth, is_rpe=args.is_rpe, is_ape=args.is_ape)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
@@ -249,7 +249,7 @@ def main(args):
         
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
-                    stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, merging_size=args.merging_size,
+                    stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
                     is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans,
                     STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
@@ -284,7 +284,7 @@ def main(args):
             
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=args.is_base,  merging_size=args.merging_size, eps=args.scale,  hidden_dim=args.hidden_dim, 
+                                is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
                                 is_coord=args.is_coord, is_LSA=args.is_LSA, is_rpe=args.is_rpe, is_ape=args.is_ape
                                 )
    
@@ -856,8 +856,8 @@ if __name__ == '__main__':
         model_name += f"-STT_head[{args.STT_head}]"
         model_name += f"-STT_depth[{args.STT_depth}]"
         model_name += f"-N_trans[{args.n_trans}]"
-        model_name += f"-Hidden_Dim[{args.hidden_dim}]"
-        model_name += f"-Merge[{args.merging_size}]"
+        model_name += f"-Pe_dim[{args.pe_dim}]"
+        model_name += f"-Down_sizing[{args.down_sizing}]"
     model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
