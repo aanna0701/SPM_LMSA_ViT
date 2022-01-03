@@ -98,34 +98,9 @@ class PatchMerging(nn.Module):
         flops = H * W * self.dim
         flops += (H // 2) * (W // 2) * 4 * self.dim * 2 * self.dim
         return flops
-    
-
-class Affine(nn.Module):
-    def __init__(self, padding_mode='zeros'):
-        super().__init__()
-        
-        self.theta = None
-        self.mode = padding_mode
-        
-    def forward(self, x, theta, init, scale=None):
-        
-        
-        if scale is not None:
-            theta = torch.mul(theta, scale)
-        
-        init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
-        theta = torch.reshape(theta, (theta.size(0), 2, 3))    
-        theta = theta + init 
-        self.theta = theta    
-   
-        
-        grid = F.affine_grid(theta, x.size())
-        
-        return F.grid_sample(x, grid, padding_mode=self.mode)
-     
-
+ 
 class STT(nn.Module):
-    def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=64, embed_dim=96, depth=2, heads=4, type='PE', 
+    def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=96, embed_dim=96, depth=2, heads=4, type='PE', 
                  init_eps=0., is_LSA=False, merging_size=4, no_init=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
@@ -138,9 +113,9 @@ class STT(nn.Module):
         
         if type == 'PE':
             in_dim = pa_dim
-            self.input = nn.Conv2d(3, self.in_dim, 3, 1, 1)
+            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c') 
-            self.patch_merge = PatchMerging(patch_size, in_dim, embed_dim)    
+            self.patch_merge = PatchMerging(patch_size//4, in_dim, embed_dim)    
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()

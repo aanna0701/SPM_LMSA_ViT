@@ -12,125 +12,6 @@ from einops import rearrange, repeat
 def exists(val):
     return val is not None
 
-class PreNorm(nn.Module):
-    def __init__(self, dim, fn):
-        super().__init__()
-        self.dim = dim
-        self.norm = nn.LayerNorm(dim)
-        self.fn = fn        
-    def forward(self, x, **kwargs):
-        return self.fn(self.norm(x), **kwargs)    
-    def flops(self):
-        flops = 0
-        flops += self.fn.flops()
-        flops += self.dim        
-        return flops 
-    
-class FeedForward(nn.Module):
-    def __init__(self, dim, hidden_dim, dropout = 0.):
-        super().__init__()
-        self.dim = dim
-        self.hidden_dim = hidden_dim
-        self.net = nn.Sequential(
-            nn.Linear(self.dim, self.hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(self.hidden_dim, self.dim),
-            nn.Dropout(dropout)
-        )
-    def forward(self, x):
-        return self.net(x)    
-    def flops(self):
-        flops = 0
-        flops += self.dim * self.hidden_dim
-        flops += self.dim * self.hidden_dim
-        
-        return flops
-    
-class Attention(nn.Module):
-    def __init__(self, dim, num_patches, heads = 8, dim_head = 64, dropout = 0., is_LSA=False):
-        super().__init__()
-        self.inner_dim = dim_head *  heads
-        self.heads = heads
-        self.scale = dim_head ** -0.5
-        self.dim  = dim
-        self.num_patches = num_patches
-        self.to_q = nn.Linear(self.dim, self.inner_dim, bias = False) 
-        self.to_kv = nn.Linear(self.dim, self.inner_dim * 2, bias = False)
-        
-        self.attend = nn.Softmax(dim = -1)
-        self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
-        self.mix_heads_post_attn = nn.Parameter(torch.randn(heads, heads))        
-        self.to_out = nn.Sequential(
-                nn.Linear(self.inner_dim, self.dim),
-                nn.Dropout(dropout))
-        self.is_LSA = is_LSA
-        if self.is_LSA:
-            self.scale = nn.Parameter(self.scale*torch.ones(heads))
-
-    def forward(self, x, context):
-        b, n, _, h = *x.shape, self.heads
-        
-        if not self.is_LSA:
-            context = torch.cat((x, context), dim = 1)
-        else:    
-            context = context
-                        
-        qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
-        
-        if not self.is_LSA:
-            dots = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale        
-        else:
-            scale = self.scale
-            dots = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((x.size(0), self.heads, 1, 1)))
-
-        dots = einsum('b h i j, h g -> b g i j', dots, self.mix_heads_pre_attn)    # talking heads, pre-softmax
-        attn = self.attend(dots)        
-        attn = einsum('b h i j, h g -> b g i j', attn, self.mix_heads_post_attn)   # talking heads, post-softmax
-
-        out = einsum('b h i j, b h j d -> b h i d', attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
-    def flops(self):
-        flops = 0
-        flops += self.dim * self.inner_dim 
-        flops += self.dim * self.inner_dim * 2 * self.num_patches
-        flops += self.inner_dim * self.num_patches
-        flops += self.inner_dim * self.num_patches
-        flops += self.num_patches   # scaling
-        flops += self.num_patches   # pre-mix
-        flops += self.num_patches   # post-mix
-        flops += self.inner_dim * self.dim
-        
-        return flops
-    
-class Transformer(nn.Module):
-    def __init__(self, dim, num_patches, depth, heads, dim_head, mlp_dim, dropout = 0., layer_dropout = 0., is_LSA=False):
-        super().__init__()
-        self.layers = nn.ModuleList([])
-        self.layer_dropout = layer_dropout
-
-        for _ in range(depth):
-            self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_LSA=is_LSA)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
-            ]))
-                
-    def forward(self, x, context):
-        for attn, ff in self.layers:
-            x = attn(x, context = context) + x
-            x = ff(x) + x
-        return x  
-    
-    def flops(self):
-        flops = 0        
-        for (attn, ff) in self.layers:       
-            flops += attn.flops()
-            flops += ff.flops()
-        
-        return flops
-    
 class AffineNet(nn.Module):
     def __init__(self, num_patches, in_dim, hidden_dim, n_trans=4, merging_size=2):
         super().__init__()
@@ -272,10 +153,10 @@ class STT(nn.Module):
         
         if self.type == 'PE':
             if not img_size >= 224:
-                self.input = nn.Conv2d(3, self.in_dim, 3, 1, 1)
+                self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.affine_net = AffineNet(self.num_patches, self.in_dim, self.in_dim, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim) 
+                self.affine_net = AffineNet(self.num_patches//4, self.in_dim, self.in_dim, n_trans=n_trans)
+                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
             else:
                 self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      

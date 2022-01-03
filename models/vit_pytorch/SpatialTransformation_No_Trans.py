@@ -87,9 +87,9 @@ class STT(nn.Module):
         
         if type == 'PE':
             in_dim = pa_dim
-            self.input = nn.Conv2d(3, self.in_dim, 3, 1, 1)
+            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c')   
-            self.patch_merge = PatchMerging(patch_size, in_dim, embed_dim)      
+            self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)      
             
         else:
             self.input = nn.Identity()
