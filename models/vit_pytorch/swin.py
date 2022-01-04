@@ -622,7 +622,7 @@ class SwinTransformer(nn.Module):
         for i, layer in enumerate(self.layers):
             x = layer(x)
             if not i+1 == len(self.layers):
-                theta.append(self.patch_embed.theta)
+                theta.append(layer.theta)
 
         self.theta = theta
         
