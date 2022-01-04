@@ -20,7 +20,7 @@ def CosineSimiliarity(x, mp=0, mn=1):
         # loss_p = torch.maximum(zeros, positive - mp)
         loss_p = positive
         loss_local = loss_p + loss_n
-        print(loss_local)
+        print(loss_local[:5])
         loss_local = torch.mean(loss_local, dim=-1)
         loss += loss_local
         
