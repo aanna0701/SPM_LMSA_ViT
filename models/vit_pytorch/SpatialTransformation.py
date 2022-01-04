@@ -9,7 +9,6 @@ import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils.coordconv import CoordLinear
 
 def exists(val):
     return val is not None
@@ -165,10 +164,11 @@ class AffineNet(nn.Module):
         param_token = repeat(param_token, '() n d -> b n d', b = x.size(0))
         param_attd = self.param_transformer(param_token, self.depth_wise_conv(x))
         param = self.mlp_head(param_attd[:, 0])
-        param_list = torch.chunk(param, self.n_trans, dim=-1)
+        param_list = torch.chunk(param.unsqueeze(1), self.n_trans, dim=-1)
+        self.theta = param_list
         
         out = []
-        theta = []       
+        # theta = []       
         
         x = self.pre_linear(x)
         x = torch.chunk(x, self.n_trans, dim=1)
@@ -177,11 +177,11 @@ class AffineNet(nn.Module):
                 out.append(self.transformation(x[i], param_list[i], init, scale[i]))
             else:
                 out.append(self.transformation(x[i], param_list[i], init))
-            theta.append(self.transformation.theta)            
+            # theta.append(self.transformation.theta)            
         out = torch.cat(out, dim=1)
         out = self.post_linear(out)        
         out = rearrange(out, 'b d h w -> b (h w) d')
-        self.theta = theta
+        
         
         return out
     
