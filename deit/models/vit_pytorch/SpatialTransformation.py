@@ -8,7 +8,6 @@ import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
-from utils_.coordconv import CoordLinear
 
 def exists(val):
     return val is not None
@@ -133,18 +132,18 @@ class Transformer(nn.Module):
         return flops
     
 class AffineNet(nn.Module):
-    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, merging_size=2, is_LSA=False):
+    def __init__(self, num_patches, depth, in_dim, hidden_dim, heads, n_trans=4, down_sizing=2, is_LSA=False):
         super().__init__()
         self.in_dim = in_dim
         self.n_trans = n_trans
         self.n_output = 6*self.n_trans
         self.hidden_dim = hidden_dim
         self.num_patches = num_patches
-        self.merging_size = merging_size
+        self.down_sizing = down_sizing
         # self.param_transformer = Transformer(self.in_dim*(patch_size**2), num_patches, depth, heads, hidden_dim//heads, self.in_dim)
-        self.param_transformer = Transformer(self.in_dim, self.num_patches//(self.merging_size**2), depth, heads, self.in_dim//heads, self.in_dim*2, is_LSA=is_LSA)       
+        self.param_transformer = Transformer(self.in_dim, self.num_patches//(self.down_sizing**2), depth, heads, self.in_dim//heads, self.in_dim*2, is_LSA=is_LSA)       
         self.depth_wise_conv = nn.Sequential(
-            nn.Conv2d(self.in_dim, self.in_dim, self.merging_size, self.merging_size, groups=self.in_dim),
+            nn.Conv2d(self.in_dim, self.in_dim, self.down_sizing, self.down_sizing, groups=self.in_dim),
             Rearrange('b c h w -> b (h w) c')
         )
         self.mlp_head = nn.Sequential(
@@ -186,7 +185,7 @@ class AffineNet(nn.Module):
     
     def flops(self):
         flops = 0
-        flops += (self.merging_size**2)*self.num_patches*self.hidden_dim    # depth-wise conv
+        flops += (self.down_sizing**2)*self.num_patches*self.hidden_dim    # depth-wise conv
         flops += self.param_transformer.flops()                 # parameter-transformer
         flops += self.in_dim + self.in_dim*self.n_output    # mlp head
         flops += self.num_patches*self.in_dim*self.hidden_dim    # pre-linear
@@ -202,7 +201,7 @@ class PatchMerging(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
     """
 
-    def __init__(self, num_patches, patch_size, dim, out_dim, is_coord=False):
+    def __init__(self, num_patches, patch_size, dim, out_dim):
         super().__init__()
         self.patch_size = patch_size
         self.num_patches = num_patches
@@ -210,8 +209,7 @@ class PatchMerging(nn.Module):
         self.dim = dim
         self.out_dim = out_dim
         self.patch_dim = dim * (patch_size ** 2)
-        self.is_coord = is_coord
-        self.reduction = nn.Linear(self.patch_dim, self.out_dim, bias=False) if not is_coord else CoordLinear(self.patch_dim, self.out_dim, bias=False, exist_cls_token=False)
+        self.reduction = nn.Linear(self.patch_dim, self.out_dim, bias=False)
         self.norm = nn.LayerNorm(self.patch_dim)
         
 
@@ -228,10 +226,7 @@ class PatchMerging(nn.Module):
 
     def flops(self):
         flops = 0
-        if not self.is_coord:
-            flops += (self.num_patches//(self.patch_size**2))*self.patch_dim*self.out_dim
-        else:
-            flops += (self.num_patches//(self.patch_size**2))*(self.patch_dim+2)*self.out_dim
+        flops += (self.num_patches//(self.patch_size**2))*(self.patch_dim+2)*self.out_dim
         flops += (self.num_patches//(self.patch_size**2))*self.patch_dim
         
         return flops
@@ -265,7 +260,7 @@ class Affine(nn.Module):
     
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., is_LSA=False, merging_size=4, n_trans=4, is_coord=False):
+                 init_eps=0., is_LSA=False, down_sizing=4, n_trans=4, exist_cls_token=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -274,27 +269,37 @@ class STT(nn.Module):
         self.num_patches = img_size**2
         self.in_dim = in_dim
         self.type = type
+        self.exist_cls_token = exist_cls_token
         
         if self.type == 'PE':
             if not img_size >= 224:
-                self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
-                self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
-                                            is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim, is_coord=is_coord) 
+                if patch_size > 2:
+                    self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+                    self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                    self.affine_net = AffineNet(self.num_patches//4, depth, self.in_dim, self.in_dim, heads, down_sizing=down_sizing, 
+                                                is_LSA=is_LSA, n_trans=n_trans)
+                    self.patch_merge = PatchMerging(self.num_patches//4, patch_size//2, self.in_dim, embed_dim) 
+                else:
+                    self.input = nn.Conv2d(3, self.in_dim, 3, 1, 1)
+                    self.rearrange = Rearrange('b c h w -> b (h w) c')      
+                    self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, down_sizing=down_sizing, 
+                                                is_LSA=is_LSA, n_trans=n_trans)
+                    self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim) 
             else:
                 self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
+                self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, self.in_dim, heads, down_sizing=down_sizing, 
                                             is_LSA=is_LSA, n_trans=n_trans)
-                self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim, is_coord=is_coord)   
+                self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim)   
            
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, down_sizing=down_sizing, 
                                         is_LSA=is_LSA, n_trans=n_trans)
-            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2, is_coord=is_coord)
+            self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
+            self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
+        
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
                       
         if not init_eps == 0.:
@@ -324,6 +329,12 @@ class STT(nn.Module):
 
     def forward(self, x):
         
+        if self.type=='Pool':
+            if self.cls_proj is not None:
+                cls = x[:, (0, )]
+                x = x[:, 1:]
+                cls = self.cls_proj(cls)
+            
         x = self.input(x)
         affine = self.affine_net(self.param_token, x, self.init, self.scale_list)
         self.theta = self.affine_net.theta
@@ -331,19 +342,31 @@ class STT(nn.Module):
         out = x + affine
         out = self.patch_merge(out)
         
+        if self.type=='Pool':
+            if self.cls_proj is not None:
+                out = torch.cat([cls, out], dim=1)
+        
         return out
     
     def flops(self):
         flops = 0
         if self.type=='PE':
-            # flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
-            
+            if self.img_size < 224:
+                if self.patch_size > 2:
+                    flops_input = (3**2)*3*self.in_dim*((self.img_size//2)**2)
+                else:
+                    flops_input = (3**2)*3*self.in_dim*((self.img_size)**2)
+            else:
+                flops_input = (7**2)*3*self.in_dim*((self.img_size//16)**2)
         else:
-            flops_input = 0
+            if self.cls_proj is not None:
+                flops_input = self.in_dim * self.in_dim*2
+            else:
+                flops_input = 0      
         flops += flops_input
         flops += self.affine_net.flops()   
         flops += self.patch_merge.flops() 
+        
         
         return flops
     

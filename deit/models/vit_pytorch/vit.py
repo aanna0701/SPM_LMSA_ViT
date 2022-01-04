@@ -8,7 +8,7 @@ from utils_.coordconv import CoordLinear
 from utils_.iRPE import build_rpe, get_rpe_config
 # helpers
 def pair(t):
-        return t if isinstance(t, tuple) else (t, t)
+    return t if isinstance(t, tuple) else (t, t)
 
 # classes
 
@@ -28,7 +28,7 @@ class PreNorm(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
     def forward(self, x, **kwargs):
-        return self.fn(self.norm(x), **kwargs)
+        return self.fn(self.norm(x), ** kwargs)
     def flops(self):
         flops = 0        
         flops += self.fn.flops()
@@ -215,8 +215,8 @@ class Transformer(nn.Module):
         return flops
 class ViT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, channels = 3, 
-                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=64, is_coord=False, is_LSA=False,
-                 is_base=True, eps=0., merging_size=4, n_trans=4, STT_head=4, STT_depth=2, is_rpe=False, is_ape=False):
+                 dim_head = 16, dropout = 0., emb_dropout = 0., stochastic_depth=0., pe_dim=128, is_coord=False, is_LSA=False,
+                 is_base=True, eps=0., down_sizing=2, n_trans=8, STT_head=4, STT_depth=1, is_rpe=False, is_ape=False):
         super().__init__()
         image_height, image_width = pair(img_size)
         patch_height, patch_width = pair(patch_size)
@@ -228,7 +228,6 @@ class ViT(nn.Module):
         self.is_coord = is_coord
         self.is_ape = is_ape
         if self.is_base:
-          
             self.to_patch_embedding = nn.Sequential(
                 Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
                 nn.Linear(self.patch_dim, self.dim)
@@ -236,7 +235,7 @@ class ViT(nn.Module):
             
         else:
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
-                                           ,init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans, is_coord=is_coord)
+                                           ,init_eps=eps, is_LSA=True, down_sizing=down_sizing, n_trans=n_trans)
                     
         if is_ape:
             self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches + 1, self.dim))
@@ -257,12 +256,13 @@ class ViT(nn.Module):
 
     def forward(self, img):
         # patch embedding
-        
+        theta = list()
+        scale = list()
         x = self.to_patch_embedding(img)
             
-        if not self.is_base:        
-            self.theta = self.to_patch_embedding.theta
-            self.scale = self.to_patch_embedding.scale_list
+        if not self.is_base:     
+            theta.append(self.to_patch_embedding.theta)   
+            scale.append(self.to_patch_embedding.scale_list)
         
         b, n, _ = x.shape
         
@@ -273,7 +273,10 @@ class ViT(nn.Module):
             x += self.pos_embedding[:, :(n + 1)]
         x = self.dropout(x)
 
-        x = self.transformer(x)      
+        x = self.transformer(x)    
+        
+        self.theta = theta 
+        self.scale = scale
         
         return self.mlp_head(x[:, 0])
 
@@ -281,6 +284,9 @@ class ViT(nn.Module):
         flops = 0
         
         if self.is_base:
+            # if self.is_coord:
+            #     flops_pe = self.num_patches * (self.patch_dim+2) * self.dim
+            # else:
             flops_pe = self.num_patches * self.patch_dim * self.dim 
         else:
             flops_pe = self.to_patch_embedding.flops()        
