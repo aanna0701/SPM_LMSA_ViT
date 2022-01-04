@@ -9,7 +9,6 @@ def CosineSimiliarity(x, mp=0, mn=1):
     loss = 0
     
     
-    
     for x in x:
         zeros = torch.zeros(x[0].size(0), len(x)).cuda(torch.cuda.current_device())
         cat = torch.cat(x, dim=1)

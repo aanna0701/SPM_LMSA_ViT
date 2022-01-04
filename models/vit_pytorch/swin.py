@@ -402,7 +402,7 @@ class BasicLayer(nn.Module):
         self.input_resolution = input_resolution
         self.depth = depth
         self.use_checkpoint = use_checkpoint
-
+        self.is_base = is_base
         
         # build blocks
         self.blocks = nn.ModuleList([
@@ -428,6 +428,7 @@ class BasicLayer(nn.Module):
         else:
             self.downsample = None
 
+        self.theta = None
 
 
     def forward(self, x):
@@ -439,8 +440,9 @@ class BasicLayer(nn.Module):
                 x = blk(x)
         if self.downsample is not None:
              x = self.downsample(x)
-            
-             
+             if not self.is_base:
+                 self.theta = self.downsample.theta
+                         
         return x
 
     def extra_repr(self) -> str:
@@ -601,21 +603,16 @@ class SwinTransformer(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
+        self.theta = None
 
-        # self.n_trans = n_trans
-        # self.is_learn = is_learn
-
-        # self.theta = [0] * (self.n_tokenize)
-        # self.scale = [0] * (self.n_tokenize)  
-    
     def forward_features(self, x):
     
-        k = 0        
+        theta = list()
         
         x = self.patch_embed(x)   
         
         if not self.is_base:        
-            self.theta = self.patch_embed.theta
+            theta.append(self.patch_embed.theta)
             self.scale = self.patch_embed.scale_list
         
         if self.is_ape:
@@ -624,8 +621,11 @@ class SwinTransformer(nn.Module):
         
         for i, layer in enumerate(self.layers):
             x = layer(x)
+            if not i+1 == len(self.layers):
+                theta.append(self.patch_embed.theta)
 
-                
+        self.theta = theta
+        
         x = self.norm(x)  # B L C
         x = self.avgpool(x.transpose(1, 2))  # B C 1
         x = torch.flatten(x, 1)
