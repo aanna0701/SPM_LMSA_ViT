@@ -244,7 +244,7 @@ class Affine(nn.Module):
         # print('========')
         # print(scale)
         # print(theta[0])     
-        
+        self.theta = theta 
         theta = F.tanh(theta)
         if scale is not None:
             theta = torch.mul(theta, scale)
@@ -252,7 +252,7 @@ class Affine(nn.Module):
         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
         theta = theta + init 
-        self.theta = theta    
+           
    
         # print(theta[0])
         
