@@ -95,7 +95,6 @@ def init_parser():
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
     parser.add_argument('--scale', default=0, type=float, help='init noise')
-
     parser.add_argument('--down_sizing', default=2, type=int)
     parser.add_argument('--pe_dim', default=96, type=int)
     parser.add_argument('--is_base', action='store_true')
@@ -105,7 +104,7 @@ def init_parser():
     parser.add_argument('--is_LSA', action='store_true')
     parser.add_argument('--STT_head', default=4, type=int)
     parser.add_argument('--STT_depth', default=1, type=int)
-    
+    parser.add_argument('--margin', default=1, type=float)
     
     # Mixup params
   
@@ -606,7 +605,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 
                 if args.lam != 0.:       
                 
-                    theta = CosineSimiliarity(model.theta)
+                    theta = CosineSimiliarity(model.theta, args.margin)
 
                     loss = loss + args.lam * theta 
                     print(1)                     
@@ -619,7 +618,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                                
                 if args.lam != 0.:  
                     
-                    theta = CosineSimiliarity(model.theta)
+                    theta = CosineSimiliarity(model.theta, args.margin)
                     
                     loss = loss + args.lam * theta
         
@@ -635,7 +634,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
                 
                 if args.lam != 0.: 
-                    theta = CosineSimiliarity(model.theta)
+                    theta = CosineSimiliarity(model.theta, args.margin)
                     
                     loss = loss + args.lam * theta
                     
@@ -649,7 +648,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 loss =  criterion(output, target)
                  
                 if args.lam != 0.:
-                    theta = CosineSimiliarity(model.theta)
+                    theta = CosineSimiliarity(model.theta, args.margin)
                 
                     loss = loss + args.lam * theta
                     
@@ -671,7 +670,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
                     
                     if args.lam != 0.:
-                        theta = CosineSimiliarity(model.theta)
+                        theta = CosineSimiliarity(model.theta, args.margin)
                     
                         loss = loss + args.lam * theta   
                                   
@@ -685,7 +684,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     
                     loss = mixup_criterion(criterion, output, y_a, y_b, lam) 
                     if args.lam != 0.:
-                        theta = CosineSimiliarity(model.theta)
+                        theta = CosineSimiliarity(model.theta, args.margin)
                         
                         loss = loss + args.lam * theta      
                                                  
@@ -699,7 +698,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
           
                 if args.lam != 0.:
                 
-                    theta = CosineSimiliarity(model.theta)
+                    theta = CosineSimiliarity(model.theta, args.margin)
                     
                     loss = loss + args.lam * theta
                     
@@ -714,7 +713,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                                 
             if args.lam != 0.:
             
-                theta = CosineSimiliarity(model.theta)
+                theta = CosineSimiliarity(model.theta, args.margin)
                 
                 loss = loss + args.lam * theta
             
@@ -763,7 +762,7 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             
             if args.lam != 0.:
             
-                theta = CosineSimiliarity(model.theta)
+                theta = CosineSimiliarity(model.theta, args.margin)
                 
                 loss = loss + args.lam * theta
                 
@@ -858,6 +857,7 @@ if __name__ == '__main__':
         model_name += f"-N_trans[{args.n_trans}]"
         model_name += f"-Pe_dim[{args.pe_dim}]"
         model_name += f"-Down_sizing[{args.down_sizing}]"
+        model_name += f"-Positive_Margin[{args.margin}]"
     model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:

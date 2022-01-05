@@ -4,7 +4,7 @@ from torch import einsum
 import torch.nn.functional as F
 import math
 
-def CosineSimiliarity(x, mp=0, mn=1):
+def CosineSimiliarity(x, mp=0, mn=10):
     # print(x)
     loss = 0
         
@@ -20,6 +20,8 @@ def CosineSimiliarity(x, mp=0, mn=1):
         # loss_p = torch.maximum(zeros, positive - mp)
         loss_p = positive
         loss_local = loss_p + loss_n
+        # print(loss_p[:5])
+        # print(loss_n[:5])
         print(loss_local[:5])
         loss_local = torch.mean(loss_local, dim=-1)
         loss += loss_local
