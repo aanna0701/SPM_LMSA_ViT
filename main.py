@@ -102,7 +102,7 @@ def init_parser():
     parser.add_argument('--is_rpe', action='store_true')
     parser.add_argument('--is_ape', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
-    parser.add_argument('--STT_head', default=4, type=int)
+    parser.add_argument('--STT_head', default=1, type=int)
     parser.add_argument('--STT_depth', default=1, type=int)
     parser.add_argument('--margin', default=1, type=float)
     
