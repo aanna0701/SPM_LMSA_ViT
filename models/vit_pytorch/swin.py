@@ -591,7 +591,7 @@ class SwinTransformer(nn.Module):
                                drop=drop_rate, attn_drop=attn_drop_rate,
                                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                                norm_layer=norm_layer, init_eps=eps, STT_depth=STT_depth,
-                               is_base=is_base, is_LSA=is_LSA, is_coord=is_coord, n_trans=int(n_trans * 2 ** (i_layer+1)), pool_heads=int(STT_head * 2 ** (i_layer+1)),
+                               is_base=is_base, is_LSA=is_LSA, is_coord=is_coord, n_trans=n_trans, pool_heads=STT_head,
                                downsample=True if (i_layer < self.num_layers - 1) else False,
                                use_checkpoint=use_checkpoint)
             self.layers.append(layer)
