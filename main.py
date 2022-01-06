@@ -90,7 +90,7 @@ def init_parser():
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
-    parser.add_argument('--n_trans', type=int, default=4, help='The num of trans')
+    parser.add_argument('--n_trans', type=int, default=8, help='The num of trans')
     # parser.add_argument('--gam', default=0, type=float, help='Regularizer')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
@@ -104,7 +104,7 @@ def init_parser():
     parser.add_argument('--is_LSA', action='store_true')
     parser.add_argument('--STT_head', default=1, type=int)
     parser.add_argument('--STT_depth', default=1, type=int)
-    parser.add_argument('--margin', default=1, type=float)
+    parser.add_argument('--margin', default=10, type=float)
     
     # Mixup params
   
@@ -845,19 +845,19 @@ if __name__ == '__main__':
     # if args.gam > 0.:
         # model_name += f"-Iden[{args.gam}]"
  
-    if args.lam > 0.:
-        model_name += f"-Sim[{args.lam}]"
- 
-    if args.scale > 0.:
-        model_name += f"-Scale[{args.scale}]"
-    
+      
     if not args.is_base:
         model_name += f"-STT_head[{args.STT_head}]"
         model_name += f"-STT_depth[{args.STT_depth}]"
         model_name += f"-N_trans[{args.n_trans}]"
         model_name += f"-Pe_dim[{args.pe_dim}]"
         model_name += f"-Down_sizing[{args.down_sizing}]"
-        model_name += f"-Positive_Margin[{args.margin}]"
+        if args.lam > 0.:
+            model_name += f"-Sim[{args.lam}]"
+            model_name += f"-Positive_Margin[{args.margin}]"
+        if args.scale > 0.:
+            model_name += f"-Scale[{args.scale}]"
+            
     model_name += f"-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:

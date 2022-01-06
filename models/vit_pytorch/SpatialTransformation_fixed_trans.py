@@ -23,7 +23,7 @@ class AffineNet(nn.Module):
         self.patch_size = patch_size
           
         self.shift = patch_size//2
-        self.norm = nn.GroupNorm(1, self.in_dim)
+        # self.norm = nn.GroupNorm(1, self.in_dim)
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.in_dim),
             nn.Linear(self.in_dim, n_output)
@@ -39,7 +39,7 @@ class AffineNet(nn.Module):
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
         
-        x = self.norm(x)
+        # x = self.norm(x)
         x = self.pre_linear(x)
         """ 4 diagonal directions """
         # #############################
@@ -115,7 +115,7 @@ class STT(nn.Module):
             in_dim = pa_dim
             self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
             self.rearrange = Rearrange('b c h w -> b (h w) c') 
-            self.patch_merge = PatchMerging(patch_size//4, in_dim, embed_dim)    
+            self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)    
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
