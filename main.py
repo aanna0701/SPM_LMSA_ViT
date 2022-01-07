@@ -94,7 +94,7 @@ def init_parser():
     # parser.add_argument('--gam', default=0, type=float, help='Regularizer')
     parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
     # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
-    parser.add_argument('--scale', default=0, type=float, help='init noise')
+    parser.add_argument('--scale', type=float, help='init noise')
     parser.add_argument('--down_sizing', default=2, type=int)
     parser.add_argument('--pe_dim', default=96, type=int)
     parser.add_argument('--is_base', action='store_true')
@@ -855,7 +855,7 @@ if __name__ == '__main__':
         if args.lam > 0.:
             model_name += f"-Sim[{args.lam}]"
             model_name += f"-Positive_Margin[{args.margin}]"
-        if args.scale > 0.:
+        if args.scale is not None:
             model_name += f"-Scale[{args.scale}]"
             
     model_name += f"-Seed{args.seed}"

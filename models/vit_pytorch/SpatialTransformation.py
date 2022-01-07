@@ -60,8 +60,8 @@ class Attention(nn.Module):
         self.to_kv = nn.Linear(self.dim, self.inner_dim * 2, bias = False)
         
         self.attend = nn.Softmax(dim = -1)
-        self.mix_heads_pre_attn = nn.Parameter(torch.randn(heads, heads))
-        self.mix_heads_post_attn = nn.Parameter(torch.randn(heads, heads))        
+        self.mix_heads_pre_attn = nn.Parameter(torch.zeros(heads, heads))
+        self.mix_heads_post_attn = nn.Parameter(torch.zeros(heads, heads))        
         self.to_out = nn.Sequential(
                 nn.Linear(self.inner_dim, self.dim),
                 nn.Dropout(dropout))
@@ -245,7 +245,7 @@ class Affine(nn.Module):
         print(scale)
         print(theta[0])     
         self.theta = theta 
-        theta = 0.5*F.tanh(theta)
+        theta = F.sigmoid(theta)
         if scale is not None:
             theta = torch.mul(theta, scale)
         
@@ -301,9 +301,9 @@ class STT(nn.Module):
             self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
             self.cls_proj = nn.Linear(self.in_dim, self.in_dim*2) if exist_cls_token else None 
         
-        self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
+        self.param_token = nn.Parameter(torch.zeros(1, 1, self.in_dim))
                       
-        if not init_eps == 0.:
+        if init_eps is not None:
             self.scale_list = nn.ParameterList()  
             for _ in range(n_trans):
                 self.scale_list.append(nn.Parameter(torch.zeros(1, 6).fill_(init_eps)))
