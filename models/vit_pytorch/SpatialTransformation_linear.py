@@ -124,7 +124,7 @@ class Affine(nn.Module):
         print(scale)
         print(theta[0])     
         
-        theta = F.sigmoid(theta)
+        theta = F.tanh(theta)
         if scale is not None:
             theta = torch.mul(theta, scale)
         
