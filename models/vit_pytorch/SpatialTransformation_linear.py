@@ -120,11 +120,11 @@ class Affine(nn.Module):
         self.mode = padding_mode
         
     def forward(self, x, theta, init, scale=None):
-        # print('========')
-        # print(scale)
-        # print(theta[0])     
+        print('========')
+        print(scale)
+        print(theta[0])     
         
-        theta = F.tanh(theta)
+        theta = F.sigmoid(theta)
         if scale is not None:
             theta = torch.mul(theta, scale)
         
@@ -133,7 +133,7 @@ class Affine(nn.Module):
         theta = theta + init 
         self.theta = theta    
    
-        # print(theta[0])
+        print(theta[0])
         
         grid = F.affine_grid(theta, x.size())
         
