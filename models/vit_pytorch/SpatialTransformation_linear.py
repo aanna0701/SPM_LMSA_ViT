@@ -141,7 +141,7 @@ class Affine(nn.Module):
     
 class STT(nn.Module):
     def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., is_LSA=False, merging_size=4, n_trans=4):
+                 init_eps=0., is_LSA=False, down_sizing=4, n_trans=4):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -160,19 +160,19 @@ class STT(nn.Module):
             else:
                 self.input = nn.Conv2d(3, self.in_dim, 7, 4, 2)
                 self.rearrange = Rearrange('b c h w -> b (h w) c')      
-                self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
+                self.affine_net = AffineNet(self.num_patches//16, depth, self.in_dim, self.in_dim, heads, merging_size=down_sizing, 
                                             is_LSA=is_LSA, n_trans=n_trans)
                 self.patch_merge = PatchMerging(self.num_patches//16, patch_size//4, self.in_dim, embed_dim)   
            
         else:
             self.input = nn.Identity()
             self.rearrange = nn.Identity()
-            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=merging_size, 
+            self.affine_net = AffineNet(self.num_patches, depth, self.in_dim, self.in_dim, heads, merging_size=down_sizing, 
                                         is_LSA=is_LSA, n_trans=n_trans)
             self.patch_merge = PatchMerging(self.num_patches, 2, self.in_dim, self.in_dim*2)
         self.param_token = nn.Parameter(torch.rand(1, 1, self.in_dim))
                       
-        if not init_eps == 0.:
+        if init_eps is not None:
             self.scale_list = nn.ParameterList()  
             for _ in range(n_trans):
                 self.scale_list.append(nn.Parameter(torch.zeros(1, 6).fill_(init_eps)))
