@@ -99,7 +99,6 @@ def init_parser():
     parser.add_argument('--pe_dim', default=96, type=int)
     parser.add_argument('--is_base', action='store_true')
     parser.add_argument('--is_coord', action='store_true')
-    parser.add_argument('--is_rpe', action='store_true')
     parser.add_argument('--is_ape', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
     parser.add_argument('--STT_head', default=1, type=int)
@@ -200,7 +199,7 @@ def main(args):
     
     # ViTs
     
-    if not args.is_rpe and not args.is_coord:
+    if not args.is_coord:
         args.is_ape = True
             
     dropout = False
@@ -213,7 +212,7 @@ def main(args):
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
                     dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, 
                     is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, down_sizing=args.down_sizing,
-                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_rpe=args.is_rpe, is_ape=args.is_ape)
+                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
         # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
         # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
@@ -284,7 +283,7 @@ def main(args):
         model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
                                 is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
-                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_rpe=args.is_rpe, is_ape=args.is_ape, STT_head=args.STT_head, STT_depth=args.STT_depth,
+                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_ape=args.is_ape, STT_head=args.STT_head, STT_depth=args.STT_depth,
                                 )
    
     elif args.model =='resnet':
@@ -832,9 +831,6 @@ if __name__ == '__main__':
  
     if args.is_coord:
         model_name += "-Coord"
-    
-    if args.is_rpe:
-        model_name += "-iRPE"
     
     if args.is_ape:
         model_name += "-APE"
