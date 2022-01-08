@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
 import torch
 from torch import nn, einsum
-import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 import math
 from einops import rearrange, repeat
@@ -246,10 +245,11 @@ class Affine(nn.Module):
         print(scale)
         # print(theta[0])     
         self.theta = theta 
-        theta = F.sigmoid(theta)-0.5
-        # theta = F.normalize(theta, dim=(-1))
         if scale is not None:
             theta = torch.mul(theta, scale)
+            
+        theta = F.sigmoid(theta)-0.5
+        # theta = F.normalize(theta, dim=(-1))        
         
         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
