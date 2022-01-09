@@ -257,7 +257,7 @@ def pair(t):
 
 class PiT(nn.Module):
     def __init__(self, *, img_size, patch_size, num_classes, dim, depth, heads, mlp_dim_ratio, dim_head = 64, dropout = 0., emb_dropout = 0., stochastic_depth=0., 
-                is_base=True, pe_dim=128, is_coord=False, is_LSA=False, eps=0., merging_size=2, n_trans=8, STT_head=4, STT_depth=1, is_ape=False):
+                is_base=True, pe_dim=128, is_coord=False, is_LSA=False, eps=0., down_sizing=2, n_trans=8, STT_head=4, STT_depth=1, is_ape=False):
         super(PiT, self).__init__()
         heads = cast_tuple(heads, len(depth))
         self.num_classes = num_classes
@@ -273,13 +273,14 @@ class PiT(nn.Module):
             
         else:
             self.to_patch_embedding = STT(img_size=img_size, patch_size=patch_size, in_dim=pe_dim, embed_dim=dim, type='PE', heads=STT_head, depth=STT_depth
-                                           ,init_eps=eps, is_LSA=True, merging_size=merging_size, n_trans=n_trans)
+                                           ,init_eps=eps, is_LSA=True, down_sizing=down_sizing, n_trans=n_trans)
             output_size = img_size // patch_size
         
         num_patches = output_size ** 2   
         
-
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        self.is_ape = is_ape
+        if is_ape:
+            self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
 
@@ -296,8 +297,8 @@ class PiT(nn.Module):
                     self.layers.append(Pool(output_size, dim))
                     output_size = conv_output_size(output_size, 3, 2, 1)
                 else:
-                    self.layers.append(STT(img_size=output_size, patch_size=2, in_dim=dim, embed_dim=dim, 
-                                      type='Pool', heads=16, depth=1, init_eps=0, is_LSA=True, merging_size=2, n_trans=int(n_trans * 2 ** (ind+1)), exist_cls_token=True))
+                    self.layers.append(STT(img_size=output_size, patch_size=2, in_dim=dim, type='Pool', exist_cls_token=True,
+                                      heads=STT_head, depth=STT_depth, init_eps=eps, is_LSA=True, down_sizing=2, n_trans=n_trans))
                     output_size = output_size // 2
                 dim *= 2
                 
@@ -321,7 +322,8 @@ class PiT(nn.Module):
         b, n, _ = x.shape
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding
+        if self.is_ape:
+            x += self.pos_embedding
         x = self.dropout(x)
 
         # x = self.layers(x, theta)

@@ -248,7 +248,7 @@ def main(args):
         model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
                     mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
                     stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans,
+                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
                     STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
 
