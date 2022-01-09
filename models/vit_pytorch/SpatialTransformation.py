@@ -280,7 +280,6 @@ class STT(nn.Module):
                 self.affine_net = AffineNet(self.num_patches//(patch_size//2)**2, depth, self.in_dim, self.in_dim, heads, down_sizing=down_sizing, 
                                             is_LSA=is_LSA, n_trans=n_trans)
                 self.patch_merge = PatchMerging(self.num_patches//(patch_size//2)**2, 2, self.in_dim, embed_dim) 
-                self.patch_merge = PatchMerging(self.num_patches, patch_size, self.in_dim, embed_dim) 
             
             else:
                 self.input = nn.Conv2d(3, self.in_dim, patch_size//8, patch_size//8)
