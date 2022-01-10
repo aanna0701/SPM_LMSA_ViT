@@ -344,7 +344,7 @@
 #         return flops
 
 from math import sqrt
-from utils.drop_path import DropPath
+from utils_.drop_path import DropPath
 import torch
 from torch import nn, einsum
 from einops import rearrange, repeat

@@ -659,7 +659,7 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import to_2tuple, trunc_normal_
-from utils.drop_path import DropPath
+from utils_.drop_path import DropPath
 import torch
 from .SPT import ShiftedPatchTokenization
 from .Coord import CoordLinear
