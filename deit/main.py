@@ -263,7 +263,7 @@ def main(args):
         #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape, eps=args.scale)
     
     elif args.model == 'pit':
-        from models.vit_pytorch.vit import PiT 
+        from models.vit_pytorch.pit import PiT 
         patch_size = 8
         channel = 96
         heads = (2, 4, 8)
@@ -278,7 +278,7 @@ def main(args):
         #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
     elif args.model == 'swin':
-        from models.vit_pytorch.vit import SwinTransformer  
+        from models.vit_pytorch.swin import SwinTransformer  
         depths = [2, 6, 4]
         num_heads = [3, 6, 12]
         mlp_ratio = 2
