@@ -256,7 +256,7 @@ def main(args):
         from models.vit_pytorch.vit import ViT     
         model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
                     mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=args.pe_dim,
-                    dropout=0, stochastic_depth=0.1, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_coord=args.is_coord)
+                    dropout=0, stochastic_depth=0.1, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
         # model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
         #             mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=args.pe_dim,
         #             dropout=args.drop, stochastic_depth=args.drop_path, is_base=args.is_base, n_trans=args.n_trans, down_sizing=args.down_sizing,
@@ -270,7 +270,7 @@ def main(args):
         depth = (2, 6, 4)    
         model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=channel, 
                     mlp_dim_ratio=4, depth=depth, heads=heads, dim_head=channel//heads[0], dropout=0, 
-                    stochastic_depth=0.1, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_coord=args.is_coord)
+                    stochastic_depth=0.1, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
         # model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=args.channel, 
         #             mlp_dim_ratio=4, depth=depth, heads=args.heads, dim_head=channel//heads[0], dropout=0, 
         #             stochastic_depth=args.drop_path, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
@@ -287,7 +287,7 @@ def main(args):
         
         model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=0.1, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
-                                num_classes=args.nb_classes, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_coord=args.is_coord)
+                                num_classes=args.nb_classes, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
         # model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=args.drop_path, 
         #                         patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
         #                         num_classes=args.nb_classes, is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
