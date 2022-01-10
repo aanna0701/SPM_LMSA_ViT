@@ -14,25 +14,16 @@ from einops import rearrange, repeat
 
 
 class AffineNet(nn.Module):
-    def __init__(self, in_dim, hidden_dim, n_trans=4):
+    def __init__(self, in_dim, hidden_dim):
         super().__init__()
         self.in_dim = in_dim
-        self.n_trans = n_trans
-        n_output = 6*self.n_trans
-            
-        self.mlp_head = nn.Sequential(
-            nn.LayerNorm(self.in_dim),
-            nn.Linear(self.in_dim, n_output)
-        )
         
         self.pre_linear = nn.Conv2d(self.in_dim, hidden_dim, (1, 1))
         self.post_linear = nn.Conv2d(hidden_dim, self.in_dim, (1, 1))
-
         self.theta = list()
     def forward(self, x):
         if len(x.size()) == 3:
             x = rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
-        
         x = self.pre_linear(x)
         out = self.post_linear(x)
         out = rearrange(out, 'b d h w -> b (h w) d')
@@ -83,8 +74,8 @@ class PatchMerging(nn.Module):
      
 
 class STT(nn.Module):
-    def __init__(self, img_size=224, patch_size=2, in_dim=3, embed_dim=96, depth=2, heads=4, type='PE', 
-                 init_eps=0., init_noise=[1e-3, 1e-3], merging_size=4, no_init=False):
+    def __init__(self, img_size=224, patch_size=2, in_dim=3, pa_dim=96, embed_dim=96, depth=2, heads=4, type='PE', n_trans=0,
+                 init_eps=0., merging_size=4, is_LSA=False):
         super().__init__()
         assert type in ['PE', 'Pool'], 'Invalid type!!!'
 
@@ -95,16 +86,17 @@ class STT(nn.Module):
         
         
         if type == 'PE':
-            self.input = nn.Conv2d(3, in_dim, (3, 3), 2, 1)
-            self.rearrange = Rearrange('b c h w -> b (h w) c')         
-            self.affine_net = AffineNet(in_dim, in_dim)
-
+            in_dim = pa_dim
+            self.input = nn.Conv2d(3, self.in_dim, 3, 2, 1)
+            self.rearrange = Rearrange('b c h w -> b (h w) c')   
+            self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)      
+            
         else:
             self.input = nn.Identity()
-            self.rearrange = nn.Identity()
-            self.affine_net = AffineNet(self.num_patches, depth, in_dim, in_dim, heads)    
-
-        self.patch_merge = PatchMerging(patch_size//2, in_dim, embed_dim)
+            self.rearrange = nn.Identity()  
+            self.patch_merge = PatchMerging(patch_size, in_dim, embed_dim)
+            
+        self.affine_net = AffineNet(in_dim, pa_dim)        
 
             
         self.apply(self._init_weights)

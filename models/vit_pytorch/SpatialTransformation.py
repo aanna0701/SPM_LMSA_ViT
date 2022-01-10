@@ -243,7 +243,7 @@ class Affine(nn.Module):
     def forward(self, x, theta, init, scale=None):
         print('========')
         print(scale)
-        print(theta[0])     
+        print(theta[:4])     
         self.theta = theta 
         theta = F.sigmoid(theta)-0.5
         # theta = F.normalize(theta, dim=(-1))
@@ -254,7 +254,7 @@ class Affine(nn.Module):
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
         theta = theta + init 
            
-        print(theta[0])
+        print(theta[:4])
         
         grid = F.affine_grid(theta, x.size())
         

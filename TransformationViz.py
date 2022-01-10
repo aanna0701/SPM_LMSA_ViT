@@ -17,7 +17,6 @@ import seaborn as sns
 colors = sns.color_palette('Paired',16)
 import math
 
-
 class Affine(nn.Module):
     def __init__(self, padding_mode='zeros'):
         super().__init__()
@@ -30,12 +29,9 @@ class Affine(nn.Module):
         print(scale)
         print(theta[0])
         
-        theta = theta.view(theta.size(0), -1)
         
         if scale is not None:
-        
-            theta = torch.mul(theta, scale)
-        
+            theta = torch.mul(theta.unsqueeze(0).view(1, -1), scale)
         
         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
         theta = torch.reshape(theta, (theta.size(0), 2, 3))    
@@ -48,39 +44,7 @@ class Affine(nn.Module):
         
         return F.grid_sample(x, grid, padding_mode=self.mode)
     
-   
-# class Trans_scale(nn.Module):
-#     def __init__(self, padding_mode='zeros'):
-#         super().__init__()
-#         self.mode = padding_mode
-        
-#     def forward(self, x, theta, init, scale=None):
-        
-#         print(x.shape)        
-#         print(theta.shape)        
-#         print(init.shape)        
-#         print(scale.shape)        
-        
-        
-#         init = torch.reshape(init.unsqueeze(0), (1, 2, 3)).expand(x.size(0), -1, -1) 
-#         print('========')
-#         print(theta[0])
-
-#         # theta = torch.mul(theta, self.scale) + init
-#         theta = theta + init if scale is None else torch.mul(theta, scale) + init
-#         # theta = theta + init if scale is None else torch.mul(theta, scale) + torch.mul(init, (1-scale))
-#         # theta = theta 
-#         self.theta = theta
-        
-#         # theta = torch.reshape(theta, (theta.size(0), 2, 3))        
-        
-#         print(theta[0])
-        
-#         grid = F.affine_grid(theta, x.size())
-        
-#         return F.grid_sample(x, grid, padding_mode=self.mode)
-     
-    
+       
 
 def init_parser():
     parser = argparse.ArgumentParser()
@@ -160,59 +124,62 @@ def main(args, save_path):
     trans = Affine()
     
     for i, (images, _) in enumerate(val_dataset):
-        
-        fig_save_path = os.path.join(save_path, f'img{i}')
-        os.makedirs(fig_save_path, exist_ok=True)
-
-        plt.rcParams["figure.figsize"] = (5,5)
-        img_raw = images.cuda(args.gpu, non_blocking=True)
-        print(f'img {i}')       
-        plt.imshow(img_raw.cpu().permute(1, 2, 0))
-        plt.axis('off')
-        plt.savefig(os.path.join(fig_save_path, f'{i}_input.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
-        theta = model(img_raw.unsqueeze(0))
-        init = model.patch_embed.patch_shifting.init
-        scale = model.scale
-        
-        # for scale_list in scale:
-        #     for scale in scale_list:
-        #         print(scale)
-        
-        # print(theta)
-
-        img_2 = transforms.Resize((img_raw.shape[1]//2, img_raw.shape[2]//2))(img_raw)
-        img_4 = transforms.Resize((img_2.shape[1]//2, img_2.shape[2]//2))(img_2)
-        # plt.imshow(img_2.permute(1, 2, 0).cpu().detach().numpy())
-        # plt.savefig(os.path.join(fig_save_path, f'img_2.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
-        
-        # plt.imshow(img_4.permute(1, 2, 0).cpu().detach().numpy())
-        # plt.savefig(os.path.join(fig_save_path, f'img_4.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
-        
-        
-        
-        # theta_list = torch.chunk(theta, 4, dim=1)
-        for i, theta in enumerate(theta):
+        if i == 19:
             
-            if i == 0:
-                for j, theta in enumerate(theta):
-                    img_trans = trans(img_raw.unsqueeze(0), theta, init[j], scale[0][j])    
-                    plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
-                    plt.savefig(os.path.join(fig_save_path, f'{j}_pe.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+            fig_save_path = os.path.join(save_path, f'img{i}')
+            os.makedirs(fig_save_path, exist_ok=True)
 
-                     
-            elif i == 1:   
-                for j, theta in enumerate(theta):
-                    img_trans = trans(img_2.unsqueeze(0), theta, init[j], scale[1][j])    
-                    plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
-                    plt.savefig(os.path.join(fig_save_path, f'{j}_stage1.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+            plt.rcParams["figure.figsize"] = (5,5)
+            img_raw = images.cuda(args.gpu, non_blocking=True)
+            print(f'img {i}')       
+            plt.imshow(img_raw.cpu().permute(1, 2, 0))
+            plt.axis('off')
+            plt.savefig(os.path.join(fig_save_path, f'{i}_input.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+            model(img_raw.unsqueeze(0))
+            theta = model.theta
+            init = model.patch_embed.init_list
+            scale = model.scale
+            
+            # for scale_list in scale:
+            #     for scale in scale_list:
+            #         print(scale)
+            
+            # print(theta)
+
+            img_2 = transforms.Resize((img_raw.shape[1]//2, img_raw.shape[2]//2))(img_raw)
+            img_4 = transforms.Resize((img_2.shape[1]//2, img_2.shape[2]//2))(img_2)
+            # plt.imshow(img_2.permute(1, 2, 0).cpu().detach().numpy())
+            # plt.savefig(os.path.join(fig_save_path, f'img_2.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+            
+            # plt.imshow(img_4.permute(1, 2, 0).cpu().detach().numpy())
+            # plt.savefig(os.path.join(fig_save_path, f'img_4.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+            
+            
+            
+            # theta_list = torch.chunk(theta, 4, dim=1)
+            for i, theta in enumerate(theta):
                 
-            elif i == 2:    
-                for j, theta in enumerate(theta):
-                    img_trans = trans(img_4.unsqueeze(0), theta, init[j], scale[2][j])    
-                    plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
-                    plt.savefig(os.path.join(fig_save_path, f'{j}_stage2.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
-            
-        plt.clf()
+                if i == 0:
+                    for j, theta in enumerate(theta):
+                        img_trans = trans(img_raw.unsqueeze(0), theta, init[j], scale[0][j])    
+                        plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
+                        plt.savefig(os.path.join(fig_save_path, f'{j}_pe.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+
+                        
+                elif i == 1:   
+                    for j, theta in enumerate(theta):
+                        img_trans = trans(img_2.unsqueeze(0), theta, init[j], scale[1][j])    
+                        plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
+                        plt.savefig(os.path.join(fig_save_path, f'{j}_stage1.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+                    
+                elif i == 2:    
+                    for j, theta in enumerate(theta):
+                        img_trans = trans(img_4.unsqueeze(0), theta, init[j], scale[2][j])    
+                        plt.imshow(img_trans.squeeze(0).permute(1, 2, 0).cpu().detach().numpy())
+                        plt.savefig(os.path.join(fig_save_path, f'{j}_stage2.png'), format='png', dpi=400, bbox_inces='tight', pad_inches=0)
+                
+            plt.clf()
+            return
        
 if __name__ == '__main__':
     parser = init_parser()

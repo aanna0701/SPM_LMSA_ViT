@@ -632,21 +632,20 @@ class SwinTransformer(nn.Module):
         return flops
     
 class ShiftedPatchMerging(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False, is_pe=True):
+    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False):
         super().__init__()
         
         self.exist_class_t = exist_class_t
-        self.is_pe = is_pe
         
-        self.patch_shifting = PatchShifting(merging_size, is_pe)
-        
-        patch_dim = (in_dim*5) * (merging_size**2) if is_pe else in_dim * (merging_size**2)
+        self.patch_shifting = PatchShifting(merging_size)
+        self.dim = dim
+        self.patch_dim = (in_dim*5) * (merging_size**2)
         self.class_linear = nn.Linear(in_dim, dim)
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
-            nn.LayerNorm(patch_dim),
-            nn.Linear(patch_dim, dim)
+            nn.LayerNorm(self.patch_dim),
+            nn.Linear(self.patch_dim, self.dim, bias=False)
         )
 
     def forward(self, x):
@@ -665,62 +664,36 @@ class ShiftedPatchMerging(nn.Module):
             out = self.merging(out)    
         
         return out
+    
+    def flops(self, x):
+        
+        L = x.size(1)-1 if self.exist_class_t else x.size(1)
+        
+        layer_norm = L * self.patch_dim * 2
+        linear = L * (2*self.patch_dim-1) * self.dim
+        
+        return layer_norm + linear
 
     
 class PatchShifting(nn.Module):
-    def __init__(self, patch_size, is_pe=True):
+    def __init__(self, patch_size):
         super().__init__()
         self.shift = int(patch_size * (1/2))
-        self.is_pe = is_pe
         
     def forward(self, x):
      
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
-        # if self.is_mean:
-        #     x_pad = x_pad.mean(dim=1, keepdim = True)
+        #############################
         
-        if self.is_pe:
-       
-            """ 4 cardinal directions """
-            #############################
-            # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-            # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-            # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-            # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-            # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1) 
-            #############################
-            
-            """ 4 diagonal directions """
-            # #############################
-            x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
-            x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
-            x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
-            x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-            x_cat = torch.cat([x, x_lu, x_ru, x_lb, x_rb], dim=1) 
-            # #############################
-            
-            """ 8 cardinal directions """
-            #############################
-            # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-            # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-            # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-            # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-            # x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
-            # x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
-            # x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
-            # x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-            # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lu, x_ru, x_lb, x_rb], dim=1) 
-            #############################
-            
-            out = x_cat
+        """ 4 diagonal directions """
+        # #############################
+        x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
+        x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
+        x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
+        x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
+        x_cat = torch.cat([x, x_lu, x_ru, x_lb, x_rb], dim=1) 
+        # #############################
         
-        else:
-            C = x.size(1)
-            x[:, :C//4] = x_pad[:, :C//4, :-self.shift*2, :-self.shift*2]
-            x[:, C//4:C//4*2] = x_pad[:, C//4:C//4*2,:-self.shift*2, self.shift*2:]
-            x[:, C//4*2:C//4*3] = x_pad[:, C//4*2:C//4*3,self.shift*2:, :-self.shift*2]
-            x[:, C//4*3:] = x_pad[:, C//4*3:, self.shift*2:, self.shift*2:]
-            out = x
-        
+        out = x_cat
         
         return out

@@ -21,8 +21,8 @@ from datasets import build_dataset
 from engine import train_one_epoch, evaluate
 from losses import DistillationLoss
 from samplers import RASampler
-import models
 import utils
+import csv
 
 
 def get_args_parser():
@@ -160,6 +160,16 @@ def get_args_parser():
     parser.add_argument('--no-pin-mem', action='store_false', dest='pin_mem',
                         help='')
     parser.set_defaults(pin_mem=True)
+    parser.add_argument('--n_trans', type=int, default=8, help='The num of trans')
+    parser.add_argument('--scale', type=float, help='init noise')
+    parser.add_argument('--down_sizing', default=2, type=int)
+    parser.add_argument('--pe_dim', default=96, type=int)
+    parser.add_argument('--is_base', action='store_true')
+    parser.add_argument('--is_coord', action='store_true')
+    parser.add_argument('--is_ape', action='store_true')
+    parser.add_argument('--is_LSA', action='store_true')
+    parser.add_argument('--STT_head', default=1, type=int)
+    parser.add_argument('--STT_depth', default=1, type=int)
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -172,6 +182,9 @@ def main(args):
     utils.init_distributed_mode(args)
 
     print(args)
+    
+    if not args.is_coord:
+        args.is_ape = True
 
     if args.distillation_type != 'none' and args.finetune and not args.eval:
         raise NotImplementedError("Finetuning with distillation not yet supported")
@@ -241,9 +254,9 @@ def main(args):
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT     
         model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
-                    mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=64,
-                    dropout=args.drop, stochastic_depth=args.drop_path, is_base=True, eps=0, merging_size=4,
-                    is_coord=False, is_LSA=False)
+                    mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=args.pe_dim,
+                    dropout=args.drop, stochastic_depth=args.drop_path, is_base=args.is_base, n_trans=args.n_trans, down_sizing=args.down_sizing,
+                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape, eps=args.scale)
     
     elif args.model == 'pit':
         from models.vit_pytorch.vit import PiT 
@@ -253,7 +266,9 @@ def main(args):
         depth = (2, 6, 4)    
         model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=args.channel, 
                     mlp_dim_ratio=4, depth=depth, heads=args.heads, dim_head=channel//heads[0], dropout=0, 
-                    stochastic_depth=args.drop_path, is_base=True)
+                    stochastic_depth=args.drop_path, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
+                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
+                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
     elif args.model == 'swin':
         from models.vit_pytorch.vit import SwinTransformer  
@@ -265,7 +280,8 @@ def main(args):
         
         model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=args.drop_path, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
-                                num_classes=args.nb_classes, is_base=True
+                                num_classes=args.nb_classes, is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
+                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_ape=args.is_ape, STT_head=args.STT_head, STT_depth=args.STT_depth
                                 )
         
         
@@ -403,6 +419,7 @@ def main(args):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
+    best_writer = csv.writer(open(output_dir + '/best.csv','a', newline=''))
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
@@ -466,7 +483,8 @@ def main(args):
                             'scaler': loss_scaler.state_dict(),
                             'args': args,
                         }, checkpoint_path)
-            
+                
+        best_writer.writerow([epoch, f'Max accuracy: {max_accuracy:.2f}%'])       
         print(f'Max accuracy: {max_accuracy:.2f}%')
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},

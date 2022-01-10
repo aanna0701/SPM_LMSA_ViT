@@ -26,13 +26,15 @@ Borrow from timm(https://github.com/rwightman/pytorch-image-models)
 """
 
 class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
+    def __init__(self, num_tokens, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.num_tokens = num_tokens
+        self.out_features = out_features or in_features
+        self.hidden_features = hidden_features or in_features
+        self.in_features = in_features
+        self.fc1 = nn.Linear(self.in_features, self.hidden_features)
         self.act = act_layer()
-        self.fc2 = nn.Linear(hidden_features, out_features)
+        self.fc2 = nn.Linear(self.hidden_features, self.out_features)
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
@@ -42,33 +44,15 @@ class Mlp(nn.Module):
         x = self.fc2(x)
         x = self.drop(x)
         return x
+    
+    def flops(self):
+        flops = 0
+        
+        flops += self.num_tokens * self.in_features * self.hidden_features
+        flops += self.num_tokens * self.out_features * self.hidden_features
+        
+        return flops 
 
-class Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
-        super().__init__()
-        self.num_heads = num_heads
-        head_dim = dim // num_heads
-
-        self.scale = qk_scale or head_dim ** -0.5
-
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(proj_drop)
-
-    def forward(self, x):
-        B, N, C = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]
-
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        return x
 
 class Block(nn.Module):
 
@@ -81,12 +65,22 @@ class Block(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        self.mlp = Mlp(num_tokens=num_patches,in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        self.num_tokens = num_patches
+        self.dim = dim
 
     def forward(self, x):
         x = x + self.drop_path(self.attn(self.norm1(x)))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
+    
+    def flops(self):
+        flops = 0
+        
+        flops += self.dim * self.num_tokens * 2
+        flops += self.attn.flops()
+        flops += self.mlp.flops()
+        return flops 
 
 
 def get_sinusoid_encoding(n_position, d_hid):
@@ -102,23 +96,29 @@ def get_sinusoid_encoding(n_position, d_hid):
     return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, in_dim = 256, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., num_patches=0):
+    def __init__(self, dim, num_heads=8, in_dim = 256, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., num_patches=0, is_base=True):
         super().__init__()
         self.num_heads = num_heads
         self.in_dim = in_dim
+        self.dim = dim
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5        
-        self.scale = nn.Parameter(self.scale*torch.ones(num_heads))
+        self.num_tokens = num_patches
+        
+        self.is_base = is_base
+        if not self.is_base:
+            self.scale = nn.Parameter(self.scale*torch.ones(num_heads))
+            self.mask = torch.eye(num_patches, num_patches)
+            self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
+            self.inf = float('-inf')
+
 
         self.qkv = nn.Linear(dim, in_dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(in_dim, in_dim)
         self.proj_drop = nn.Dropout(proj_drop)
-        
-        self.mask = torch.eye(num_patches, num_patches)
-        self.mask = torch.nonzero((self.mask == 1), as_tuple=False)
-        self.inf = float('-inf')
 
+        
     def forward(self, x):
         B, N, C = x.shape
         residual = x
@@ -126,15 +126,17 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.in_dim // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        # attn = (q * self.scale) @ k.transpose(-2, -1)
+        if self.is_base:
+            attn = (q * self.scale) @ k.transpose(-2, -1)
         
-        """ LMSA """
-        ############################
-        scale = self.scale
-        attn = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((B, self.num_heads, 1, 1)))
-    
-        attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
-        ############################
+        else:
+            """ LMSA """
+            ############################
+            scale = self.scale
+            attn = torch.mul(einsum('b h i d, b h j d -> b h i j', q, k), scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand((B, self.num_heads, 1, 1)))
+        
+            attn[:, :, self.mask[:, 0], self.mask[:, 1]] = self.inf
+            ############################
         
         
         attn = attn.softmax(dim=-1)
@@ -148,23 +150,47 @@ class Attention(nn.Module):
         x = v.squeeze(1) + x if self.num_heads == 1 else x + residual   # because the original x has different size with current x, use v to do skip connection
 
         return x
+    
+    def flops(self):
+        flops = 0
+        
+        flops += self.dim * self.in_dim * 3 * self.num_tokens
+        flops += self.in_dim * (self.num_tokens**2)
+        flops += self.in_dim * (self.num_tokens**2)
+        flops += self.in_dim * self.dim * self.num_tokens
+        
+        return flops 
 
 class Token_transformer(nn.Module):
 
     def __init__(self, dim, in_dim, num_heads, mlp_ratio=1., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, num_patches=0):
+                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, num_patches=0, is_base=True):
         super().__init__()
-        self.norm1 = norm_layer(dim)
+        self.num_tokens = num_patches
+        self.dim = dim
+        self.in_dim = in_dim
+        self.norm1 = norm_layer(self.dim)
         self.attn = Attention(
-            dim, in_dim=in_dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, num_patches=num_patches)
+            dim, in_dim=in_dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, 
+            proj_drop=drop, num_patches=num_patches, is_base=is_base)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(in_dim)
-        self.mlp = Mlp(in_features=in_dim, hidden_features=int(in_dim*mlp_ratio), out_features=in_dim, act_layer=act_layer, drop=drop)
+        self.norm2 = norm_layer(self.in_dim)
+        self.mlp = Mlp(num_patches, in_features=in_dim, hidden_features=int(in_dim*mlp_ratio), out_features=in_dim, act_layer=act_layer, drop=drop)
 
     def forward(self, x):
         x = self.attn(self.norm1(x))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
+    
+    def flops(self):
+        flops = 0
+        flops += self.num_tokens * self.dim
+        flops += self.attn.flops()
+        flops += self.num_tokens * self.in_dim
+        flops += self.mlp.flops()
+        
+        return flops    
+    
 
 def _cfg(url='', **kwargs):
     return {
@@ -194,18 +220,12 @@ class T2T_module(nn.Module):
     """
     Tokens-to-Token encoding module
     """
-    def __init__(self, img_size=224, in_chans=3, embed_dim=768, token_dim=64):
+    def __init__(self, img_size=224, in_chans=3, embed_dim=768, token_dim=64, is_base=True):
         super().__init__()
         
+        self.is_base = is_base
         print('adopt transformer encoder for tokens-to-token')
         if img_size > 64:
-            """ SPM """
-            ############################
-            # self.soft_split0 = ShiftedPatchMerging(in_chans, token_dim, 4)
-            # self.soft_split1 = ShiftedPatchMerging(token_dim, token_dim)
-            # self.soft_split2 = ShiftedPatchMerging(token_dim, embed_dim)
-            ############################
-            
             """ BASE """
             ############################
             self.soft_split0 = nn.Unfold(kernel_size=(7, 7), stride=(4, 4), padding=(2, 2))
@@ -222,36 +242,24 @@ class T2T_module(nn.Module):
             
 
         elif img_size == 64:
-            """ SPM """
-            ############################
-            # self.soft_split0 = ShiftedPatchMerging(in_chans, token_dim)
-            # self.soft_split1 = ShiftedPatchMerging(token_dim, token_dim)
-            # self.soft_split2 = ShiftedPatchMerging(token_dim, embed_dim)
-            ############################
-            
-            
-            
+                    
             """ BASE """
             ############################
             self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
             self.soft_split1 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
             self.soft_split2 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-            self.project = nn.Linear(token_dim* 5 * 3 * 3, embed_dim)
+            self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
             ############################
             
             self.num_patches = (img_size // (2)) * (img_size // (2))
-            self.attention1 = Token_transformer(dim=in_chans * 5 * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
+            in_chans = in_chans * 5 if not is_base else in_chans
+            self.attention1 = Token_transformer(dim=in_chans * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
             self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
             self.attention2 = Token_transformer(dim=token_dim * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)            
             self.num_patches = (img_size // (2 * 2 * 2)) * (img_size // (2 * 2 * 2))
-
+        
         elif img_size == 32:
-            """ SPM """
-            ############################
-            # self.soft_split0 = ShiftedPatchMerging(in_chans, token_dim)
-            # self.soft_split1 = ShiftedPatchMerging(token_dim, embed_dim)
-            ############################
-            
+        
             """ BASE """
             ############################
             self.soft_split0 = nn.Unfold(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
@@ -259,47 +267,37 @@ class T2T_module(nn.Module):
             self.project = nn.Linear(token_dim * 3 * 3, embed_dim)
             ############################
             self.num_patches = (img_size // (2)) * (img_size // (2))
-            self.attention1 = Token_transformer(dim=token_dim * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
+            in_chans = in_chans * 5 if not is_base else in_chans
+            self.attention1 = Token_transformer(dim=in_chans * 3 * 3, in_dim=token_dim, num_heads=1, mlp_ratio=1.0, num_patches=self.num_patches)
             self.num_patches = (img_size // (2 * 2)) * (img_size // (2 * 2))
-            self.attention2 = None    
+            self.attention2 = None
+        
+        self.proj_flops = token_dim * 3 * 3 * embed_dim * self.num_patches
             
         self.spm = PatchShifting(2)
-        self.norm = nn.LayerNorm(token_dim * 5 * 3 * 3)
     
           # there are 3 sfot split, stride are 4,2,2 seperately
 
     def forward(self, x):
         # step0: soft split
-        """ base """
-        ############################
-        x = self.spm(x)
+        if not self.is_base:
+            x = self.spm(x)
         x = self.soft_split0(x).transpose(1, 2)
-        ############################
-        
-        """ SPM """
-        ############################
-        # x = self.soft_split0(x)
-        ############################
-
+            
+            
         # iteration1: re-structurization/reconstruction
         x = self.attention1(x)
+        
         B, new_HW, C = x.shape
         x = x.transpose(1,2).reshape(B, C, int(np.sqrt(new_HW)), int(np.sqrt(new_HW)))
         # iteration1: soft split
-        """ base """
-        ############################
+        
+       
         x = self.soft_split1(x).transpose(1, 2)
         if self.attention2 is None:
             x = self.project(x)
             return x
-        ############################
-        
-        """ SPM """
-        ############################        
-        # x = self.soft_split1(x)
-        # if self.attention2 is None:
-        #     return x
-        ############################
+            
 
         # iteration2: re-structurization/reconstruction
         x = self.attention2(x)  
@@ -307,44 +305,49 @@ class T2T_module(nn.Module):
         B, new_HW, C = x.shape
         x = x.transpose(1, 2).reshape(B, C, int(np.sqrt(new_HW)), int(np.sqrt(new_HW)))
         # iteration2: soft split
-        """ base """
-        ############################
-        x = self.spm(x)
+        
         x = self.soft_split2(x).transpose(1, 2)
         # final tokens
         x = self.project(x)
-        ########################
         
-        """ SPM """
-        ############################
-        # x = self.soft_split2(x)
-        ###########################
-
+        
         return x
+    
+    def flops(self):
+        flops = 0
+        flops += self.attention1.flops()
+        if self.attention2 is not None:
+            flops += self.attention2.flops() 
+        flops += self.proj_flops
+        
+        return flops    
+    
 
 class T2T_ViT(nn.Module):
     def __init__(self, img_size=224, in_chans=3, num_classes=1000, embed_dim=256, depth=12,
                  num_heads=4, mlp_ratio=2., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., norm_layer=nn.LayerNorm, token_dim=64):
+                 drop_path_rate=0., norm_layer=nn.LayerNorm, token_dim=64, is_base=True):
         super().__init__()
         self.num_classes = num_classes
-        self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
+        self.embed_dim = embed_dim
+        self.num_classes = num_classes
 
         self.tokens_to_token = T2T_module(
-                img_size=img_size, in_chans=in_chans, embed_dim=embed_dim, token_dim=token_dim)
-        num_patches = self.tokens_to_token.num_patches
+                img_size=img_size, in_chans=in_chans, embed_dim=embed_dim, token_dim=token_dim, is_base=is_base)
+        self.num_patches = self.tokens_to_token.num_patches        
+  
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(data=get_sinusoid_encoding(n_position=num_patches + 1, d_hid=embed_dim), requires_grad=False)
+        self.pos_embed = nn.Parameter(data=get_sinusoid_encoding(n_position=self.num_patches + 1, d_hid=embed_dim), requires_grad=False)
         self.pos_drop = nn.Dropout(p=drop_rate)
         
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         self.blocks = nn.ModuleList([
-            Block(
-                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, num_patches=num_patches+1)
+            Block(dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, num_patches=self.num_patches+1)
             for i in range(depth)])
+        
         self.norm = norm_layer(embed_dim)
 
         # Classifier head
@@ -352,6 +355,7 @@ class T2T_ViT(nn.Module):
 
         trunc_normal_(self.cls_token, std=.02)
         self.apply(self._init_weights)
+        
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -361,6 +365,7 @@ class T2T_ViT(nn.Module):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+            
 
     @torch.jit.ignore
     def no_weight_decay(self):
@@ -392,27 +397,43 @@ class T2T_ViT(nn.Module):
         x = self.forward_features(x)
         x = self.head(x)
         return x
+    
+    def flops(self):
+        flops = 0
+        flops += self.tokens_to_token.flops()
+        
+        for blk in self.blocks:
+            flops += blk.flops()
+        
+        flops += self.embed_dim * self.num_patches
+        flops += self.embed_dim * self.num_classes
+        
+        return flops    
+    
+    
 
-from einops import rearrange, repeat
+from einops import rearrange
 from einops.layers.torch import Rearrange
 import math
 
     
 class ShiftedPatchMerging(nn.Module):
-    def __init__(self, in_dim, dim, merging_size=2, exist_class_t=False):
+    def __init__(self, img_size, in_dim, dim, merging_size=2, exist_class_t=False, is_pe=True):
         super().__init__()
         
         self.exist_class_t = exist_class_t
-        
+        self.is_pe = is_pe
+        self.token_length = img_size // merging_size
         self.patch_shifting = PatchShifting(merging_size)
-        
-        patch_dim = (in_dim*5) * (merging_size**2) 
-        self.class_linear = nn.Linear(in_dim, dim)
+        self.in_dim = in_dim
+        self.dim = dim
+        self.patch_dim = (in_dim*5) * (merging_size**2)
+        self.class_linear = nn.Linear(self.in_dim, self.dim)
     
         self.merging = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = merging_size, p2 = merging_size),
-            nn.LayerNorm(patch_dim),
-            nn.Linear(patch_dim, dim)
+            nn.LayerNorm(self.patch_dim),
+            nn.Linear(self.patch_dim, self.dim, bias=False)
         )
 
     def forward(self, x):
@@ -426,11 +447,23 @@ class ShiftedPatchMerging(nn.Module):
             out = torch.cat([out_class, out_visual], dim=1)
         
         else:
+            x = x if self.is_pe else rearrange(x, 'b (h w) d -> b d h w', h=int(math.sqrt(x.size(1))))
             out = self.patch_shifting(x)
-            out = self.merging(out)
-    
+            out = self.merging(out)    
         
         return out
+    
+    def flops(self):
+        flops = 0
+        L = self.token_length**2
+        
+        if self.exist_class_t:
+            flops += self.in_dim * self.dim   # class-token linear      
+        
+        flops += L * self.patch_dim               # layer norm
+        flops += L * self.patch_dim * self.dim    # linear
+        
+        return flops
 
     
 class PatchShifting(nn.Module):
@@ -441,16 +474,6 @@ class PatchShifting(nn.Module):
     def forward(self, x):
      
         x_pad = torch.nn.functional.pad(x, (self.shift, self.shift, self.shift, self.shift))
-        # if self.is_mean:
-        #     x_pad = x_pad.mean(dim=1, keepdim = True)
-        
-        """ 4 cardinal directions """
-        #############################
-        # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2], dim=1) 
         #############################
         
         """ 4 diagonal directions """
@@ -462,21 +485,6 @@ class PatchShifting(nn.Module):
         x_cat = torch.cat([x, x_lu, x_ru, x_lb, x_rb], dim=1) 
         # #############################
         
-        """ 8 cardinal directions """
-        #############################
-        # x_l2 = x_pad[:, :, self.shift:-self.shift, :-self.shift*2]
-        # x_r2 = x_pad[:, :, self.shift:-self.shift, self.shift*2:]
-        # x_t2 = x_pad[:, :, :-self.shift*2, self.shift:-self.shift]
-        # x_b2 = x_pad[:, :, self.shift*2:, self.shift:-self.shift]
-        # x_lu = x_pad[:, :, :-self.shift*2, :-self.shift*2]
-        # x_ru = x_pad[:, :, :-self.shift*2, self.shift*2:]
-        # x_lb = x_pad[:, :, self.shift*2:, :-self.shift*2]
-        # x_rb = x_pad[:, :, self.shift*2:, self.shift*2:]
-        # x_cat = torch.cat([x, x_l2, x_r2, x_t2, x_b2, x_lu, x_ru, x_lb, x_rb], dim=1) 
-        #############################
-        
-        # out = self.out(x_cat)
         out = x_cat
         
         return out
-    

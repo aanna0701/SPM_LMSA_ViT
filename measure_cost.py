@@ -55,9 +55,9 @@ def main():
     # # FLOPs
     
     # print()
-    # print('Swin Flops:',model_base.flops())
-    # print('SL-Swin_wo_pool Flops:',model_sl_wo_pool.flops())
-    # print('SL-Swin Flops:',model_sl.flops())
+    # print('Swin Flops:',format(model_base.flops(), ","))
+    # print('SL-Swin_wo_pool Flops:',format(model_sl_wo_pool.flops(), ","))
+    # print('SL-Swin Flops:',format(model_sl.flops(), ","))
     
     # '''
     # ViT
@@ -94,8 +94,8 @@ def main():
     # # FLOPs
     
     # print()
-    # print('ViT Flops:',model_base.flops())
-    # print('SL-ViT Flops:',model_sl.flops())
+    # print('ViT Flops:',format(model_base.flops(), ","))
+    # print('SL-ViT Flops:',format(model_sl.flops(), ","))
     
     # '''
     # T2T
@@ -124,8 +124,8 @@ def main():
     # # FLOPs
     
     # print()
-    # print('T2T Flops:',model_base.flops())
-    # print('SL-T2T Flops:',model_sl.flops())
+    # print('T2T Flops:',format(model_base.flops(), ","))
+    # print('SL-T2T Flops:',format(model_sl.flops(), ","))
     
     
     # '''
@@ -163,14 +163,14 @@ def main():
     # # FLOPs
     
     
-    # print('CaiT Flops:',model_base.flops())
-    # print('SL-CaiT Flops:',model_sl.flops())
+    # print('CaiT Flops:',format(model_base.flops(), ","))
+    # print('SL-CaiT Flops:',format(model_sl.flops(), ","))
     
     
     
-    # '''
-    # PiT
-    # '''    
+    # # '''
+    # # PiT
+    # # '''    
     
     # from models.vit_pytorch.pit_flops import PiT
        
@@ -202,23 +202,23 @@ def main():
 
         
 
-    # torch.cuda.set_device(GPU)
-    # from torchsummary import summary
-    # def to_gpu_summary(m):        
-    #     m.cuda(GPU)
-    #     summary(m, (3, img_size, img_size))
+    # # torch.cuda.set_device(GPU)
+    # # from torchsummary import summary
+    # # def to_gpu_summary(m):        
+    # #     m.cuda(GPU)
+    # #     summary(m, (3, img_size, img_size))
         
-    # # to_gpu_summary(model_base)
-    # # to_gpu_summary(model_sl_wo_pool)
-    # # to_gpu_summary(model_sl)
+    # # # to_gpu_summary(model_base)
+    # # # to_gpu_summary(model_sl_wo_pool)
+    # # # to_gpu_summary(model_sl)
         
     
     # # ViT FLOPs
     
     # print()
-    # print('PiT Flops:',model_base.flops())
-    # print('SL-PiT_wo_pool Flops:',model_sl_wo_pool.flops())
-    # print('SL-PiT Flops:',model_sl.flops())
+    # print('PiT Flops:',format(model_base.flops(), ","))
+    # print('SL-PiT_wo_pool Flops:',format(model_sl_wo_pool.flops(), ","))
+    # print('SL-PiT Flops:',format(model_sl.flops(), ","))
     
     
     

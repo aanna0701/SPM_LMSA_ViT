@@ -1,3 +1,5 @@
+
+#!/usr/bin/env python
 from utils.autoaug import SVHNPolicy
 from utils.mix import cutmix_data, mixup_data, mixup_criterion
 import numpy as np
@@ -13,7 +15,6 @@ from colorama import Fore, Style
 from torchsummary import summary
 from utils.losses import LabelSmoothingCrossEntropy
 import os
-from utils.sampler import RASampler
 # import models.create_model as m
 from utils.logger_dict import Logger_dict
 from utils.print_progress import progress_bar
@@ -21,17 +22,15 @@ from utils.training_functions import accuracy
 import argparse
 from models.vit_pytorch.git import *
 from utils.scheduler import build_scheduler
-from utils.Regularizations import CosineSimiliarity, Identity
-from utils.throughput import throughput
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import warnings
-warnings.filterwarnings("ignore", category=Warning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
 best_acc1 = 0
+best_acc5 = 0
 input_size = 32
-MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit',
-          'resnet', 'resnet110','effinet', 'effiB7']
+MODELS = ['vit', 'lovit', 'swin', 'g-vit','g-vit2','g-vit3', 'pit', 'cait', 't2t', 'cvt', 'deepvit', 'res56', 'res56_linear']
 
 
 def init_parser():
@@ -75,7 +74,7 @@ def init_parser():
 
     parser.add_argument('--depth', type=int, help='disable cuda')
 
-    parser.add_argument('--tag', type=str, help='tag', default='')
+    parser.add_argument('--tag', type=str, help='tag')
 
     parser.add_argument('--seed', type=int, help='seed')
 
@@ -90,21 +89,7 @@ def init_parser():
     # Augmentation parameters
     parser.add_argument('--aa', action='store_true', help='Auto augmentation used'),
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
-    parser.add_argument('--n_trans', type=int, default=8, help='The num of trans')
-    # parser.add_argument('--gam', default=0, type=float, help='Regularizer')
-    parser.add_argument('--lam', default=0, type=float, help='hyperparameter of similiarity loss')
-    # parser.add_argument('--init_type', default='aistats', choices=['aistats', 'identity'])
-    parser.add_argument('--scale', type=float, help='init noise')
-    parser.add_argument('--down_sizing', default=2, type=int)
-    parser.add_argument('--pe_dim', default=96, type=int)
-    parser.add_argument('--is_base', action='store_true')
-    parser.add_argument('--is_coord', action='store_true')
-    parser.add_argument('--is_ape', action='store_true')
-    parser.add_argument('--is_LSA', action='store_true')
-    parser.add_argument('--STT_head', default=1, type=int)
-    parser.add_argument('--STT_depth', default=1, type=int)
-    parser.add_argument('--margin', default=10, type=float)
-    
+
     # Mixup params
   
     parser.add_argument('--cm',action='store_true' , help='Use Cutmix')
@@ -135,6 +120,7 @@ def init_parser():
 
 def main(args):
     global best_acc1    
+    global best_acc5    
     
     torch.cuda.set_device(args.gpu)
 
@@ -192,6 +178,15 @@ def main(args):
         patch_size = 8
         in_channels = 3
         
+    elif args.dataset == 'M-IMNET':
+        print(Fore.YELLOW+'*'*80)
+        logger.debug('M-IMNET')
+        print('*'*80 + Style.RESET_ALL)
+        n_classes = 64
+        img_mean, img_std = (0.4711, 0.4499, 0.4031), (0.2747, 0.2660, 0.2815)
+        img_size = 84
+        patch_size = 8
+        in_channels = 3
     
     '''
         Model 
@@ -199,28 +194,60 @@ def main(args):
     
     # ViTs
     
-    if not args.is_coord:
-        args.is_ape = True
-            
     dropout = False
     if args.dropout:
         dropout = args.dropout
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT        
         dim_head = args.channel // args.heads
-        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
-                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, pe_dim=args.pe_dim,
-                    dropout=dropout, stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, 
-                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, down_sizing=args.down_sizing,
-                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
-
-        # (n_trans=args.n_trans, is_base=False, is_learn=args.is_trans_learn, init_noise = args.init_type, eps=args.scale, 
-        # padding_mode=args.padding, type_trans=args.type_trans, n_token=args.n_token,
-        # img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
-   
+        model = ViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+    #     model = m.make_ViT(args.depth, args.channel, down_conv=args.down_conv, dropout=dropout, GA=False, heads = args.heads, num_classes=n_classes, in_channels=in_channels, img_size=img_size)
         
+    
+    elif args.model == 'g-vit':
+        from models.vit_pytorch.git import GiT       
+        dim_head = args.channel // args.heads
+        model = GiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd)
+   
+    elif args.model == 'g-vit2':
+        from models.vit_pytorch.git_2 import SwinTransformer       
+        if img_size > 64:
+            depths = [2, 2, 6, 2]
+            num_heads = [3, 6, 12, 24]
+            mlp_ratio = 4
+            window_size = 7
+            patch_size = 4
+        else:
+            depths = [2, 6, 4]
+            num_heads = [3, 6, 12]
+            mlp_ratio = 2
+            window_size = 4
+            patch_size //= 2
+            
+        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+       
+   
+    elif args.model == 'g-vit3':
+        from models.vit_pytorch.git3 import SwinTransformer       
+        if img_size > 64:
+            depths = [2, 2, 6, 2]
+            num_heads = [3, 6, 12, 24]
+            mlp_ratio = 4
+            window_size = 7
+            patch_size = 4
+        else:
+            depths = [2, 6, 4]
+            num_heads = [3, 6, 12]
+            mlp_ratio = 2
+            window_size = 4
+            patch_size //= 2
+            
+        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes)
+       
+    
     elif args.model == 'cait':
         from models.vit_pytorch.cait import CaiT        
+        dim_head = args.channel // args.heads
         if img_size == 64:
             patch_size = 8
         elif img_size == 32:
@@ -228,9 +255,13 @@ def main(args):
         else:
             patch_size = 16
             
-        model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd, is_base=args.is_base,is_LSA=args.is_LSA, is_coord=args.is_coord)
+        model = CaiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
     
-    
+    elif args.model == 'lovit':
+        from models.vit_pytorch.local_vit import LocalViT        
+        dim_head = args.channel // args.heads
+        model = LocalViT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, stochastic_depth=args.sd)
+
     elif args.model == 'pit':
         from models.vit_pytorch.pit import PiT
         if img_size == 32:
@@ -245,12 +276,7 @@ def main(args):
         
         dim_head = args.channel // args.heads[0]
         
-        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, 
-                    mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, 
-                    stochastic_depth=args.sd, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
-                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
-
+        model = PiT(img_size=img_size, patch_size = patch_size, num_classes=n_classes, dim=args.channel, mlp_dim_ratio=2, depth=args.depth, heads=args.heads, dim_head=dim_head, dropout=dropout, stochastic_depth=args.sd, is_base=False)
 
     elif args.model =='t2t':
         from models.vit_pytorch.t2t import T2T_ViT
@@ -264,6 +290,7 @@ def main(args):
         else:
             patch_size = 7
         model = CvT(num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
+        
         
     elif args.model =='swin':
         from models.vit_pytorch.swin import SwinTransformer
@@ -280,45 +307,51 @@ def main(args):
             window_size = 4
             patch_size //= 2
             
-        model = SwinTransformer(n_trans=args.n_trans, img_size=img_size, window_size=window_size, drop_path_rate=args.sd, 
-                                patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, 
-                                is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
-                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_ape=args.is_ape, STT_head=args.STT_head, STT_depth=args.STT_depth,
-                                )
-   
-    elif args.model =='resnet':
+            
+        model = SwinTransformer(img_size=img_size, window_size=window_size, drop_path_rate=args.sd, patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, num_classes=n_classes, is_base=False)
+        
+    elif args.model =='deepvit':
+        from models.vit_pytorch.deepvit import DeepViT
+        model = DeepViT(img_size=img_size, num_classes=n_classes, patch_size=patch_size, stochastic_depth=args.sd)
+        
+    # Convnets
+
+    elif args.model == 'vgg16':
+        from models.conv_cifar_pytoch.vgg import VGG
+        model = VGG('VGG16')
+
+    elif args.model == 'res56':
         from models.conv_cifar_pytoch.resnet import resnet56
-        
-        model = resnet56(num_classes=n_classes)
-   
-    elif args.model =='resnet110':
-        from models.conv_cifar_pytoch.resnet import resnet110
-        
-        model = resnet110(num_classes=n_classes)
-        
-        
-    elif args.model == 'effinet':
-        from models.conv_cifar_pytoch.efficientnet import EfficientNetB0
-        
-        model = EfficientNetB0(num_classes=n_classes)
-        
-        
-    elif args.model == 'effiB7':
-        from models.efficientnet_pytorch.effib7 import EfficientNet
-        
-        model = EfficientNet.from_name(model_name='efficientnet-b7', image_size=img_size , num_classes=n_classes)
-        
+        model = resnet56()
+
+    elif args.model == 'res56_linear':
+        from models.conv_cifar_pytoch.resnet_linear import resnet56
+        model = resnet56()
+
+    elif args.model == 'resxt29':
+        from models.conv_cifar_pytoch.resnext import ResNeXt29_32x4d
+        model = ResNeXt29_32x4d()
+
+    elif args.model == 'mobile2':            
+        from models.conv_cifar_pytoch.mobilenetv2 import MobileNetV2
+        model = MobileNetV2()
+
+    elif args.model == 'dense121':
+        from models.conv_cifar_pytoch.densenet import DenseNet121
+        model = DenseNet121()
     
-    model.cuda(args.gpu)  
+    # elif args.model == 'g-pit':
+    #     model = m.P_GiT_conv(args.channel, num_classes=n_classes, dropout=dropout, in_channels=in_channels, img_size=img_size, down_conv=args.down_conv)
         
     print(Fore.GREEN+'*'*80)
     logger.debug(f"Creating model: {model_name}")    
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.debug(f'Number of params: {format(n_parameters, ",")}')
-    logger.debug(f'FLOPs: {format(model.flops(), ",")}')
+    logger.debug(f'Number of params: {n_parameters}')
     logger.debug(f'Initial learning rate: {args.lr:.6f}')
     logger.debug(f"Start training for {args.epochs} epochs")
     print('*'*80+Style.RESET_ALL)
+    
+    
     
     '''
         Criterion
@@ -333,14 +366,19 @@ def main(args):
     else:
         criterion = nn.CrossEntropyLoss()
     
+    criterion_theta = nn.MSELoss()
         
     if args.sd > 0.:
         print(Fore.YELLOW + '*'*80)
         logger.debug(f'Stochastic depth({args.sd}) used ')
         print('*'*80+Style.RESET_ALL)         
+        
+    '''
+        GPU
+    '''
 
 
-
+    model.cuda(args.gpu)
     criterion = criterion.cuda(args.gpu)
 
     
@@ -360,7 +398,7 @@ def main(args):
         logger.debug('Mixup used')
         print('*'*80 + Style.RESET_ALL)
     if args.ra > 1:        
-        
+        from utils.sampler import RASampler
         print(Fore.YELLOW+'*'*80)
         logger.debug(f'Repeated Aug({args.ra}) used')
         print('*'*80 + Style.RESET_ALL)
@@ -485,11 +523,19 @@ def main(args):
             root=os.path.join(args.data_path, 'tiny_imagenet', 'val'), 
             transform=transforms.Compose([
             transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
-      
+        
+    elif args.dataset == 'M-IMNET':
+    
+        train_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'mini_imagenet_84', 'train'), transform=augmentations)
+        val_dataset = datasets.ImageFolder(
+            root=os.path.join(args.data_path, 'mini_imagenet_84', 'val'), 
+            transform=transforms.Compose([
+            transforms.Resize(img_size), transforms.ToTensor(), *normalize]))
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,  num_workers=args.workers, pin_memory=True,
-        batch_sampler=RASampler(len(train_dataset), args.batch_size, 1, args.ra, shuffle=True, drop_last=True))
+        batch_sampler=RASampler(len(train_dataset), args.batch_size, args.ra, 3, shuffle=True, drop_last=False))
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
     '''
@@ -502,22 +548,18 @@ def main(args):
     # all_params = set(model.parameters())
     # no_wd = set()
     # for m in list(model.parameters()):
-    #     if m.size() == (1, 1):
+    #     if m.size(0) == args.heads:
     #         no_wd.add(m)
     # yes_wd = all_params - no_wd
     
-    # print('*' * 80)
-    # print('No Weight Decay')
-    # print(no_wd)
-    # print('*' * 80)
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     # optimizer = torch.optim.AdamW([{'params': list(no_wd), 'weight_decay': 0}, {'params': list(yes_wd)}], lr=args.lr, weight_decay=args.weight_decay)
     # scheduler = CosineAnnealingWarmupRestarts(optimizer, 300, max_lr=args.lr, min_lr=min_lr, warmup_steps=args.warmup)
     scheduler = build_scheduler(args, optimizer, len(train_loader))
     
-    summary(model, (3, img_size, img_size))
     
+    summary(model, (3, img_size, img_size))
     # print(model)
     
     print()
@@ -538,7 +580,7 @@ def main(args):
     for epoch in tqdm(range(args.epochs)):
         # adjust_learning_rate(optimizer, epoch, args)
         lr = train(train_loader, model, criterion, optimizer, epoch, scheduler, args)
-        acc1 = validate(val_loader, model, criterion, lr, args, epoch=epoch)
+        acc1, acc5 = validate(val_loader, model, criterion, lr, args, epoch=epoch)
         torch.save({
             'model_state_dict': model.state_dict(),
             'epoch': epoch,
@@ -550,15 +592,13 @@ def main(args):
         if acc1 > best_acc1:
             print('* Best model upate *')
             best_acc1 = acc1
-            
-            torch.save({
-                    'model_state_dict': model.state_dict()
-                }
-                           , os.path.join(save_path, 'best.pth'))
- 
+            torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
+        
+        if acc5 > best_acc5:
+            best_acc5 = acc5
             
         
-        print(f'Best acc1 {best_acc1:.2f}')
+        print(f'Best acc1 {best_acc1:.2f}, Best acc5 {best_acc5:.2f}')
         print('*'*80)
         print(Style.RESET_ALL)        
         
@@ -569,22 +609,18 @@ def main(args):
                 
         #         writer.add_scalar(f"Scale/depth{i}_head{idx}", nn.functional.sigmoid(scale), epoch)
         
-
-        
     print(Fore.RED+'*'*80)
-    logger.debug(f'best top-1: {best_acc1:.2f}, final top-1: {acc1:.2f}')
+    logger.debug(f'best top-1: {best_acc1:.2f}, best top-5: {best_acc5:.2f}, final top-1: {acc1:.2f}, final top-5: {acc5:.2f}')
     print('*'*80+Style.RESET_ALL)
     torch.save(model.state_dict(), os.path.join(save_path, 'checkpoint.pth'))
 
 
 def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
     model.train()
-    loss_val, acc1_val = 0, 0
+    loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
     mix = ''
     mix_paramter = 0
-    
-    
     for i, (images, target) in enumerate(train_loader):
         if (not args.no_cuda) and torch.cuda.is_available():
             images = images.cuda(args.gpu, non_blocking=True)
@@ -599,27 +635,12 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                 images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                 output = model(images)
-                
-                loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
-                
-                if args.lam != 0.:       
-                
-                    theta = CosineSimiliarity(model.theta, args.margin)
-
-                    loss = loss + args.lam * theta 
-                    print(1)                     
+                loss = mixup_criterion(criterion, output, y_a, y_b, lam)                
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images)
-                
                 loss = criterion(output, target)
-                               
-                if args.lam != 0.:  
-                    
-                    theta = CosineSimiliarity(model.theta, args.margin)
-                    
-                    loss = loss + args.lam * theta
         
         # Mixup only
         elif not args.cm and args.mu:
@@ -629,29 +650,13 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                 mix_paramter = args.alpha
                 images, y_a, y_b, lam = mixup_data(images, target, args)
                 output = model(images)
-                
-                loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
-                
-                if args.lam != 0.: 
-                    theta = CosineSimiliarity(model.theta, args.margin)
-                    
-                    loss = loss + args.lam * theta
-                    
-                    
+                loss = mixup_criterion(criterion, output, y_a, y_b, lam)
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images)
-                
-                loss =  criterion(output, target)
-                 
-                if args.lam != 0.:
-                    theta = CosineSimiliarity(model.theta, args.margin)
-                
-                    loss = loss + args.lam * theta
-                    
-        
+                loss = criterion(output, target)
         # Both Cutmix and Mixup
         elif args.cm and args.mu:
             r = np.random.rand(1)
@@ -665,14 +670,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     slicing_idx, y_a, y_b, lam, sliced = cutmix_data(images, target, args)
                     images[:, :, slicing_idx[0]:slicing_idx[2], slicing_idx[1]:slicing_idx[3]] = sliced
                     output = model(images)
-                    
-                    loss =  mixup_criterion(criterion, output, y_a, y_b, lam)
-                    
-                    if args.lam != 0.:
-                        theta = CosineSimiliarity(model.theta, args.margin)
-                    
-                        loss = loss + args.lam * theta   
-                                  
+                    loss = mixup_criterion(criterion, output, y_a, y_b, lam)         
                 
                 # Mixup
                 else:
@@ -680,42 +678,21 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
                     mix_paramter = args.alpha
                     images, y_a, y_b, lam = mixup_data(images, target, args)
                     output = model(images)
-                    
-                    loss = mixup_criterion(criterion, output, y_a, y_b, lam) 
-                    if args.lam != 0.:
-                        theta = CosineSimiliarity(model.theta, args.margin)
-                        
-                        loss = loss + args.lam * theta      
-                                                 
+                    loss = mixup_criterion(criterion, output, y_a, y_b, lam)                               
             
             else:
                 mix = 'none'
                 mix_paramter = 0
                 output = model(images)
-                
-                loss = criterion(output, target) 
-          
-                if args.lam != 0.:
-                
-                    theta = CosineSimiliarity(model.theta, args.margin)
-                    
-                    loss = loss + args.lam * theta                    
-           
+                loss = criterion(output, target)     
+        
         # No Mix
         else:
             mix = 'none'
             mix_paramter = 0
             output = model(images)
-                                
             loss = criterion(output, target)
-                                
-            if args.lam != 0.:
-            
-                theta = CosineSimiliarity(model.theta, args.margin)
-                
-                loss = loss + args.lam * theta
-            
-    
+
         acc = accuracy(output, target, (1,))
         acc1 = acc[0]
         n += images.size(0)
@@ -729,24 +706,20 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler,  args):
         lr = optimizer.param_groups[0]["lr"]
 
         if args.print_freq >= 0 and i % args.print_freq == 0:
-            avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
+            avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
             progress_bar(i, len(train_loader),f'[Epoch {epoch+1}/{args.epochs}][T][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.7f}   Mix: {mix} ({mix_paramter})'+' '*10)
 
-        # for i in range(3):
-        #     print('=======================')
-        #     for j in range(4):
-        #         print(model.scale[i][j].item())
     logger_dict.update(keys[0], avg_loss)
     logger_dict.update(keys[1], avg_acc1)
     writer.add_scalar("Loss/train", avg_loss, epoch)
     writer.add_scalar("Acc/train", avg_acc1, epoch)
-    
+
     return lr
 
 
 def validate(val_loader, model, criterion, lr, args, epoch=None):
     model.eval()
-    loss_val, acc1_val = 0, 0
+    loss_val, acc1_val, acc5_val = 0, 0, 0
     n = 0
     with torch.no_grad():
         for i, (images, target) in enumerate(val_loader):
@@ -758,21 +731,17 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
             output = model(images)
             loss = criterion(output, target)
             
-            if args.lam != 0.:
-            
-                theta = CosineSimiliarity(model.theta, args.margin)
-                
-                loss = loss + args.lam * theta          
-                            
             acc = accuracy(output, target, (1, 5))
             acc1 = acc[0]
+            acc5 = acc[1]
             n += images.size(0)
             loss_val += float(loss.item() * images.size(0))
             acc1_val += float(acc1[0] * images.size(0))
+            acc5_val += float(acc5[0] * images.size(0))
 
             if args.print_freq >= 0 and i % args.print_freq == 0:
-                avg_loss, avg_acc1 = (loss_val / n), (acc1_val / n)
-                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   LR: {lr:.6f}')
+                avg_loss, avg_acc1, avg_acc5 = (loss_val / n), (acc1_val / n), (acc5_val / n)
+                progress_bar(i, len(val_loader), f'[Epoch {epoch+1}][V][{i}]   Loss: {avg_loss:.4e}   Top-1: {avg_acc1:6.2f}   Top-5: {avg_acc5:6.2f}   LR: {lr:.6f}')
     print()        
 
     # total_mins = -1 if time_begin is None else (time() - time_begin) / 60
@@ -782,19 +751,12 @@ def validate(val_loader, model, criterion, lr, args, epoch=None):
     
     logger_dict.update(keys[2], avg_loss)
     logger_dict.update(keys[3], avg_acc1)
-    # for i in range(4):
-    #     logger_dict.update(keys[4+i], model.scale[0][i].item())
-    # for i in range(4):
-    #     logger_dict.update(keys[8+i], model.scale[1][i].item())
-    # for i in range(4):
-    #     logger_dict.update(keys[12+i], model.scale[2][i].item())
+    logger_dict.update(keys[4], avg_acc5)
     
     writer.add_scalar("Loss/val", avg_loss, epoch)
     writer.add_scalar("Acc/val", avg_acc1, epoch)
     
-
-    
-    return avg_acc1
+    return avg_acc1, avg_acc5
 
 
 if __name__ == '__main__':
@@ -814,44 +776,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     
-    model_name = args.model
-    
-    if args.model=='vit':
-        model_name +=f"-{args.depth}-{args.heads}-{args.channel}"
-    
-    model_name +=f"-{args.tag}-{args.dataset}-LR[{args.lr}]"
-
-    if args.is_base:
-        model_name += "-Base"
-    else:
-        model_name += "-STT"
- 
-    if args.is_coord:
-        model_name += "-Coord"
-    
-    if args.is_ape:
-        model_name += "-APE"
- 
-    if args.is_LSA:
-        model_name += "-LSA"
- 
-    # if args.gam > 0.:
-        # model_name += f"-Iden[{args.gam}]"
- 
-      
-    if not args.is_base:
-        model_name += f"-STT_head[{args.STT_head}]"
-        model_name += f"-STT_depth[{args.STT_depth}]"
-        model_name += f"-N_trans[{args.n_trans}]"
-        model_name += f"-Pe_dim[{args.pe_dim}]"
-        model_name += f"-Down_sizing[{args.down_sizing}]"
-        if args.lam > 0.:
-            model_name += f"-Sim[{args.lam}]"
-            model_name += f"-Positive_Margin[{args.margin}]"
-        if args.scale is not None:
-            model_name += f"-Scale[{args.scale}]"
-            
-    model_name += f"-Seed{args.seed}"
+    model_name = args.model + f"-{args.depth}-{args.heads}-{args.channel}-{args.dataset}-{args.tag}-Seed{args.seed}"
     save_path = os.path.join(os.getcwd(), 'save', model_name)
     if save_path:
         os.makedirs(save_path, exist_ok=True)
@@ -876,9 +801,6 @@ if __name__ == '__main__':
     global keys
     
     logger_dict = Logger_dict(logger, save_path)
-    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 
-            'ParameterScale_1', 'ParameterScale_2', 'ParameterScale_3', 'ParameterScale_4',
-            'ParameterScale_5', 'ParameterScale_6', 'ParameterScale_7', 'ParameterScale_8',
-            'ParameterScale_9', 'ParameterScale_10', 'ParameterScale_11', 'ParameterScale_12']
+    keys = ['T Loss', 'T Top-1', 'V Loss', 'V Top-1', 'V Top-5']
     
     main(args)
