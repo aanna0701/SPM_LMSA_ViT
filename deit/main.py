@@ -168,6 +168,7 @@ def get_args_parser():
     parser.add_argument('--is_coord', action='store_true')
     parser.add_argument('--is_ape', action='store_true')
     parser.add_argument('--is_LSA', action='store_true')
+    parser.add_argument('--is_SPT', action='store_true')
     parser.add_argument('--STT_head', default=1, type=int)
     parser.add_argument('--STT_depth', default=1, type=int)
 
@@ -255,8 +256,11 @@ def main(args):
         from models.vit_pytorch.vit import ViT     
         model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
                     mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=args.pe_dim,
-                    dropout=args.drop, stochastic_depth=args.drop_path, is_base=args.is_base, n_trans=args.n_trans, down_sizing=args.down_sizing,
-                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape, eps=args.scale)
+                    dropout=args.drop, stochastic_depth=args.drop_path, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_coord=args.is_coord)
+        # model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
+        #             mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=args.pe_dim,
+        #             dropout=args.drop, stochastic_depth=args.drop_path, is_base=args.is_base, n_trans=args.n_trans, down_sizing=args.down_sizing,
+        #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape, eps=args.scale)
     
     elif args.model == 'pit':
         from models.vit_pytorch.vit import PiT 
@@ -266,9 +270,12 @@ def main(args):
         depth = (2, 6, 4)    
         model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=args.channel, 
                     mlp_dim_ratio=4, depth=depth, heads=args.heads, dim_head=channel//heads[0], dropout=0, 
-                    stochastic_depth=args.drop_path, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
-                    is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
-                    STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
+                    stochastic_depth=args.drop_path, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_Coord)
+        # model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=args.channel, 
+        #             mlp_dim_ratio=4, depth=depth, heads=args.heads, dim_head=channel//heads[0], dropout=0, 
+        #             stochastic_depth=args.drop_path, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
+        #             is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
+        #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
     elif args.model == 'swin':
         from models.vit_pytorch.vit import SwinTransformer  
@@ -280,9 +287,12 @@ def main(args):
         
         model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=args.drop_path, 
                                 patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
-                                num_classes=args.nb_classes, is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
-                                is_coord=args.is_coord, is_LSA=args.is_LSA, is_ape=args.is_ape, STT_head=args.STT_head, STT_depth=args.STT_depth
-                                )
+                                num_classes=args.nb_classes, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_Coord)
+        # model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=args.drop_path, 
+        #                         patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
+        #                         num_classes=args.nb_classes, is_base=args.is_base,  down_sizing=args.down_sizing, eps=args.scale,  pe_dim=args.pe_dim, 
+        #                         is_coord=args.is_coord, is_LSA=args.is_LSA, is_ape=args.is_ape, STT_head=args.STT_head, STT_depth=args.STT_depth
+        #                         )
         
         
     else:
