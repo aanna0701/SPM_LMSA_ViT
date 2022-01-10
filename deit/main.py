@@ -255,7 +255,7 @@ def main(args):
     if args.model == 'vit':
         from models.vit_pytorch.vit import ViT     
         model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
-                    mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=args.pe_dim,
+                    mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3,
                     dropout=0, stochastic_depth=0.1, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
         # model = ViT(img_size=args.input_size, patch_size = 16, num_classes=args.nb_classes, dim=192, 
         #             mlp_dim_ratio=4, depth=12, heads=3, dim_head=192//3, pe_dim=args.pe_dim,
