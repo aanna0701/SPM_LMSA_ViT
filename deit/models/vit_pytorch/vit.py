@@ -299,7 +299,7 @@
 
 import torch
 from torch import nn, einsum
-from utils_.drop_path import DropPath
+from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from .SPT import ShiftedPatchTokenization
@@ -427,7 +427,7 @@ class Transformer(nn.Module):
         for i in range(depth):
             self.layers.append(nn.ModuleList([
                 PreNorm(num_patches, dim, Attention(dim, num_patches, heads = heads, dim_head = dim_head, dropout = dropout, is_LSA=is_LSA, is_Coord=is_Coord)),
-                PreNorm(num_patches, dim, FeedForward(dim, num_patches, dim * mlp_dim_ratio, dropout = dropout, is_Coord=is_Coord))
+                PreNorm(num_patches, dim, FeedForward(dim, num_patches, dim * mlp_dim_ratio, dropout = dropout, is_Coord=is_Coord if not i == depth-1 else False))
             ]))            
         self.drop_path = DropPath(stochastic_depth) if stochastic_depth > 0 else nn.Identity()
     
@@ -457,7 +457,7 @@ class ViT(nn.Module):
             )
             
         else:
-            self.to_patch_embedding = ShiftedPatchTokenization(3, self.dim, patch_size, is_pe=True)
+            self.to_patch_embedding = ShiftedPatchTokenization(3, self.dim, patch_size, is_pe=True, is_Coord=is_Coord)
         
         if not is_Coord:
             self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches + 1, self.dim))
