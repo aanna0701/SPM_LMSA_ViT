@@ -262,31 +262,21 @@ def main(args):
         #             dropout=args.drop, stochastic_depth=args.drop_path, is_base=args.is_base, n_trans=args.n_trans, down_sizing=args.down_sizing,
         #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape, eps=args.scale)
     
-    elif args.model == 'pit':
-        from models.vit_pytorch.pit import PiT 
-        patch_size = 8
-        channel = 96
-        heads = (2, 4, 8)
-        depth = (2, 6, 4)    
-        model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=channel, 
-                    mlp_dim_ratio=4, depth=depth, heads=heads, dim_head=channel//heads[0], dropout=0, 
-                    stochastic_depth=0.1, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
-        # model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=args.channel, 
-        #             mlp_dim_ratio=4, depth=depth, heads=args.heads, dim_head=channel//heads[0], dropout=0, 
-        #             stochastic_depth=args.drop_path, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
-        #             is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
-        #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
+    # elif args.model == 'pit':
+    #     from models.vit_pytorch.pit import PiT 
+    #    model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=channel, 
+    #                 mlp_dim_ratio=4, depth=depth, heads=heads, dim_head=channel//heads[0], dropout=0, 
+    #                 stochastic_depth=0.1, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
+    #     # model = PiT(img_size=args.input_size, patch_size = patch_size, num_classes=args.nb_classes, dim=args.channel, 
+    #     #             mlp_dim_ratio=4, depth=depth, heads=args.heads, dim_head=channel//heads[0], dropout=0, 
+    #     #             stochastic_depth=args.drop_path, is_base=args.is_base, eps=args.scale, down_sizing=args.down_sizing,
+    #     #             is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
+    #     #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
     elif args.model == 'swin':
         from models.vit_pytorch.swin import SwinTransformer  
-        depths = [2, 6, 4]
-        num_heads = [3, 6, 12]
-        mlp_ratio = 2
-        window_size = 4
-        patch_size = 8   
-        
-        model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=0.1, 
-                                patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
+
+        model = SwinTransformer(img_size=args.input_size,drop_path_rate=0.1, 
                                 num_classes=args.nb_classes, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
         # model = SwinTransformer(img_size=args.input_size, window_size=window_size, drop_path_rate=args.drop_path, 
         #                         patch_size=patch_size, mlp_ratio=mlp_ratio, depths=depths, num_heads=num_heads, 
