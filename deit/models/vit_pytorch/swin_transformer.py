@@ -386,7 +386,7 @@ class BasicLayer(nn.Module):
             if not is_SPT:
                 self.downsample = downsample(dim=dim, norm_layer=norm_layer)
             else:
-                self.downsample = ShiftedPatchTokenization(dim, dim*2, 2, is_Coord=is_Coord)
+                self.downsample = ShiftedPatchTokenization(dim, dim*2, 2)
         else:
             self.downsample = None
 
@@ -548,7 +548,7 @@ class SwinTransformer(nn.Module):
             norm_layer=norm_layer if self.patch_norm else None)
 
         else:
-            self.patch_embed = ShiftedPatchTokenization(3, embed_dim, patch_size, is_pe=True, is_Coord=is_Coord)
+            self.patch_embed = ShiftedPatchTokenization(3, embed_dim, patch_size, is_pe=True)
 
 
         # absolute position embedding
