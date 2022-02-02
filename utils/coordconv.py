@@ -51,7 +51,7 @@ class CoordLinear(nn.Module):
 
     def __init__(self, in_channels, out_channels, bias=True, with_r=False, exist_cls_token=True):
         super().__init__()
-        self.addcoords = AddCoords1D(with_r=with_r)
+        # self.addcoords = AddCoords1D(with_r=with_r)
         in_size = in_channels+2
         if with_r:
             in_size += 1
@@ -62,10 +62,10 @@ class CoordLinear(nn.Module):
             self.cls_linear = nn.Linear(in_channels, out_channels, bias=bias) 
 
 
-    def forward(self, x):
+    def forward(self, x, coord):
         if self.exist_cls_token:
             cls_token = self.cls_linear(x[:, (0,)]) # (b, 1, d')
-            ret = self.addcoords(x[:, 1:])  # (b, n, d+2) or (b, n, d+3)
+            ret = coord(x[:, 1:])  # (b, n, d+2) or (b, n, d+3)
             ret = self.linear(ret)          # (b, n, d')
             out = torch.cat([cls_token, ret], dim=1)    # (b, n+1, d')
         else:

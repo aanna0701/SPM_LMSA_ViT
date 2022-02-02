@@ -2,7 +2,7 @@ from random import randrange
 import torch
 from torch import nn, einsum
 from .SpatialTransformation import STT
-from utils.coordconv import CoordLinear
+from utils.coordconv import CoordLinear, AddCoords1D
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
@@ -293,6 +293,9 @@ class CaiT(nn.Module):
         self.num_classes = num_classes
         self.is_base = is_base
         self.is_ape = is_ape
+        
+        if is_coord:
+            self.coord = AddCoords1D()
         
         if is_base:
             patch_dim = 3 * patch_size ** 2

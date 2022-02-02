@@ -273,6 +273,12 @@ def main(args):
     #     #             is_coord=args.is_coord, is_LSA=args.is_LSA, n_trans=args.n_trans, pe_dim=args.pe_dim, 
     #     #             STT_head=args.STT_head, STT_depth=args.STT_depth, is_ape=args.is_ape)
 
+    elif args.model == 'swin_2':
+        from models.vit_pytorch.swin_transformer import SwinTransformer  
+
+        model = SwinTransformer(img_size=args.input_size,drop_path_rate=0.1, 
+                                num_classes=args.nb_classes, is_SPT=args.is_SPT, is_LSA=args.is_LSA, is_Coord=args.is_coord)
+    
     elif args.model == 'swin':
         from models.vit_pytorch.swin import SwinTransformer  
 

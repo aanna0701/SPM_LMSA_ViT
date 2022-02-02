@@ -4,7 +4,7 @@ from utils.drop_path import DropPath
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from .SpatialTransformation import STT
-from utils.coordconv import CoordLinear
+from utils.coordconv import CoordLinear, AddCoords1D
 # helpers
  
 def pair(t):
@@ -193,6 +193,10 @@ class ViT(nn.Module):
         self.is_base = is_base
         self.is_coord = is_coord
         self.is_ape = is_ape
+        
+        if is_coord:
+            self.coord = AddCoords1D()
+        
         if self.is_base:
             self.to_patch_embedding = nn.Sequential(
                 Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
