@@ -525,11 +525,12 @@ class SwinTransformer(nn.Module):
                  patch_norm=True,
                  out_indices=(0, 1, 2, 3),
                  frozen_stages=-1,
-                 use_checkpoint=False,
+                 use_checkpoint=False, num_classes=1000,
                  is_SPT=False, is_LSA=False, is_Coord=False):
         super().__init__()
 
-        self.pretrain_img_size = pretrain_img_size
+        self.num_classes = num_classes
+        self.pretrain_img_size = img_size
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
         self.ape = ape if not is_Coord else False
@@ -552,7 +553,7 @@ class SwinTransformer(nn.Module):
 
         # absolute position embedding
         if self.ape:
-            pretrain_img_size = to_2tuple(pretrain_img_size)
+            pretrain_img_size = to_2tuple(img_size)
             patch_size = to_2tuple(patch_size)
             patches_resolution = [pretrain_img_size[0] // patch_size[0], pretrain_img_size[1] // patch_size[1]]
 
@@ -586,6 +587,12 @@ class SwinTransformer(nn.Module):
 
         num_features = [int(embed_dim * 2 ** i) for i in range(self.num_layers)]
         self.num_features = num_features
+        
+        
+        
+        self.norm = norm_layer(self.num_features)
+        self.avgpool = nn.AdaptiveAvgPool1d(1)
+        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
         # add a norm layer for each output
         for i_layer in out_indices:
@@ -650,18 +657,16 @@ class SwinTransformer(nn.Module):
             x = x.flatten(2).transpose(1, 2)
         x = self.pos_drop(x)
 
-        outs = []
         for i in range(self.num_layers):
             layer = self.layers[i]
             x_out, H, W, x, Wh, Ww = layer(x, Wh, Ww)
-            if i in self.out_indices:
-                norm_layer = getattr(self, f'norm{i}')
-                x_out = norm_layer(x_out)
+            
+        x = self.norm(x_out)  # B L C
+        x = self.avgpool(x.transpose(1, 2))  # B C 1
+        x = torch.flatten(x, 1)
+        x = self.head(x)
 
-                out = x_out.view(-1, H, W, self.num_features[i]).permute(0, 3, 1, 2).contiguous()
-                outs.append(out)
-
-        return tuple(outs)
+        return x
 
     def train(self, mode=True):
         """Convert the model into training mode while keep layers freezed."""
