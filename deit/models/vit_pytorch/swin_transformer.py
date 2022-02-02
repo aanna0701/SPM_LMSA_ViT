@@ -590,15 +590,15 @@ class SwinTransformer(nn.Module):
         
         
         
-        self.norm = norm_layer(self.num_features)
+        self.norm = nn.LayerNorm(int(embed_dim * 2 ** (self.num_layers - 1)))
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(int(embed_dim * 2 ** (self.num_layers - 1)), num_classes) if num_classes > 0 else nn.Identity()
 
-        # add a norm layer for each output
-        for i_layer in out_indices:
-            layer = norm_layer(num_features[i_layer])
-            layer_name = f'norm{i_layer}'
-            self.add_module(layer_name, layer)
+        # # add a norm layer for each output
+        # for i_layer in out_indices:
+        #     layer = norm_layer(num_features[i_layer])
+        #     layer_name = f'norm{i_layer}'
+        #     self.add_module(layer_name, layer)
 
         self._freeze_stages()
 
