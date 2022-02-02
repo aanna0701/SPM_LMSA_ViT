@@ -507,7 +507,7 @@ class SwinTransformer(nn.Module):
     """
 
     def __init__(self,
-                 pretrain_img_size=224,
+                 img_size=224,
                  patch_size=4,
                  in_chans=3,
                  embed_dim=96,
