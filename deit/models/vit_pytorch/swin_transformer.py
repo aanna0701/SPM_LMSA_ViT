@@ -427,7 +427,7 @@ class BasicLayer(nn.Module):
                 x = blk(x, attn_mask)
         if self.downsample is not None:
             x_down = self.downsample(x, H, W)
-            Wh, Ww = (H + 1) // 2, (W + 1) // 2
+            Wh, Ww = H // 2, W // 2
             return x, H, W, x_down, Wh, Ww
         else:
             return x, H, W, x, H, W
